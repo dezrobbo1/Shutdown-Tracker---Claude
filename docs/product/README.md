@@ -17,6 +17,17 @@
 - Users, roles, and permissions
 - Offline sync queue
 
+## Control Model
+
+The product control model is now documented before implementation. Backend tables, API endpoints, and frontend workflows should align to these documents before scaffolding begins:
+
+- [Roles and Capabilities](roles-and-capabilities.md)
+- [Permission Matrix](permission-matrix.md)
+- [Approval and Export State Model](approval-export-state-model.md)
+- [Correction and Supersession Rules](correction-and-supersession-rules.md)
+- [Offline Audit and Sync Rules](offline-audit-sync-rules.md)
+- [Critical Watchlist Permissions](critical-watchlist-permissions.md)
+
 ## User Roles
 
 Initial role language should remain generic:
@@ -51,7 +62,7 @@ Initial role language should remain generic:
 
 A Critical Watchlist is a named operational reporting list for one shutdown, area, or purpose. A Critical Work Package is a reporting object, not a scheduling object.
 
-Default Critical Work Package source is a selected Microsoft Project summary task plus all descendants. Future options may include multi-summary grouping and manual grouping.
+Default Critical Work Package source is a selected Microsoft Project summary task plus all descendants. The MVP should also support one Critical WP sourced from multiple summary tasks where a reporting group crosses summary boundaries. Fully manual/arbitrary leaf-task grouping can be deferred.
 
 Reporting policy types should include none, ad hoc, fixed interval, fixed times, shift-based, event-triggered, and custom.
 

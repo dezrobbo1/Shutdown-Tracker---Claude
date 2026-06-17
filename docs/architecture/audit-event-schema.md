@@ -1,0 +1,178 @@
+# Audit Event Schema
+
+## Purpose
+
+Audit events provide a durable record of security, operational, import/export, approval, offline sync, and reporting activity. They support accountability, incident review, export traceability, and regulatory or contract reporting needs.
+
+## Immutable Audit-Event Rule
+
+Audit events are append-only. An audit event must not be edited or deleted in ordinary application workflows. If an event is wrong or incomplete, create a later correction or supersession event that references the original event.
+
+## Baseline Event Model
+
+| Field | Purpose |
+| --- | --- |
+| `event_id` | Stable server-generated audit event identifier. |
+| `project_id` | Project scope for the event. |
+| `event_category` | Broad category such as `task`, `export`, or `permission`. |
+| `event_type` | Specific event type such as `task_completed`. |
+| `event_version` | Schema version for this event shape. |
+| `occurred_at` | Time the user or system action occurred. |
+| `server_received_at` | Time the server accepted the event. |
+| `recorded_at` | Time the audit event was written. |
+| `actor_user_id` | Authenticated user, if any. |
+| `actor_display_name` | Display name at event time for review convenience. |
+| `actor_role` | Effective project role at event time. |
+| `actor_scope` | Project, package, area, contract, or watchlist scope. |
+| `actor_type` | `user`, `service`, `system`, or `integration`. |
+| `target_entity_type` | Entity being acted on, such as task, evidence, or export batch. |
+| `target_entity_id` | Identifier of the entity being acted on. |
+| `target_display_name` | Human-readable target label at event time. |
+| `old_value_summary` | Compact summary of prior value or state. |
+| `new_value_summary` | Compact summary of new value or state. |
+| `reason` | User reason, correction reason, approval note, or system explanation. |
+| `client_context` | Device, app, PWA state, IP class, user agent, and app version where appropriate. |
+| `source_system` | `shutdown_tracker`, `mobile_pwa`, `master_console`, `project_worker`, or external source label. |
+| `correlation_id` | Groups related events across a workflow. |
+| `request_id` | Server request identifier. |
+| `idempotency_key` | Idempotency key for replay-safe operations. |
+| `offline_local_id` | Local queued event identifier from offline workflows. |
+| `project_snapshot_id` | Imported project snapshot related to the event, if relevant. |
+| `export_batch_id` | Export batch related to the event, if relevant. |
+| `evidence_id` | Evidence record related to the event, if relevant. |
+
+## JSON-Like Example
+
+```json
+{
+  "event_id": "aud_01hzzexample",
+  "event_version": 1,
+  "project_id": "prj_123",
+  "event_category": "task",
+  "event_type": "task_completed",
+  "occurred_at": "2026-06-18T08:10:00Z",
+  "server_received_at": "2026-06-18T08:12:22Z",
+  "recorded_at": "2026-06-18T08:12:23Z",
+  "actor": {
+    "user_id": "usr_456",
+    "display_name": "Field User",
+    "role": "Field User",
+    "scope": "package:P-100",
+    "actor_type": "user"
+  },
+  "target": {
+    "entity_type": "task",
+    "entity_id": "task_789",
+    "display_name": "Imported leaf task"
+  },
+  "old_value_summary": {
+    "state": "in_progress",
+    "percent_complete": 80
+  },
+  "new_value_summary": {
+    "state": "completed",
+    "percent_complete": 100
+  },
+  "reason": "Work completed in field",
+  "client_context": {
+    "app": "mobile_pwa",
+    "app_version": "not-implemented-yet",
+    "connectivity": "offline_then_synced"
+  },
+  "source_system": "mobile_pwa",
+  "correlation_id": "corr_abc",
+  "request_id": "req_def",
+  "idempotency_key": "idem_ghi",
+  "offline_local_id": "local_jkl",
+  "project_snapshot_id": "snap_001",
+  "export_batch_id": null,
+  "evidence_id": null
+}
+```
+
+## Event Categories
+
+- `auth`
+- `permission`
+- `project`
+- `import`
+- `reimport`
+- `task`
+- `problem`
+- `action`
+- `evidence`
+- `critical_watchlist`
+- `critical_update`
+- `handover`
+- `approval`
+- `export`
+- `offline_sync`
+- `system`
+
+## Required Event Types
+
+### Project, Permission, and Import
+
+- `project_created`
+- `project_settings_changed`
+- `user_role_changed`
+- `permission_changed`
+- `source_file_uploaded`
+- `import_snapshot_created`
+- `import_warning_reviewed`
+- `reimport_lineage_matched`
+
+### Tasks, Problems, and Actions
+
+- `task_started`
+- `task_paused`
+- `task_resumed`
+- `task_blocked`
+- `task_completed`
+- `task_completion_reversed`
+- `task_approved_for_export`
+- `problem_created`
+- `problem_owner_assigned`
+- `problem_escalated`
+- `problem_closed`
+- `action_created`
+- `action_assigned`
+- `action_completed`
+- `action_verified`
+
+### Evidence, Critical Reporting, and Handover
+
+- `evidence_uploaded`
+- `evidence_linked`
+- `evidence_unlinked`
+- `evidence_superseded`
+- `critical_watchlist_created`
+- `critical_watchlist_archived`
+- `critical_wp_source_added`
+- `critical_wp_source_removed`
+- `reporting_policy_changed`
+- `reporting_period_generated`
+- `critical_update_submitted`
+- `critical_update_corrected`
+- `critical_update_superseded`
+- `handover_submitted`
+
+### Export and Offline Sync
+
+- `export_preview_created`
+- `export_batch_approved`
+- `export_batch_rejected`
+- `export_file_generated`
+- `export_verified_in_project`
+- `offline_event_queued`
+- `offline_event_synced`
+- `offline_event_failed`
+- `offline_conflict_created`
+
+## Design Notes
+
+- Audit event storage should be designed before domain tables are implemented.
+- Offline events need both local capture time and server received time.
+- Export audit events must identify the export batch and the imported project snapshot.
+- Evidence audit events must identify evidence metadata even if the original file is stored in object storage.
+- Permission changes must preserve actor, previous role/scope, new role/scope, and reason.
