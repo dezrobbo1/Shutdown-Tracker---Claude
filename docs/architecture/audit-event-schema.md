@@ -172,6 +172,7 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 ## Design Notes
 
 - Audit event storage should be designed before domain tables are implemented.
+- The baseline SQL migration now exists in [infra/migrations/V004__audit_events.sql](../../infra/migrations/V004__audit_events.sql).
 - Offline events need both local capture time and server received time.
 - Export audit events must identify the export batch and the imported project snapshot.
 - Evidence audit events must identify evidence metadata even if the original file is stored in object storage.

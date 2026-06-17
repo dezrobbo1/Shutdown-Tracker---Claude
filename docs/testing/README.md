@@ -25,6 +25,14 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Test evidence access permissions.
 - Test immutable audit events for critical state changes.
 
+## Migration Validation
+
+- Migrations should apply in version order against a clean PostgreSQL database.
+- Migrations are idempotent through migration tooling only; do not expect raw SQL files to be re-run manually.
+- Future CI should run migrations against a clean PostgreSQL database.
+- Future tests should verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
+- Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
+
 ## Frontend Tests
 
 - Unit test UI state and validation logic.
