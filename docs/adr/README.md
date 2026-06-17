@@ -14,3 +14,13 @@ ADR status values: Draft, Accepted, Superseded, Rejected.
 - [ADR-008: MVP Scope Boundary](ADR-008-mvp-scope-boundary.md)
 - [ADR-009: UX/UI Architecture](ADR-009-ux-ui-architecture.md)
 - [ADR-010: Critical Work Package Reporting](ADR-010-critical-work-package-reporting.md)
+
+## Implementation Guidance
+
+ADR-006 controls audit and approval.
+
+ADR-007 controls schedule authority.
+
+ADR-010 controls Critical Work Package reporting.
+
+The permission, audit, authorization, approval/export, correction/supersession, offline sync, and Critical Watchlist documents provide implementation guidance under those ADRs. This elaborates existing decisions rather than creating a new ADR.
