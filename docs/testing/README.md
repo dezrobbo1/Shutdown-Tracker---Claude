@@ -1,0 +1,44 @@
+# Testing
+
+## Strategy
+
+Testing should protect the Microsoft Project boundary, imported snapshot integrity, auditability, permissions, offline safety, and export correctness.
+
+## Import/Export Fixture Tests
+
+- Keep fixture project files out of Git unless explicitly approved.
+- Store fixture metadata and expected parse outcomes in text form where possible.
+- Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
+- Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks.
+
+## Offline Sync Tests
+
+- Verify queued operations are idempotent.
+- Verify retry behavior is visible and recoverable.
+- Verify Background Sync is not required for correctness.
+- Verify conflicts and blocked sync states do not silently drop field updates.
+
+## Permission and Audit Tests
+
+- Test project-scoped RBAC.
+- Test export approval permissions.
+- Test evidence access permissions.
+- Test immutable audit events for critical state changes.
+
+## Frontend Tests
+
+- Unit test UI state and validation logic.
+- Component test task lists, problem/action forms, evidence flows, and sync indicators.
+- Keep schedule-authoring UI out of the MVP.
+
+## Playwright E2E Tests
+
+- Cover import review, task execution updates, problem/action creation, evidence metadata, handover, export preview, and approval workflows once implemented.
+
+## Manual Microsoft Project Round-Trip Tests
+
+- Import representative Microsoft Project files.
+- Review parse warnings.
+- Generate MSPDI/XML export artifacts.
+- Reopen artifacts in Microsoft Project.
+- Confirm only approved leaf-task progress/actual fields are eligible for export.
