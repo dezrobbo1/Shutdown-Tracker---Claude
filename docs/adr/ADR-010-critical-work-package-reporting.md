@@ -8,7 +8,7 @@ Operations teams need focused reporting for critical work without turning the ap
 
 ## Decision
 
-Model Critical Watchlists as named reporting lists and Critical Work Packages as reporting objects. Default Critical Work Package source is a selected Microsoft Project summary task plus descendants. Reporting policies are configurable and generic.
+Model Critical Watchlists as named reporting lists and Critical Work Packages as reporting objects. A Critical Work Package may be sourced from one imported summary task plus descendants, or from multiple imported summary tasks where one reporting group spans schedule boundaries. Arbitrary manual leaf-task grouping should be deferred unless required by pilot feedback. Reporting policies are configurable and generic.
 
 ## Consequences
 

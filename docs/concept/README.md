@@ -38,7 +38,7 @@ The product must not perform CPM, critical-path calculation, resource levelling,
 
 A Critical Watchlist is a named operational reporting list for one shutdown, area, or purpose. A Critical Work Package is a reporting object, not a scheduling object.
 
-The default Critical Work Package source is a selected Microsoft Project summary task plus all descendants. Future extensions may support multi-summary grouping and manual grouping.
+The default Critical Work Package source is a selected Microsoft Project summary task plus all descendants. The MVP should also support one Critical WP sourced from multiple summary tasks where a reporting group crosses summary boundaries. Fully manual/arbitrary leaf-task grouping can be deferred.
 
 Reporting policies must be configurable and generic. Supported policy types should include none, ad hoc, fixed interval, fixed times, shift-based, event-triggered, and custom. Four-hour reporting is one template, not a hardcoded system rule.
 
