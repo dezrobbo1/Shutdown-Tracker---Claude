@@ -30,3 +30,13 @@
 28. Build export preview endpoint/UI.
 29. Generate first MSPDI export artifact.
 30. Run manual Project reopen test.
+
+## Status Notes
+
+- Task 8, configure PostgreSQL locally: partially addressed by the migration foundation only. PostgreSQL is not running from this repo yet.
+- Task 9, add migrations: addressed with baseline SQL migrations in `infra/migrations`.
+- Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed as baseline SQL.
+- Approval/export batch schema: addressed as baseline SQL.
+- Critical Watchlist reporting schema: addressed as baseline SQL.
+
+This PR does not add Docker Compose, a migration runner, Spring Boot, React/Vite, or application code.
