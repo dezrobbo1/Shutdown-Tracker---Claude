@@ -39,6 +39,14 @@ Version numbers must be monotonically increasing. Do not rename or rewrite appli
 - `V005__approval_and_export_batches.sql`: approval records, export batches, and export batch lines.
 - `V006__critical_watchlists_reporting.sql`: Critical Watchlists, Critical Work Packages, reporting policies, reporting periods, and Critical Updates.
 
+## Local Validation
+
+See [Database Validation Scripts](../../scripts/db/README.md) for the local Docker-based migration validation runner.
+
+Migrations should be validated against a clean PostgreSQL database before merge where possible. The validation scripts apply `infra/migrations/V*.sql` files in sorted version order and verify expected baseline tables.
+
+Raw SQL files are not manually idempotent. Migration tooling should apply each version once.
+
 ## Product Boundary
 
 Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution and reporting authority.

@@ -29,9 +29,11 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 
 - Migrations should apply in version order against a clean PostgreSQL database.
 - Migrations are idempotent through migration tooling only; do not expect raw SQL files to be re-run manually.
+- PRs that add or change migrations should run the local validation scripts in [scripts/db](../../scripts/db) where possible.
 - Future CI should run migrations against a clean PostgreSQL database.
 - Future tests should verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
 - Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
+- Successful local migration validation does not replace later repository, API, service, or end-to-end tests.
 
 ## Frontend Tests
 
