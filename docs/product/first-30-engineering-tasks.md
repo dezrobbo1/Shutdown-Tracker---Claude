@@ -39,7 +39,7 @@
 - Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
 - Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed by PR #3 as baseline SQL.
 - Task 20, implement MPXJ parse spike for MPP/MSPDI: partially addressed by a worker-only import summary spike. It reads an explicitly configured local path and returns counts only; no real fixtures, persistence, export, upload endpoint, or write-back exists.
-- Import/export fixture strategy: addressed with safe fixture policy, text-only manifest schema, and synthetic expected-output examples.
+- Import/export fixture strategy: addressed with safe fixture policy, text-only manifest schema, synthetic expected-output examples, and the first approved synthetic MSPDI import fixture.
 - Approval/export batch schema: addressed as baseline SQL.
 - Critical Watchlist reporting schema: addressed as baseline SQL.
 

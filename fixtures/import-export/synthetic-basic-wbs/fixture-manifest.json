@@ -1,0 +1,25 @@
+{
+  "fixture_id": "synthetic-basic-wbs",
+  "fixture_name": "Synthetic Basic WBS",
+  "fixture_type": "project_file",
+  "source_format": "mspdi_xml",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "sanitisation_reviewed_by": "Shutdown Tracker fixture policy",
+  "sanitisation_reviewed_at": "2026-06-18",
+  "allowed_commit": true,
+  "expected_counts": {
+    "tasks": 6,
+    "summary_tasks": 2,
+    "milestones": 0,
+    "resources": 0,
+    "assignments": 0,
+    "calendars": 1,
+    "custom_fields": 0,
+    "dependencies": 0,
+    "baselines": 0
+  },
+  "warning_count": 0,
+  "error_count": 0,
+  "notes": "Approved synthetic MSPDI fixture with neutral names only. Contains no real project, customer, site, asset, work order, vendor, cost, person, location, or commercial data."
+}

@@ -14,6 +14,8 @@ Fixtures must protect the product boundary: Shutdown Tracker is live execution a
 - Expected parser output JSON generated from safe fixtures.
 - Text-only fixture manifests.
 
+The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. This approval is limited to that reviewed synthetic fixture path and does not permit real Project XML or broad Project-file commits.
+
 ## Prohibited Fixtures
 
 - Real shutdown schedules.
@@ -55,6 +57,7 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 - Parser expectations should focus on task, summary-task, resource, assignment, custom-field, calendar, lineage, and warning counts.
 - Export preview expectations should describe eligible leaf-task progress/actual updates, excluded summary tasks, approval state, and warning counts.
 - Expected outputs must not include real names, work orders, sites, assets, costs, people, vendors, locations, or commercial data.
+- `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` is the first approved expected summary for a synthetic MSPDI import test.
 
 ## Import/Export Test Levels
 
