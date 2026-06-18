@@ -3,6 +3,10 @@ spring:
     name: shutdown-tracker-api
   flyway:
     enabled: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 server:
   port: 8080
@@ -12,3 +16,7 @@ management:
     web:
       exposure:
         include: health,info
+
+shutdown-tracker:
+  source-file-validation:
+    max-size-bytes: 52428800
