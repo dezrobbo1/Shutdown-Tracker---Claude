@@ -1,6 +1,8 @@
 spring:
   application:
     name: shutdown-tracker-project-worker
+  flyway:
+    enabled: false
 
 management:
   endpoints:
