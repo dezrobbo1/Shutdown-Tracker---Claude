@@ -6,7 +6,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
-@RestControllerAdvice(assignableTypes = SourceFileValidationController.class)
+@RestControllerAdvice
 public class SourceFileValidationExceptionHandler {
 
     @ExceptionHandler(MissingServletRequestPartException.class)
