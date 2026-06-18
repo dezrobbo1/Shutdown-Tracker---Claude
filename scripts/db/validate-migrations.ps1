@@ -45,19 +45,18 @@ $Docker = $DockerCandidates[0]
 
 function Invoke-Compose {
     param(
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [string[]] $Arguments
+        [string[]] $ComposeArgs
     )
 
-    & $Docker compose -f $ComposeFile @Arguments
+    & $Docker compose -f $ComposeFile @ComposeArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "docker compose failed: $($Arguments -join ' ')"
+        throw "docker compose failed: $($ComposeArgs -join ' ')"
     }
 }
 
 Write-Host "Resetting local PostgreSQL validation database..."
-Invoke-Compose down -v
-Invoke-Compose up -d
+Invoke-Compose @("down", "-v")
+Invoke-Compose @("up", "-d")
 
 Write-Host "Waiting for PostgreSQL to become ready..."
 $ready = $false
@@ -79,7 +78,7 @@ Write-Host "Applying migrations..."
 $Migrations = Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" | Sort-Object Name
 foreach ($Migration in $Migrations) {
     Write-Host "Applying $($Migration.Name)"
-    Invoke-Compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $DbUser -d $DbName -f "/migrations/$($Migration.Name)"
+    Invoke-Compose @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")
 }
 
 Write-Host "Verifying expected tables..."
