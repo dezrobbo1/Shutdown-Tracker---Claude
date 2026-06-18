@@ -33,10 +33,10 @@
 
 ## Status Notes
 
-- Task 8, configure PostgreSQL locally: partially addressed by the migration foundation only. PostgreSQL is not running from this repo yet.
-- Task 9, add migrations: addressed with baseline SQL migrations in `infra/migrations`.
-- Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed as baseline SQL.
+- Task 8, configure PostgreSQL locally: partially addressed by the local Docker migration validation setup. This is not full runtime configuration and not a production database setup.
+- Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
+- Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed by PR #3 as baseline SQL.
 - Approval/export batch schema: addressed as baseline SQL.
 - Critical Watchlist reporting schema: addressed as baseline SQL.
 
-This PR does not add Docker Compose, a migration runner, Spring Boot, React/Vite, or application code.
+This PR does not add Spring Boot, React/Vite, application code, seed data, or a production database setup.

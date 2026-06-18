@@ -24,7 +24,7 @@ PostgreSQL is the system of record for relational operational data including use
 
 The migration foundation now lives in [infra/migrations](../../infra/migrations). It establishes SQL conventions and baseline PostgreSQL tables for projects, source files, import batches, immutable snapshots, imported Project entities, audit events, approval/export batches, and Critical Watchlist reporting.
 
-The migrations prepare for a future Flyway-style runner, but this repository still does not include Spring Boot, Gradle, Maven, Docker Compose, or a migration runner.
+The migrations prepare for a future Flyway-style runner. The repository includes local Docker-based validation scripts, but still does not include Spring Boot, Gradle, Maven, Flyway dependencies, or an application migration runner.
 
 ## Audit Event Schema
 

@@ -1,0 +1,26 @@
+# Local PostgreSQL migration validation only.
+# This is not a production deployment and is not an application runtime.
+
+name: shutdown-tracker-migration-validation
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shutdown-tracker-postgres-validation
+    environment:
+      POSTGRES_DB: shutdown_tracker
+      POSTGRES_USER: shutdown_tracker
+      POSTGRES_PASSWORD: shutdown_tracker_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - shutdown_tracker_pgdata:/var/lib/postgresql/data
+      - ../migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shutdown_tracker -d shutdown_tracker"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  shutdown_tracker_pgdata:
