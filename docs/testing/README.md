@@ -30,7 +30,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Migrations should apply in version order against a clean PostgreSQL database.
 - Migrations are idempotent through migration tooling only; do not expect raw SQL files to be re-run manually.
 - PRs that add or change migrations should run the local validation scripts in [scripts/db](../../scripts/db) where possible.
-- Future CI should run migrations against a clean PostgreSQL database.
+- CI runs migrations against a clean PostgreSQL database through Docker Compose.
 - Future tests should verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
 - Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
 - Successful local migration validation does not replace later repository, API, service, or end-to-end tests.
@@ -39,9 +39,19 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 
 - The Maven backend scaffold contains Spring Boot context-load tests for `services/api` and `services/project-worker`.
 - Run `mvn test` from the repository root when Maven and Java 21 are available.
+- CI runs the Maven backend test suite on Java 21 for pushes to `main` and pull requests targeting `main`.
 - The API service is placeholder-only, with Actuator plus `GET /api/version`; no task, import, export, or domain endpoints exist yet.
 - The project worker is placeholder-only; no MPXJ parsing, background jobs, queue integration, export generation, or scheduler logic exists yet.
 - Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db).
+
+## CI Validation
+
+The GitHub Actions workflow in [.github/workflows/ci.yml](../../.github/workflows/ci.yml) validates:
+
+- The Maven backend test suite with Java 21.
+- SQL migrations `V001` through `V006` against a clean PostgreSQL database through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh).
+
+The workflow does not add application runtime database wiring, Flyway runtime dependencies, MPXJ processing, frontend builds, secrets, seed data, or real Project files.
 
 ## Frontend Tests
 
