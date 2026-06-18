@@ -60,3 +60,9 @@ temp/
 *.doc
 *.docx
 *.zip
+fixtures/project-files/**/*.mpp
+fixtures/project-files/**/*.xml
+fixtures/project-files/**/*.xer
+fixtures/project-files/**/*.zip
+fixtures/project-files/_local/
+fixtures/import-export/_local/

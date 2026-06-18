@@ -38,6 +38,7 @@
 - Task 8, configure PostgreSQL locally: addressed for local validation and Spring Boot `local` profile runtime wiring. This is not production database setup.
 - Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
 - Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed by PR #3 as baseline SQL.
+- Import/export fixture strategy: addressed with safe fixture policy, text-only manifest schema, and synthetic expected-output examples.
 - Approval/export batch schema: addressed as baseline SQL.
 - Critical Watchlist reporting schema: addressed as baseline SQL.
 
