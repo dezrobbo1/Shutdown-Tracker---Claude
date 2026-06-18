@@ -1,0 +1,20 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  flyway:
+    enabled: false
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+shutdown-tracker:
+  source-file-validation:
+    max-size-bytes: ${SHUTDOWN_TRACKER_SOURCE_FILE_VALIDATION_MAX_SIZE_BYTES:52428800}

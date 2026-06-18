@@ -9,6 +9,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - `GET /api/version` returns a minimal service/status JSON payload.
 - `POST /api/source-files/validate` validates one multipart `file` upload request and returns metadata plus an accept/reject decision.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
+- The `review` profile boots without PostgreSQL for backend smoke checks only.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -51,6 +52,12 @@ The test profile disables datasource and Flyway auto-configuration so context-lo
 
 The migration validation scripts apply SQL directly and do not create Flyway history. Use a clean PostgreSQL volume when checking Spring Boot runtime migrations through this service.
 
+## Review Smoke Profile
+
+The `review` profile is for backend smoke deployment only. It disables datasource and Flyway auto-configuration, uses `PORT` with a default of `8080`, and keeps Actuator health/info plus source-file validation available without PostgreSQL.
+
+See [API review smoke profile](../../docs/deployment/api-review-smoke.md) for curl checks and Docker usage.
+
 ## Local Commands
 
 Run from the repository root when Maven and Java 21 are available:
@@ -58,4 +65,5 @@ Run from the repository root when Maven and Java 21 are available:
 ```text
 mvn -pl services/api test
 mvn -pl services/api spring-boot:run -Dspring-boot.run.profiles=local
+mvn -pl services/api spring-boot:run -Dspring-boot.run.profiles=review
 ```
