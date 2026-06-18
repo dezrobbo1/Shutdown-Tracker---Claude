@@ -7,9 +7,32 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Placeholder Spring Boot application in package `com.shutdowntracker.api`.
 - Actuator is present for health/info exposure.
 - `GET /api/version` returns a minimal service/status JSON payload.
+- `POST /api/source-files/validate` validates one multipart `file` upload request and returns metadata plus an accept/reject decision.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
-- No task, import, export, approval, evidence, domain, or scheduler endpoints exist yet.
+- No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
+- No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
+
+## Source File Validation Placeholder
+
+`POST /api/source-files/validate` is validation-only. It accepts a multipart field named `file` and returns:
+
+- Original filename.
+- Size in bytes.
+- Detected extension.
+- Accepted true/false.
+- Rejection reason when rejected.
+- Message confirming no file was stored or parsed.
+
+Accepted extensions:
+
+- `.mpp`
+- `.xml`
+- `.mspdi.xml`
+
+Rejected examples include empty files, missing filenames, unsupported extensions, `.zip`, `.pdf`, `.doc`, `.docx`, `.xer`, screenshots/images, and files over the configured placeholder limit.
+
+The default placeholder limit is 50 MB via `shutdown-tracker.source-file-validation.max-size-bytes`. Local testing files must stay outside Git. Do not commit real Project files, customer/site files, screenshots, generated exports, binaries, or secrets.
 
 ## Database Runtime Config
 
