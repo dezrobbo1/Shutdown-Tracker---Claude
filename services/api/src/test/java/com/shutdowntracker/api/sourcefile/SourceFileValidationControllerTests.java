@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 
@@ -158,6 +159,14 @@ class SourceFileValidationControllerTests {
 
         assertThat(sizeException).isInstanceOf(MultipartException.class);
         assertThat(parseException.getMessage()).contains("Synthetic multipart parse failure");
+    }
+
+    @Test
+    void exceptionHandlerIsNotScopedToControllerSelection() {
+        RestControllerAdvice advice = SourceFileValidationExceptionHandler.class.getAnnotation(RestControllerAdvice.class);
+
+        // Hard multipart failures can happen before Spring selects SourceFileValidationController.
+        assertThat(advice.assignableTypes()).isEmpty();
     }
 
     @Test

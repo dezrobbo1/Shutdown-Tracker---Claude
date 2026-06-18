@@ -44,7 +44,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - CI runs the Maven backend test suite on Java 21 for pushes to `main` and pull requests targeting `main`.
 - Backend context-load tests use the `test` profile, which disables datasource and Flyway auto-configuration so PostgreSQL is not required for those tests.
 - The API service has Actuator, `GET /api/version`, and a validation-only `POST /api/source-files/validate` endpoint. Source-file validation tests use synthetic byte arrays only and verify no file is stored or parsed.
-- Source-file validation tests cover missing multipart field handling, uppercase accepted extensions, validation-owned oversized responses, and validation-style JSON for hard multipart failures where practical.
+- Source-file validation tests cover missing multipart field handling, uppercase accepted extensions, validation-owned oversized responses, exception-scoped multipart error advice, and validation-style JSON for hard multipart failures where practical.
 - The project worker has a worker-only MPXJ import summary spike; no committed Project files, persistence, background jobs, queue integration, export generation, or scheduler logic exists yet.
 - Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
 - The migration validation scripts apply SQL directly and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.
