@@ -21,13 +21,14 @@ This repository must not implement CPM, critical-path calculation, resource leve
 
 ## Current Status
 
-Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, a minimal Spring Boot backend scaffold, and GitHub Actions CI validation now exist.
+Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, a minimal Spring Boot backend scaffold, PostgreSQL/Flyway runtime wiring, and GitHub Actions CI validation now exist.
 
 The backend scaffold is placeholder-only:
 
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
 - `services/project-worker` contains a Spring Boot worker shell for future Project import/export processing.
-- No domain logic, scheduler logic, task/import/export endpoints, MPXJ processing, PostgreSQL runtime wiring, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
+- No domain logic, scheduler logic, task/import/export endpoints, MPXJ processing, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -79,9 +80,8 @@ fixtures/
 
 ## Next Steps
 
-1. Add local Maven/Java setup notes.
-2. Add PostgreSQL runtime config and Flyway wiring.
-3. Add import/export fixture strategy.
-4. Add MPXJ import spike.
-5. Scaffold the console and mobile PWA in a follow-up PR.
-6. Run a manual Microsoft Project import/export spike with fixture files.
+1. Add import/export fixture strategy.
+2. Add MPXJ import spike.
+3. Add source-file upload API placeholder.
+4. Scaffold the console and mobile PWA in a follow-up PR.
+5. Run a manual Microsoft Project import/export spike with fixture files.

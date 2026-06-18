@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${SHUTDOWN_TRACKER_DB_URL:jdbc:postgresql://localhost:5432/shutdown_tracker}
+    username: ${SHUTDOWN_TRACKER_DB_USERNAME:shutdown_tracker}
+    password: ${SHUTDOWN_TRACKER_DB_PASSWORD:shutdown_tracker_dev}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: ${SHUTDOWN_TRACKER_FLYWAY_LOCATIONS:filesystem:infra/migrations}
+    baseline-on-migrate: false

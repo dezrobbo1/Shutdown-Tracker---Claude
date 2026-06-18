@@ -40,9 +40,11 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - The Maven backend scaffold contains Spring Boot context-load tests for `services/api` and `services/project-worker`.
 - Run `mvn test` from the repository root when Maven and Java 21 are available.
 - CI runs the Maven backend test suite on Java 21 for pushes to `main` and pull requests targeting `main`.
+- Backend context-load tests use the `test` profile, which disables datasource and Flyway auto-configuration so PostgreSQL is not required for those tests.
 - The API service is placeholder-only, with Actuator plus `GET /api/version`; no task, import, export, or domain endpoints exist yet.
 - The project worker is placeholder-only; no MPXJ parsing, background jobs, queue integration, export generation, or scheduler logic exists yet.
-- Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db).
+- Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
+- The migration validation scripts apply SQL directly and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.
 
 ## CI Validation
 
@@ -51,7 +53,7 @@ The GitHub Actions workflow in [.github/workflows/ci.yml](../../.github/workflow
 - The Maven backend test suite with Java 21.
 - SQL migrations `V001` through `V006` against a clean PostgreSQL database through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh).
 
-The workflow does not add application runtime database wiring, Flyway runtime dependencies, MPXJ processing, frontend builds, secrets, seed data, or real Project files.
+The workflow does not add MPXJ processing, frontend builds, secrets, seed data, or real Project files.
 
 ## Frontend Tests
 
