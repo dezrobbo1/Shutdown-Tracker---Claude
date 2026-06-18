@@ -21,7 +21,15 @@ This repository must not implement CPM, critical-path calculation, resource leve
 
 ## Current Status
 
-Initial repository scaffold only. No application code, no working product features, no Spring Boot service, no React app, no database migrations, and no import/export implementation have been added yet.
+Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, and a minimal Spring Boot backend scaffold now exist.
+
+The backend scaffold is placeholder-only:
+
+- `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
+- `services/project-worker` contains a Spring Boot worker shell for future Project import/export processing.
+- No domain logic, scheduler logic, task/import/export endpoints, MPXJ processing, PostgreSQL runtime wiring, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- Database migrations remain under `infra/migrations`.
+- Local migration validation remains under `scripts/db`.
 
 ## Architecture Direction
 
@@ -70,9 +78,9 @@ fixtures/
 
 ## Next Steps
 
-1. Confirm the permission model and project-scoped RBAC language.
-2. Draft the audit-event schema and approval/export state model.
-3. Add database migration foundations for source files, import batches, snapshots, tasks, resources, assignments, and audit events.
-4. Scaffold the API and project worker in a follow-up PR.
+1. Add local Maven/Java setup notes or CI build.
+2. Add PostgreSQL runtime config and Flyway wiring.
+3. Add import/export fixture strategy.
+4. Add MPXJ import spike.
 5. Scaffold the console and mobile PWA in a follow-up PR.
 6. Run a manual Microsoft Project import/export spike with fixture files.

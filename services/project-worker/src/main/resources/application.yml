@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: shutdown-tracker-project-worker
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
