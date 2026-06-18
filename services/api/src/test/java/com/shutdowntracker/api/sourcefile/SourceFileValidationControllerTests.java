@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.sourcefile;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -15,10 +16,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @WebMvcTest(SourceFileValidationController.class)
 @EnableConfigurationProperties(SourceFileValidationProperties.class)
-@Import(SourceFileValidationService.class)
+@Import({SourceFileValidationService.class, SourceFileValidationExceptionHandler.class})
 @TestPropertySource(properties = "shutdown-tracker.source-file-validation.max-size-bytes=16")
 class SourceFileValidationControllerTests {
 
@@ -41,6 +44,21 @@ class SourceFileValidationControllerTests {
     }
 
     @Test
+    void acceptsUppercaseMppName() throws Exception {
+        assertAccepted("EXAMPLE.MPP", ".mpp");
+    }
+
+    @Test
+    void acceptsUppercaseXmlName() throws Exception {
+        assertAccepted("EXAMPLE.XML", ".xml");
+    }
+
+    @Test
+    void acceptsUppercaseMspdiXmlName() throws Exception {
+        assertAccepted("SYNTHETIC-BASIC-WBS.MSPDI.XML", ".mspdi.xml");
+    }
+
+    @Test
     void rejectsEmptyUpload() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "example.mpp", "application/octet-stream", new byte[0]);
 
@@ -48,6 +66,18 @@ class SourceFileValidationControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accepted").value(false))
                 .andExpect(jsonPath("$.rejectionReason").value("Empty files are not accepted."))
+                .andExpect(jsonPath("$.message").value(containsString("no file was stored, parsed")));
+    }
+
+    @Test
+    void rejectsMissingMultipartFileField() throws Exception {
+        mockMvc.perform(multipart("/api/source-files/validate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalFilename").value(nullValue()))
+                .andExpect(jsonPath("$.sizeBytes").value(0))
+                .andExpect(jsonPath("$.detectedExtension").value(""))
+                .andExpect(jsonPath("$.accepted").value(false))
+                .andExpect(jsonPath("$.rejectionReason").value("Missing multipart field 'file'."))
                 .andExpect(jsonPath("$.message").value(containsString("no file was stored, parsed")));
     }
 
@@ -103,6 +133,34 @@ class SourceFileValidationControllerTests {
     }
 
     @Test
+    void hardMultipartSizeExceptionUsesValidationJsonShape() {
+        SourceFileValidationResponse response = new SourceFileValidationExceptionHandler()
+                .handleMaxUploadSizeExceeded(new MaxUploadSizeExceededException(1));
+
+        assertHardMultipartResponse(
+                response,
+                "Multipart upload exceeds the hard request size limit before validation could run."
+        );
+    }
+
+    @Test
+    void multipartParseExceptionUsesValidationJsonShape() {
+        SourceFileValidationResponse response = new SourceFileValidationExceptionHandler()
+                .handleMultipartException(new MultipartException("Synthetic multipart parse failure"));
+
+        assertHardMultipartResponse(response, "Multipart request could not be parsed.");
+    }
+
+    @Test
+    void exceptionHandlerAcceptsSpringMultipartExceptionTypes() {
+        MaxUploadSizeExceededException sizeException = new MaxUploadSizeExceededException(1);
+        MultipartException parseException = new MultipartException("Synthetic multipart parse failure");
+
+        assertThat(sizeException).isInstanceOf(MultipartException.class);
+        assertThat(parseException.getMessage()).contains("Synthetic multipart parse failure");
+    }
+
+    @Test
     void rejectsImages() throws Exception {
         assertRejectedExtension("screenshot.png", ".png");
     }
@@ -139,5 +197,14 @@ class SourceFileValidationControllerTests {
 
     private byte[] syntheticBytes() {
         return "synthetic".getBytes(StandardCharsets.UTF_8);
+    }
+
+    private void assertHardMultipartResponse(SourceFileValidationResponse response, String rejectionReason) {
+        assertThat(response.originalFilename()).isNull();
+        assertThat(response.sizeBytes()).isZero();
+        assertThat(response.detectedExtension()).isEmpty();
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectionReason()).isEqualTo(rejectionReason);
+        assertThat(response.message()).contains("no file was stored, parsed");
     }
 }
