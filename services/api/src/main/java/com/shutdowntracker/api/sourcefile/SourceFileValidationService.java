@@ -8,8 +8,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class SourceFileValidationService {
 
-    private static final String NOT_STORED_OR_PARSED_MESSAGE =
-            "Validation only: no file was stored, parsed, persisted, forwarded, or imported.";
     private static final Set<String> ACCEPTED_EXTENSIONS = Set.of(".mpp", ".xml", ".mspdi.xml");
 
     private final SourceFileValidationProperties properties;
@@ -32,7 +30,7 @@ public class SourceFileValidationService {
                 detectedExtension,
                 accepted,
                 rejectionReason,
-                NOT_STORED_OR_PARSED_MESSAGE
+                SourceFileValidationMessages.NOT_STORED_OR_PARSED
         );
     }
 
