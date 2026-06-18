@@ -27,6 +27,7 @@ The backend scaffold is placeholder-only:
 
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
 - `services/api` also contains `POST /api/source-files/validate`, a validation-only multipart placeholder that stores nothing and parses nothing.
+- `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
 - No domain logic, scheduler logic, task execution endpoints, import batch creation, file storage, persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
@@ -81,8 +82,8 @@ fixtures/
 
 ## Next Steps
 
-1. Add import batch persistence.
-2. Add source-file storage abstraction.
+1. Add source-file storage abstraction.
+2. Add import batch persistence.
 3. Add parser expected-output expansion.
 4. Add export preview model.
 5. Scaffold the console and mobile PWA in a follow-up PR.

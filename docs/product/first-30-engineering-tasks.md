@@ -34,6 +34,7 @@
 ## Status Notes
 
 - Task 6, scaffold Spring Boot API: addressed as a placeholder service shell only. The API currently exposes Actuator plus `GET /api/version`; no domain, task, import, export, authorization, or scheduler logic exists.
+- API review smoke profile: addressed for backend smoke deployment only. The `review` profile boots without PostgreSQL and supports health, version, and validation-only source-file checks; it is not production deployment or product workflow review.
 - Task 7, scaffold Project worker: addressed as a service shell with a worker-only MPXJ import summary spike. The worker has no persistence, upload endpoint, background jobs, queue integration, export generation, Project write-back, or scheduler logic.
 - Task 8, configure PostgreSQL locally: addressed for local validation and Spring Boot `local` profile runtime wiring. This is not production database setup.
 - Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
