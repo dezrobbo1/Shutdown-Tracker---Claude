@@ -21,7 +21,7 @@ This repository must not implement CPM, critical-path calculation, resource leve
 
 ## Current Status
 
-Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, and a minimal Spring Boot backend scaffold now exist.
+Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, a minimal Spring Boot backend scaffold, and GitHub Actions CI validation now exist.
 
 The backend scaffold is placeholder-only:
 
@@ -30,6 +30,7 @@ The backend scaffold is placeholder-only:
 - No domain logic, scheduler logic, task/import/export endpoints, MPXJ processing, PostgreSQL runtime wiring, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
+- CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
 
 ## Architecture Direction
 
@@ -78,7 +79,7 @@ fixtures/
 
 ## Next Steps
 
-1. Add local Maven/Java setup notes or CI build.
+1. Add local Maven/Java setup notes.
 2. Add PostgreSQL runtime config and Flyway wiring.
 3. Add import/export fixture strategy.
 4. Add MPXJ import spike.
