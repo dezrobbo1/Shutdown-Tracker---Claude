@@ -9,6 +9,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Keep fixture project files out of Git unless explicitly approved.
 - Store fixture metadata and expected parse outcomes in text form where possible.
 - Follow the [Import/Export Fixture Strategy](import-export-fixture-strategy.md) before adding any fixture metadata or future approved fixture files.
+- Current MPXJ import spike tests use synthetic in-memory MPXJ objects and do not commit real Project files.
 - Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
 - Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks.
 
@@ -43,7 +44,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - CI runs the Maven backend test suite on Java 21 for pushes to `main` and pull requests targeting `main`.
 - Backend context-load tests use the `test` profile, which disables datasource and Flyway auto-configuration so PostgreSQL is not required for those tests.
 - The API service is placeholder-only, with Actuator plus `GET /api/version`; no task, import, export, or domain endpoints exist yet.
-- The project worker is placeholder-only; no MPXJ parsing, background jobs, queue integration, export generation, or scheduler logic exists yet.
+- The project worker has a worker-only MPXJ import summary spike; no committed Project files, persistence, background jobs, queue integration, export generation, or scheduler logic exists yet.
 - Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
 - The migration validation scripts apply SQL directly and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.
 

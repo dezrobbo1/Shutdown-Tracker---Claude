@@ -34,14 +34,15 @@
 ## Status Notes
 
 - Task 6, scaffold Spring Boot API: addressed as a placeholder service shell only. The API currently exposes Actuator plus `GET /api/version`; no domain, task, import, export, authorization, or scheduler logic exists.
-- Task 7, scaffold Project worker: addressed as a placeholder service shell only. The worker has no MPXJ dependency, file parsing, background jobs, queue integration, export generation, or scheduler logic.
+- Task 7, scaffold Project worker: addressed as a service shell with a worker-only MPXJ import summary spike. The worker has no persistence, upload endpoint, background jobs, queue integration, export generation, Project write-back, or scheduler logic.
 - Task 8, configure PostgreSQL locally: addressed for local validation and Spring Boot `local` profile runtime wiring. This is not production database setup.
 - Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
 - Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed by PR #3 as baseline SQL.
+- Task 20, implement MPXJ parse spike for MPP/MSPDI: partially addressed by a worker-only import summary spike. It reads an explicitly configured local path and returns counts only; no real fixtures, persistence, export, upload endpoint, or write-back exists.
 - Import/export fixture strategy: addressed with safe fixture policy, text-only manifest schema, and synthetic expected-output examples.
 - Approval/export batch schema: addressed as baseline SQL.
 - Critical Watchlist reporting schema: addressed as baseline SQL.
 
-This repository now has a minimal Maven/Spring Boot backend scaffold with PostgreSQL JDBC and Flyway runtime wiring. It still does not add React/Vite, frontend code, domain behavior, seed data, real Project files, or a production database setup.
+This repository now has a minimal Maven/Spring Boot backend scaffold with PostgreSQL JDBC, Flyway runtime wiring, and a worker-only MPXJ import summary spike. It still does not add React/Vite, frontend code, domain behavior, seed data, real Project files, Project write-back, or a production database setup.
 
 Migrations remain under `infra/migrations`; local migration validation remains under `scripts/db`; Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.

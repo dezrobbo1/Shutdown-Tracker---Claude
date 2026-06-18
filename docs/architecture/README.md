@@ -18,7 +18,7 @@ The repository now includes a minimal Spring Boot API scaffold in [services/api]
 
 The project worker will process uploaded Microsoft Project source files, run MPXJ parsing, capture warnings, create import batches, persist snapshots, and generate MSPDI/XML export artifacts.
 
-The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). It is placeholder-only and the `local` profile wires PostgreSQL and Flyway. No MPXJ dependency, file parsing, background jobs, queue integration, scheduler logic, or export generation exists yet.
+The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). The worker has a local-only MPXJ import summary spike and the `local` profile wires PostgreSQL and Flyway. It reads an explicit local path only when configured, reports summary counts only, and does not persist, export, run background jobs, integrate queues, expose endpoints, calculate schedules, or write back to Microsoft Project.
 
 ## PostgreSQL
 

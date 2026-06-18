@@ -26,9 +26,9 @@ Repository scaffold, product/architecture/security docs, baseline SQL migrations
 The backend scaffold is placeholder-only:
 
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
-- `services/project-worker` contains a Spring Boot worker shell for future Project import/export processing.
+- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No domain logic, scheduler logic, task/import/export endpoints, MPXJ processing, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- No domain logic, scheduler logic, task/import/export endpoints, persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -80,8 +80,9 @@ fixtures/
 
 ## Next Steps
 
-1. Add import/export fixture strategy.
-2. Add MPXJ import spike.
+1. Add reviewed synthetic MSPDI fixture.
+2. Add parser expected-output tests.
 3. Add source-file upload API placeholder.
-4. Scaffold the console and mobile PWA in a follow-up PR.
-5. Run a manual Microsoft Project import/export spike with fixture files.
+4. Add import batch persistence.
+5. Add export preview model.
+6. Scaffold the console and mobile PWA in a follow-up PR.
