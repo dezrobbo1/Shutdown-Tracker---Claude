@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shutdown-tracker.local/schemas/fixture-manifest.schema.json",
+  "title": "Shutdown Tracker Import/Export Fixture Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fixture_id",
+    "fixture_name",
+    "fixture_type",
+    "source_format",
+    "synthetic_or_sanitized",
+    "contains_real_project_data",
+    "sanitisation_reviewed_by",
+    "sanitisation_reviewed_at",
+    "allowed_commit",
+    "expected_counts",
+    "warning_count",
+    "error_count",
+    "notes"
+  ],
+  "properties": {
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "fixture_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_type": {
+      "type": "string",
+      "enum": [
+        "project_file",
+        "mspdi_snippet",
+        "expected_import_summary",
+        "expected_export_preview",
+        "round_trip_note"
+      ]
+    },
+    "source_format": {
+      "type": "string",
+      "enum": [
+        "mpp",
+        "mspdi_xml",
+        "xer",
+        "json",
+        "text",
+        "none"
+      ]
+    },
+    "synthetic_or_sanitized": {
+      "type": "string",
+      "enum": [
+        "synthetic",
+        "sanitized"
+      ]
+    },
+    "contains_real_project_data": {
+      "const": false
+    },
+    "sanitisation_reviewed_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sanitisation_reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "allowed_commit": {
+      "type": "boolean"
+    },
+    "expected_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary_tasks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "milestones": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assignments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calendars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "custom_fields": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dependencies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baselines": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "warning_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "error_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

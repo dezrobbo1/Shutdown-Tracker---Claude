@@ -1,0 +1,25 @@
+{
+  "fixture_id": "synthetic-basic-wbs",
+  "project_name": "Synthetic Basic WBS",
+  "source_format": "mspdi_xml",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "counts": {
+    "tasks": 6,
+    "summary_tasks": 2,
+    "leaf_tasks": 4,
+    "milestones": 1,
+    "resources": 0,
+    "assignments": 0,
+    "calendars": 1,
+    "custom_fields": 0,
+    "dependencies": 0,
+    "baselines": 0
+  },
+  "warnings": [],
+  "errors": [],
+  "notes": [
+    "Synthetic expected summary only.",
+    "No real names, work orders, sites, assets, vendors, people, locations, costs, or commercial data."
+  ]
+}

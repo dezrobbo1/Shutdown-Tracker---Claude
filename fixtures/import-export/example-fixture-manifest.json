@@ -1,0 +1,25 @@
+{
+  "fixture_id": "synthetic-basic-wbs",
+  "fixture_name": "Synthetic Basic WBS",
+  "fixture_type": "expected_import_summary",
+  "source_format": "mspdi_xml",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "sanitisation_reviewed_by": null,
+  "sanitisation_reviewed_at": null,
+  "allowed_commit": true,
+  "expected_counts": {
+    "tasks": 6,
+    "summary_tasks": 2,
+    "milestones": 1,
+    "resources": 0,
+    "assignments": 0,
+    "calendars": 1,
+    "custom_fields": 0,
+    "dependencies": 0,
+    "baselines": 0
+  },
+  "warning_count": 0,
+  "error_count": 0,
+  "notes": "Synthetic example manifest for a basic work breakdown structure."
+}

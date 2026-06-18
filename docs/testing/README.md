@@ -8,6 +8,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 
 - Keep fixture project files out of Git unless explicitly approved.
 - Store fixture metadata and expected parse outcomes in text form where possible.
+- Follow the [Import/Export Fixture Strategy](import-export-fixture-strategy.md) before adding any fixture metadata or future approved fixture files.
 - Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
 - Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks.
 
