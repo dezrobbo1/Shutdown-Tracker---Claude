@@ -7,6 +7,7 @@ This folder holds text-only import/export fixture metadata and expected outputs.
 - `fixture-manifest.schema.json`: JSON schema for fixture manifests.
 - `example-fixture-manifest.json`: safe synthetic manifest example.
 - `expected-import-summary.example.json`: safe synthetic expected import summary example.
+- `synthetic-basic-wbs/`: first approved synthetic MSPDI import fixture, manifest, and expected summary.
 - Future expected parser outputs should use the fixture ID in the filename, such as `synthetic-basic-wbs.expected-import-summary.json`.
 
 ## Parser Summary Expectations
@@ -32,3 +33,7 @@ Expected export preview metadata should describe controlled export behavior only
 ## Round-Trip Notes
 
 Manual Microsoft Project round-trip validation should use synthetic or fully sanitized data only. Record text-only notes for MSPDI/XML reopen checks. Do not commit generated exports from real schedules or screenshots of real schedules.
+
+## Approved Synthetic Fixtures
+
+`synthetic-basic-wbs` is a tiny hand-built MSPDI XML fixture with neutral names only. It is approved for parser summary tests and expected-output checks. This approval does not allow real Project XML, real schedules, generated exports, screenshots, or broad binary/project-file commits.
