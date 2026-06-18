@@ -31,20 +31,28 @@ $ExpectedTables = @(
     "critical_update_lines"
 )
 
+$DockerCandidates = @(@(
+    (Get-Command docker -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1),
+    (Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\resources\bin\docker.exe"),
+    "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+) | Where-Object { $_ -and (Test-Path $_) })
+
+if (-not $DockerCandidates) {
+    throw "Docker is required for migration validation."
+}
+
+$Docker = $DockerCandidates[0]
+
 function Invoke-Compose {
     param(
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]] $Arguments
     )
 
-    & docker compose -f $ComposeFile @Arguments
+    & $Docker compose -f $ComposeFile @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose failed: $($Arguments -join ' ')"
     }
-}
-
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw "Docker is required for migration validation."
 }
 
 Write-Host "Resetting local PostgreSQL validation database..."
@@ -54,7 +62,7 @@ Invoke-Compose up -d
 Write-Host "Waiting for PostgreSQL to become ready..."
 $ready = $false
 for ($attempt = 1; $attempt -le 60; $attempt++) {
-    & docker compose -f $ComposeFile exec -T postgres pg_isready -U $DbUser -d $DbName *> $null
+    & $Docker compose -f $ComposeFile exec -T postgres pg_isready -U $DbUser -d $DbName *> $null
     if ($LASTEXITCODE -eq 0) {
         $ready = $true
         break
@@ -63,7 +71,7 @@ for ($attempt = 1; $attempt -le 60; $attempt++) {
 }
 
 if (-not $ready) {
-    & docker compose -f $ComposeFile logs postgres
+    & $Docker compose -f $ComposeFile logs postgres
     throw "PostgreSQL did not become ready in time."
 }
 
@@ -76,7 +84,7 @@ foreach ($Migration in $Migrations) {
 
 Write-Host "Verifying expected tables..."
 foreach ($Table in $ExpectedTables) {
-    $Output = & docker compose -f $ComposeFile exec -T postgres psql -U $DbUser -d $DbName -tAc "SELECT to_regclass('public.$Table') IS NOT NULL;"
+    $Output = & $Docker compose -f $ComposeFile exec -T postgres psql -U $DbUser -d $DbName -tAc "SELECT to_regclass('public.$Table') IS NOT NULL;"
     if ($LASTEXITCODE -ne 0) {
         throw "Table verification query failed for $Table."
     }

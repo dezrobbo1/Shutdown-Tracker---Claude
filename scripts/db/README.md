@@ -17,6 +17,8 @@ From the repository root:
 .\scripts\db\validate-migrations.ps1
 ```
 
+The PowerShell script checks `PATH` first and then falls back to common Docker Desktop install locations, including per-user installs under `%LOCALAPPDATA%\Programs\DockerDesktop`.
+
 ## POSIX Shell
 
 From the repository root:
