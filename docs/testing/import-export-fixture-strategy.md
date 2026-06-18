@@ -79,6 +79,8 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 - Use ignored `_local/` folders for local experiments only.
 - Do not copy customer, site, contractor, or commercial project files into the repository.
 - Delete local fixture experiments when they are no longer needed.
+- The project-worker MPXJ import spike accepts a local path only through the explicit `shutdown-tracker.import-spike.path` property.
+- Local spike inputs must stay outside Git unless a future PR explicitly approves a synthetic or fully sanitized fixture.
 
 ## Commit Review Checklist
 
@@ -89,4 +91,4 @@ Before committing any fixture metadata or future approved fixture file:
 - Confirm synthetic or sanitization review details are recorded.
 - Confirm no real names, sites, assets, work orders, vendors, costs, people, locations, or commercial data are present.
 - Confirm no prohibited binary, archive, screenshot, generated export, or real Project file is staged.
-- Confirm no MPXJ dependency, parser code, domain endpoint, frontend code, scheduler logic, or uncontrolled Project write-back behavior is included with the fixture-only change.
+- Confirm no parser persistence, domain endpoint, frontend code, scheduler logic, export generation, or uncontrolled Project write-back behavior is included with fixture-only changes.

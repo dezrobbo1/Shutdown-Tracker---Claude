@@ -26,6 +26,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <mpxj.version>16.4.0</mpxj.version>
     </properties>
 
     <build>
