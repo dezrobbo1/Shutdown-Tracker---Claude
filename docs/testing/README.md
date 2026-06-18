@@ -35,6 +35,14 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
 - Successful local migration validation does not replace later repository, API, service, or end-to-end tests.
 
+## Backend Tests
+
+- The Maven backend scaffold contains Spring Boot context-load tests for `services/api` and `services/project-worker`.
+- Run `mvn test` from the repository root when Maven and Java 21 are available.
+- The API service is placeholder-only, with Actuator plus `GET /api/version`; no task, import, export, or domain endpoints exist yet.
+- The project worker is placeholder-only; no MPXJ parsing, background jobs, queue integration, export generation, or scheduler logic exists yet.
+- Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db).
+
 ## Frontend Tests
 
 - Unit test UI state and validation logic.

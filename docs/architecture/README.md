@@ -12,9 +12,13 @@ The first backend should be a modular monolith rather than a distributed service
 
 The API service will own request/response workflows, authentication, authorization, task events, problems, actions, evidence metadata, handover, audit events, reporting policies, and export approvals.
 
+The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). It is placeholder-only: Actuator and `GET /api/version` exist, but no domain endpoints, import/export endpoints, database wiring, scheduler logic, or authorization behavior exists yet.
+
 ## Project Worker
 
 The project worker will process uploaded Microsoft Project source files, run MPXJ parsing, capture warnings, create import batches, persist snapshots, and generate MSPDI/XML export artifacts.
+
+The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). It is placeholder-only: no MPXJ dependency, file parsing, background jobs, queue integration, database wiring, scheduler logic, or export generation exists yet.
 
 ## PostgreSQL
 
@@ -24,7 +28,7 @@ PostgreSQL is the system of record for relational operational data including use
 
 The migration foundation now lives in [infra/migrations](../../infra/migrations). It establishes SQL conventions and baseline PostgreSQL tables for projects, source files, import batches, immutable snapshots, imported Project entities, audit events, approval/export batches, and Critical Watchlist reporting.
 
-The migrations prepare for a future Flyway-style runner. The repository includes local Docker-based validation scripts, but still does not include Spring Boot, Gradle, Maven, Flyway dependencies, or an application migration runner.
+The migrations prepare for a future Flyway-style runner. The repository includes local Docker-based validation scripts under [scripts/db](../../scripts/db) and a Maven/Spring Boot backend scaffold, but still does not include Flyway runtime dependencies, PostgreSQL runtime configuration, or an application migration runner.
 
 ## Audit Event Schema
 
