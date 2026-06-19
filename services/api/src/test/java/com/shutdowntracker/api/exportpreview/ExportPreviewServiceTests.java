@@ -1,0 +1,294 @@
+package com.shutdowntracker.api.exportpreview;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+class ExportPreviewServiceTests {
+
+    @Test
+    void createsDraftPreviewWithEligibleApprovedLeafTaskLine() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository);
+
+        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                Map.of("source", "synthetic-export-preview")
+        ));
+
+        assertThat(repository.createBatchProjectId).isEqualTo(projectId);
+        assertThat(repository.createBatchProjectSnapshotId).isEqualTo(repository.projectSnapshotId);
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+        assertThat(detail.batch().lineCount()).isEqualTo(1);
+        assertThat(detail.batch().eligibleLineCount()).isEqualTo(1);
+        assertThat(detail.lines()).hasSize(1);
+        assertThat(detail.lines().getFirst().oldValue()).isEqualTo("25.00");
+        assertThat(detail.lines().getFirst().newValue()).isEqualTo("50");
+        assertThat(detail.lines().getFirst().approvalState()).isEqualTo(ApprovalState.APPROVED_FOR_EXPORT);
+        assertThat(detail.lines().getFirst().leafTask()).isTrue();
+        assertThat(detail.lines().getFirst().exportEligible()).isTrue();
+        assertThat(detail.message()).contains("No MSPDI/XML artifact was generated");
+    }
+
+    @Test
+    void keepsApprovedSummaryTaskLineIneligible() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository);
+
+        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
+                null
+        ));
+
+        assertThat(detail.batch().eligibleLineCount()).isZero();
+        assertThat(detail.batch().ineligibleLineCount()).isEqualTo(1);
+        assertThat(detail.lines().getFirst().leafTask()).isFalse();
+        assertThat(detail.lines().getFirst().exportEligible()).isFalse();
+    }
+
+    @Test
+    void keepsUnapprovedSourceLineIneligible() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository);
+
+        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.awaitingReviewSourceEntityId, "actual_start", "2026-01-01T08:00:00Z")),
+                null
+        ));
+
+        assertThat(detail.batch().eligibleLineCount()).isZero();
+        assertThat(detail.lines().getFirst().approvalState()).isEqualTo(ApprovalState.AWAITING_REVIEW);
+        assertThat(detail.lines().getFirst().exportEligible()).isFalse();
+    }
+
+    @Test
+    void returnsStoredPreviewById() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
+                null
+        ));
+
+        ExportPreviewDetail detail = service.getPreview(projectId, created.batch().id());
+
+        assertThat(detail.batch().id()).isEqualTo(created.batch().id());
+        assertThat(detail.lines()).hasSize(1);
+        assertThat(detail.message()).contains("Export preview only.");
+    }
+
+    @Test
+    void rejectsUnknownImportedTaskForPreviewLine() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository);
+
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(UUID.randomUUID(), repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND))
+                .hasMessageContaining("Imported task not found for export preview.");
+    }
+
+    @Test
+    void rejectsPreviewForNonAcceptedSnapshot() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        repository.acceptedSnapshot = false;
+        ExportPreviewService service = new ExportPreviewService(repository);
+
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Export preview requires an accepted project snapshot.");
+    }
+
+    private ExportPreviewLineCreateRequest line(
+            UUID importedTaskId,
+            UUID sourceEntityId,
+            String fieldName,
+            String newValue
+    ) {
+        return new ExportPreviewLineCreateRequest(
+                importedTaskId,
+                "task_update",
+                sourceEntityId,
+                fieldName,
+                newValue,
+                UUID.randomUUID(),
+                OffsetDateTime.parse("2026-01-01T07:00:00Z"),
+                "Synthetic reason",
+                null
+        );
+    }
+
+    private static class FakeExportPreviewRepository implements ExportPreviewRepository {
+
+        private final UUID projectId;
+        private final UUID projectSnapshotId = UUID.randomUUID();
+        private final UUID exportBatchId = UUID.randomUUID();
+        private final UUID leafTaskId = UUID.randomUUID();
+        private final UUID summaryTaskId = UUID.randomUUID();
+        private final UUID approvedSourceEntityId = UUID.randomUUID();
+        private final UUID awaitingReviewSourceEntityId = UUID.randomUUID();
+        private final Map<UUID, ExportPreviewTaskContext> tasks = new HashMap<>();
+        private final List<ExportPreviewLineRecord> lines = new ArrayList<>();
+        private boolean acceptedSnapshot = true;
+        private UUID createBatchProjectId;
+        private UUID createBatchProjectSnapshotId;
+
+        private FakeExportPreviewRepository(UUID projectId) {
+            this.projectId = projectId;
+            tasks.put(leafTaskId, new ExportPreviewTaskContext(
+                    leafTaskId,
+                    projectId,
+                    projectSnapshotId,
+                    "SYN-TASK-1",
+                    "Synthetic Task A1",
+                    false,
+                    new BigDecimal("25.00"),
+                    new BigDecimal("40.00"),
+                    null,
+                    null
+            ));
+            tasks.put(summaryTaskId, new ExportPreviewTaskContext(
+                    summaryTaskId,
+                    projectId,
+                    projectSnapshotId,
+                    "SYN-SUMMARY-1",
+                    "Synthetic Summary",
+                    true,
+                    new BigDecimal("10.00"),
+                    null,
+                    null,
+                    null
+            ));
+        }
+
+        @Override
+        public ExportPreviewBatchRecord createDraftPreview(
+                UUID projectId,
+                UUID projectSnapshotId,
+                Map<String, Object> metadata
+        ) {
+            if (!acceptedSnapshot) {
+                throw new IllegalArgumentException("Export preview requires an accepted project snapshot.");
+            }
+            createBatchProjectId = projectId;
+            createBatchProjectSnapshotId = projectSnapshotId;
+            return batch();
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> findBatch(UUID projectId, UUID exportBatchId) {
+            if (!this.projectId.equals(projectId) || !this.exportBatchId.equals(exportBatchId)) {
+                return Optional.empty();
+            }
+            return Optional.of(batch());
+        }
+
+        @Override
+        public Optional<ExportPreviewTaskContext> findTaskContext(
+                UUID projectId,
+                UUID projectSnapshotId,
+                UUID importedTaskId
+        ) {
+            if (!this.projectId.equals(projectId) || !this.projectSnapshotId.equals(projectSnapshotId)) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(tasks.get(importedTaskId));
+        }
+
+        @Override
+        public Optional<ApprovalState> findLatestApprovalState(
+                UUID projectId,
+                String sourceEntityType,
+                UUID sourceEntityId
+        ) {
+            if (approvedSourceEntityId.equals(sourceEntityId)) {
+                return Optional.of(ApprovalState.APPROVED_FOR_EXPORT);
+            }
+            if (awaitingReviewSourceEntityId.equals(sourceEntityId)) {
+                return Optional.of(ApprovalState.AWAITING_REVIEW);
+            }
+            return Optional.empty();
+        }
+
+        @Override
+        public ExportPreviewLineRecord createLine(
+                UUID projectId,
+                UUID projectSnapshotId,
+                UUID exportBatchId,
+                ExportPreviewMaterializedLine line
+        ) {
+            ExportPreviewTaskContext task = tasks.get(line.importedTaskId());
+            ExportPreviewLineRecord record = new ExportPreviewLineRecord(
+                    UUID.randomUUID(),
+                    exportBatchId,
+                    projectId,
+                    projectSnapshotId,
+                    line.importedTaskId(),
+                    task.externalUid(),
+                    task.name(),
+                    line.sourceEntityType(),
+                    line.sourceEntityId(),
+                    line.approvalState(),
+                    line.fieldName(),
+                    line.oldValue(),
+                    line.newValue(),
+                    line.sourceActorUserId(),
+                    line.sourceTimestamp(),
+                    line.reason(),
+                    line.leafTask(),
+                    line.exportEligible()
+            );
+            lines.add(record);
+            return record;
+        }
+
+        @Override
+        public List<ExportPreviewLineRecord> listLines(UUID projectId, UUID exportBatchId) {
+            return List.copyOf(lines);
+        }
+
+        private ExportPreviewBatchRecord batch() {
+            int eligible = (int) lines.stream().filter(ExportPreviewLineRecord::exportEligible).count();
+            return new ExportPreviewBatchRecord(
+                    exportBatchId,
+                    projectId,
+                    projectSnapshotId,
+                    ExportBatchState.DRAFT_PREVIEW,
+                    OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                    lines.size(),
+                    eligible,
+                    lines.size() - eligible
+            );
+        }
+    }
+}

@@ -16,9 +16,10 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
 - Import review has local-profile API endpoints for reviewing parsed snapshots and accepting or rejecting them with existing status values.
 - Task lineage review has local-profile API endpoints for creating concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
+- Export preview has local-profile API endpoints for creating `draft_preview` batches and previewing eligibility for approved leaf-task progress/actual fields.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
-- No task execution, export, approval, evidence, scheduler, parser execution, automatic lineage matching, or write-back endpoints exist yet.
+- No task execution, export approval, export generation, evidence, scheduler, parser execution, automatic lineage matching, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
 
 ## Source File Validation Placeholder
@@ -152,6 +153,26 @@ When persistence is enabled, the API exposes project-scoped lineage review endpo
 Creating a link persists one concrete previous-task to current-task relationship in the existing `task_lineage_links` table with review state `suggested`. The request requires both snapshot IDs, both imported task IDs, a match method such as `external_uid`, `wbs`, `outline_number`, `name`, or `manual_review`, optional confidence, and optional metadata.
 
 Accept and reject use only the existing `review_state` values `accepted` and `rejected`, and only suggested links can be reviewed. This is persistence and review plumbing only; it does not run automatic matching, create unmatched-task review records, calculate dependencies, mutate imported tasks, create live execution records, generate exports, or write back to Microsoft Project.
+
+## Export Preview Model
+
+When persistence is enabled, the API exposes a preview-only export surface:
+
+- `POST /api/projects/{projectId}/export-preview`
+- `GET /api/projects/{projectId}/export-preview/{exportBatchId}`
+
+Creating a preview writes one `export_batches` row with status `draft_preview` against an accepted project snapshot, then writes requested `export_batch_lines`. The request supplies explicit candidate lines because live task update/event tables do not exist yet. Each line includes an imported task, source entity type/id, field name, new value, optional source actor/timestamp/reason, and optional metadata.
+
+Only these field names are accepted for preview lines:
+
+- `percent_complete`
+- `physical_percent_complete`
+- `actual_start`
+- `actual_finish`
+
+The service reads the old value from the immutable imported task row and computes export eligibility. A line is eligible only when its latest approval record is `approved_for_export`, the imported task is a leaf task, and the field is one of the allowed progress/actual fields. Summary-task lines and unapproved source records can be included in the preview, but they are marked ineligible.
+
+This endpoint does not approve export batches, generate MSPDI/XML, write export files, mark approval records exported, mutate imported task rows, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
 
 ## Project Parse Handoff Boundary
 
