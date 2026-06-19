@@ -14,9 +14,10 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
+- Import review has local-profile API endpoints for reviewing parsed snapshots and accepting or rejecting them with existing status values.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
-- No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
+- No task execution, export, approval, evidence, scheduler, parser execution, task lineage, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
 
 ## Source File Validation Placeholder
@@ -123,7 +124,20 @@ The API includes a transactional service/repository boundary for persisting one 
 
 New snapshots are created with the existing `project_snapshot_status` value `parsed`. Snapshot versions are assigned per project by the repository. Imported task rows store schedule values as imported snapshot facts only; they are not live execution state and are not recalculated by Shutdown Tracker.
 
-This does not call MPXJ, parse files, create worker jobs, expose a public import review endpoint, create task lineage links, mutate imported schedule rows, calculate CPM/critical path/float, move dates, perform resource levelling, or write back to Microsoft Project.
+This does not call MPXJ, parse files, create worker jobs, create task lineage links, mutate imported schedule rows, calculate CPM/critical path/float, move dates, perform resource levelling, or write back to Microsoft Project.
+
+## Import Review API
+
+When persistence is enabled, the API exposes a project-scoped review surface for already-persisted imported snapshots:
+
+- `GET /api/projects/{projectId}/import-review/snapshots`
+- `GET /api/projects/{projectId}/import-review/snapshots/{snapshotId}`
+- `POST /api/projects/{projectId}/import-review/snapshots/{snapshotId}/accept`
+- `POST /api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject`
+
+The review responses include snapshot metadata, parser/warning counts, imported task/resource/assignment/extended-attribute rows, and summary/leaf task counts. Accept and reject use only the existing `project_snapshot_status` values `accepted` and `rejected`; accepting also marks the related import batch `accepted`.
+
+This review API does not upload or store files, parse files, call MPXJ, create worker jobs, create task lineage links, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
 
 ## Project Parse Handoff Boundary
 
