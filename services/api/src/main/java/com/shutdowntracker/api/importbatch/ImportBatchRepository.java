@@ -7,4 +7,6 @@ public interface ImportBatchRepository {
     ImportBatchRecord create(ImportBatchCreateRequest request);
 
     ImportBatchRecord updateStatus(UUID importBatchId, ImportBatchStatus status);
+
+    ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update);
 }

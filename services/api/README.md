@@ -12,7 +12,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
-- Import batch persistence has local-profile JDBC services using the existing `import_batch_status` enum.
+- Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
@@ -99,7 +99,16 @@ Status updates use only the existing database enum values:
 
 The repository stamps `started_at` when a batch first moves to `parsing` and stamps `completed_at` when a batch first moves to `parsed`, `accepted`, `failed`, or `superseded`.
 
-This does not call MPXJ, request worker parsing, persist parse summaries, create project snapshots, persist imported tasks, or expose a public import-batch endpoint.
+The API can also record a worker parse summary response against an existing import batch. This updates:
+
+- `status` to `parsed`
+- `parser_name`
+- `parser_version`
+- `warning_count`
+- `error_count`
+- `parse_summary` JSONB with source filename, detected format, project name, summary-only flag, count metadata, and notes
+
+This does not call MPXJ, request worker parsing, create project snapshots, persist imported tasks/resources/assignments, or expose a public import-batch endpoint.
 
 ## Project Parse Handoff Boundary
 
@@ -109,7 +118,7 @@ The API includes a contract-only handoff boundary for future worker parsing:
 - The request includes import batch, project, source file, storage URI, and original filename.
 - The default `ProjectParseJobClient` is intentionally disconnected and throws if called.
 
-This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create worker jobs, persist parse summaries, create project snapshots, persist imported tasks, or expose a parse/import endpoint.
+This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create worker jobs, create project snapshots, persist imported tasks, or expose a parse/import endpoint.
 
 ## Database Runtime Config
 
