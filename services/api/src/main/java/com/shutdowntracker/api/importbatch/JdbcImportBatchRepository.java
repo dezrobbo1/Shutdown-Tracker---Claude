@@ -1,5 +1,7 @@
 package com.shutdowntracker.api.importbatch;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,9 +14,11 @@ import org.springframework.stereotype.Repository;
 public class JdbcImportBatchRepository implements ImportBatchRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
-    public JdbcImportBatchRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+    public JdbcImportBatchRepository(NamedParameterJdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -68,6 +72,34 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
         );
     }
 
+    @Override
+    public ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update) {
+        String sql = """
+                UPDATE import_batches
+                SET status = CAST(:status AS import_batch_status),
+                    parser_name = :parserName,
+                    parser_version = :parserVersion,
+                    started_at = COALESCE(started_at, now()),
+                    completed_at = COALESCE(completed_at, now()),
+                    warning_count = :warningCount,
+                    error_count = :errorCount,
+                    parse_summary = CAST(:parseSummary AS jsonb)
+                WHERE id = :id
+                RETURNING id, project_id, source_file_id, status, parser_name, parser_version, warning_count, error_count
+                """;
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("id", update.importBatchId())
+                .addValue("status", ImportBatchStatus.PARSED.databaseValue())
+                .addValue("parserName", update.parserName())
+                .addValue("parserVersion", update.parserVersion())
+                .addValue("warningCount", update.warningCount())
+                .addValue("errorCount", update.errorCount())
+                .addValue("parseSummary", toJson(update.parseSummary()));
+
+        return jdbcTemplate.queryForObject(sql, parameters, this::mapRecord);
+    }
+
     private ImportBatchRecord mapRecord(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
         return new ImportBatchRecord(
                 rs.getObject("id", UUID.class),
@@ -79,5 +111,13 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
                 rs.getInt("warning_count"),
                 rs.getInt("error_count")
         );
+    }
+
+    private String toJson(ImportBatchParseSummary parseSummary) {
+        try {
+            return objectMapper.writeValueAsString(parseSummary);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize import batch parse summary.", exception);
+        }
     }
 }

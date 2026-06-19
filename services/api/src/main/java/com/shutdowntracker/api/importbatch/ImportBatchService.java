@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.importbatch;
 
+import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,5 +24,10 @@ public class ImportBatchService {
         Objects.requireNonNull(importBatchId, "importBatchId is required.");
         Objects.requireNonNull(status, "status is required.");
         return repository.updateStatus(importBatchId, status);
+    }
+
+    public ImportBatchRecord recordParsedSummary(ProjectParseSummaryResponse response) {
+        Objects.requireNonNull(response, "response is required.");
+        return repository.recordParseSummary(ImportBatchParseSummaryUpdate.from(response));
     }
 }
