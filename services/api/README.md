@@ -8,6 +8,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Actuator is present for health/info exposure.
 - `GET /api/version` returns a minimal service/status JSON payload.
 - `POST /api/source-files/validate` validates one multipart `file` upload request and returns metadata plus an accept/reject decision.
+- `POST /api/projects/{projectId}/source-files` stores an accepted source file, creates `source_files` metadata, and creates a pending import batch when persistence is enabled.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
@@ -55,9 +56,9 @@ The API includes a source-file storage boundary for future upload workflows:
 - `LocalSourceFileStorage` writes to a configured local filesystem root and returns a `file:` URI plus SHA-256 content hash.
 - `shutdown-tracker.source-file-storage.local-root` defaults to `.shutdown-tracker/source-files` and can be overridden with `SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT`.
 
-This is not production object storage. The local implementation exists so future source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected.
+This is not production object storage. The local implementation exists so source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected.
 
-No API endpoint calls the storage abstraction yet. `POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing.
+`POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing. When persistence is enabled, `POST /api/projects/{projectId}/source-files` is the first endpoint that calls the storage abstraction.
 
 ## Review Project Bootstrap
 
@@ -88,7 +89,7 @@ The API includes a service/repository boundary for creating `source_files` metad
 - SHA-256 content hash
 - file size
 
-The service can consume `StoredSourceFile` values returned by the storage abstraction. It does not store bytes in PostgreSQL, create import batches, parse files, call MPXJ, or expose a public upload endpoint.
+The service consumes `StoredSourceFile` values returned by the storage abstraction. It does not store bytes in PostgreSQL, parse files, call MPXJ, or enqueue worker jobs.
 
 ## Import Batch Persistence
 
@@ -114,7 +115,17 @@ The API can also record a worker parse summary response against an existing impo
 - `error_count`
 - `parse_summary` JSONB with source filename, detected format, project name, summary-only flag, count metadata, and notes
 
-This does not call MPXJ, request worker parsing, persist imported tasks/resources/assignments, or expose a public import-batch endpoint.
+This does not call MPXJ, request worker parsing, persist imported tasks/resources/assignments, or expose a public parser/import execution endpoint.
+
+## Source File Upload Orchestration
+
+When persistence is enabled, the API exposes the first project-scoped upload orchestration endpoint:
+
+- `POST /api/projects/{projectId}/source-files`
+
+The endpoint accepts a multipart field named `file`, reuses the same source-file validation rules, stores accepted bytes through `SourceFileStorage`, creates a `source_files` metadata row, creates a pending `import_batches` row, and records a `source_file_uploaded` audit event.
+
+Rejected uploads stop before storage and do not create metadata, import batches, or audit rows. Accepted uploads still do not call MPXJ, parse the file, create a worker job, persist imported tasks/resources/assignments, create a project snapshot, generate exports, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose this persistence-backed endpoint.
 
 ## Imported Project Snapshot Persistence
 

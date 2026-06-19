@@ -64,6 +64,28 @@ describe("shutdown tracker api client", () => {
     );
   });
 
+  it("uploads source files as multipart form data", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, {
+        accepted: true,
+        sourceFile: { id: "source-file-a" },
+        importBatch: { id: "import-batch-a", status: "PENDING" },
+        message: "stored"
+      })
+    });
+
+    await client.sourceFiles.upload(
+      "project a",
+      new Blob(["synthetic"], { type: "application/xml" }),
+      "synthetic-basic-wbs.mspdi.xml"
+    );
+
+    expect(calls[0].input).toBe("/api/projects/project%20a/source-files");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].body).toBeInstanceOf(FormData);
+  });
+
   it("throws a typed error for non-successful responses", async () => {
     const client = createShutdownTrackerApiClient({
       fetchImpl: async () => new Response("conflict", { status: 409 })
@@ -80,6 +102,7 @@ describe("shutdown tracker api client", () => {
     expect(shutdownTrackerReviewApiSurfaces.map((surface) => surface.label)).toEqual(
       expect.arrayContaining([
         "List import snapshots",
+        "Upload source file",
         "Create lineage link",
         "Create export preview",
         "Approve export batch",

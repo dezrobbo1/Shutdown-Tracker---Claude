@@ -27,9 +27,10 @@ The backend scaffold is placeholder-only:
 
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
 - `services/api` also contains `POST /api/source-files/validate`, a validation-only multipart placeholder that stores nothing and parses nothing.
-- `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for future upload workflows; no endpoint calls it yet.
-- `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence; no public endpoint calls them yet.
-- `services/api` contains local-profile JDBC services for import batch creation, status updates, and parse summary persistence using the existing `import_batches` table and `import_batch_status` enum; no public endpoint calls them yet.
+- `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for upload workflows.
+- `services/api` contains a local-profile source-file upload orchestration endpoint that validates, stores accepted bytes, creates `source_files` metadata, creates a pending import batch, and records an audit event.
+- `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence.
+- `services/api` contains local-profile JDBC services for import batch creation, status updates, and parse summary persistence using the existing `import_batches` table and `import_batch_status` enum.
 - `services/api` contains local-profile JDBC services for immutable project snapshot and imported Project entity persistence using the existing `project_snapshots`, `imported_tasks`, `imported_resources`, `imported_assignments`, and `imported_extended_attributes` tables; no public endpoint calls them yet.
 - `services/api` contains a local-profile import review API for listing parsed snapshots, reviewing imported tasks/resources/assignments/extended attributes, and accepting or rejecting parsed snapshots with existing status values.
 - `services/api` contains a local-profile task lineage review API for persisting concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
@@ -39,13 +40,13 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a disconnected Project parse handoff client and request builder for future worker integration; no public endpoint calls it yet and the API still does not parse Project files.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service, and a synthetic MSPDI/XML export artifact spike.
-- `packages/api-client` contains a TypeScript API client for the current import/export review surfaces.
+- `packages/api-client` contains a TypeScript API client for source-file upload and the current import/export review surfaces.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface while still rendering synthetic UI state by default.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, worker job creation, automatic lineage matching, live execution state, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -98,6 +99,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add source-file upload orchestration from validation through storage metadata and import batch creation.
-2. Add worker-backed export artifact generation handoff.
-3. Add live console data fetching for import/export review once a review environment is seeded.
+1. Add worker-backed export artifact generation handoff.
+2. Add live console data fetching for import/export review once a review environment is seeded.
+3. Add Project reopen/verification metadata endpoint.

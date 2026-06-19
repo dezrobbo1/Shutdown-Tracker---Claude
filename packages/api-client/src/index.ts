@@ -21,6 +21,40 @@ export type ExportBatchState =
   | "VERIFIED"
   | "SUPERSEDED"
   | "FAILED";
+export type SourceFileKind = "MPP" | "MSPDI_XML" | "XML" | "OTHER";
+export type ImportBatchStatus = "PENDING" | "PARSING" | "PARSED" | "ACCEPTED" | "FAILED" | "SUPERSEDED";
+
+export type SourceFileMetadataRecord = {
+  id: string;
+  projectId: string;
+  originalFilename: string;
+  fileKind: SourceFileKind;
+  storageUri: string;
+  contentHash: string;
+  sizeBytes: number;
+};
+
+export type ImportBatchRecord = {
+  id: string;
+  projectId: string;
+  sourceFileId: string;
+  status: ImportBatchStatus;
+  parserName: string | null;
+  parserVersion: string | null;
+  warningCount: number;
+  errorCount: number;
+};
+
+export type SourceFileUploadResponse = {
+  originalFilename: string | null;
+  sizeBytes: number;
+  detectedExtension: string;
+  accepted: boolean;
+  rejectionReason: string | null;
+  sourceFile: SourceFileMetadataRecord | null;
+  importBatch: ImportBatchRecord | null;
+  message: string;
+};
 
 export type ImportReviewSnapshotSummary = {
   id: string;
@@ -219,6 +253,7 @@ export type ReviewApiSurface = {
 };
 
 export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
+  { label: "Upload source file", method: "POST", path: "/api/projects/{projectId}/source-files" },
   { label: "List import snapshots", method: "GET", path: "/api/projects/{projectId}/import-review/snapshots" },
   { label: "Read import snapshot", method: "GET", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}" },
   { label: "Accept import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/accept" },
@@ -256,6 +291,20 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? "");
 
   return {
+    sourceFiles: {
+      upload: (projectId: string, file: Blob, filename?: string) => {
+        const formData = new FormData();
+        if (filename) {
+          formData.append("file", file, filename);
+        } else {
+          formData.append("file", file);
+        }
+        return requestJson<SourceFileUploadResponse>(transport, baseUrl, sourceFilesPath(projectId), {
+          method: "POST",
+          formData
+        });
+      }
+    },
     importReview: {
       listSnapshots: (projectId: string) =>
         requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, importReviewPath(projectId, "snapshots")),
@@ -336,6 +385,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
 type RequestOptions = {
   method?: "GET" | "POST";
   body?: unknown;
+  formData?: FormData;
   query?: Record<string, string>;
 };
 
@@ -348,9 +398,11 @@ async function requestJson<T>(
   const headers: Record<string, string> = {
     Accept: "application/json"
   };
-  let body: string | undefined;
+  let body: BodyInit | undefined;
 
-  if (options.body !== undefined) {
+  if (options.formData !== undefined) {
+    body = options.formData;
+  } else if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(options.body);
   }
@@ -371,6 +423,10 @@ async function requestJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+function sourceFilesPath(projectId: string) {
+  return `/api/projects/${encodePathSegment(projectId)}/source-files`;
 }
 
 function importReviewPath(projectId: string, path: string) {
