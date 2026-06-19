@@ -15,9 +15,10 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
 - Import review has local-profile API endpoints for reviewing parsed snapshots and accepting or rejecting them with existing status values.
+- Task lineage review has local-profile API endpoints for creating concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
-- No task execution, export, approval, evidence, scheduler, parser execution, task lineage, or write-back endpoints exist yet.
+- No task execution, export, approval, evidence, scheduler, parser execution, automatic lineage matching, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
 
 ## Source File Validation Placeholder
@@ -137,7 +138,20 @@ When persistence is enabled, the API exposes a project-scoped review surface for
 
 The review responses include snapshot metadata, parser/warning counts, imported task/resource/assignment/extended-attribute rows, and summary/leaf task counts. Accept and reject use only the existing `project_snapshot_status` values `accepted` and `rejected`; accepting also marks the related import batch `accepted`.
 
-This review API does not upload or store files, parse files, call MPXJ, create worker jobs, create task lineage links, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
+The snapshot review endpoints do not upload or store files, parse files, call MPXJ, create worker jobs, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
+
+## Task Lineage Review Persistence
+
+When persistence is enabled, the API exposes project-scoped lineage review endpoints under the import review surface:
+
+- `GET /api/projects/{projectId}/import-review/lineage-links?previousSnapshotId={previousSnapshotId}&currentSnapshotId={currentSnapshotId}`
+- `POST /api/projects/{projectId}/import-review/lineage-links`
+- `POST /api/projects/{projectId}/import-review/lineage-links/{lineageLinkId}/accept`
+- `POST /api/projects/{projectId}/import-review/lineage-links/{lineageLinkId}/reject`
+
+Creating a link persists one concrete previous-task to current-task relationship in the existing `task_lineage_links` table with review state `suggested`. The request requires both snapshot IDs, both imported task IDs, a match method such as `external_uid`, `wbs`, `outline_number`, `name`, or `manual_review`, optional confidence, and optional metadata.
+
+Accept and reject use only the existing `review_state` values `accepted` and `rejected`, and only suggested links can be reviewed. This is persistence and review plumbing only; it does not run automatic matching, create unmatched-task review records, calculate dependencies, mutate imported tasks, create live execution records, generate exports, or write back to Microsoft Project.
 
 ## Project Parse Handoff Boundary
 
