@@ -2,6 +2,8 @@ package com.shutdowntracker.api.importedproject;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,9 +54,13 @@ final class ImportedProjectRecordValidation {
         if (value == null) {
             return Map.of();
         }
-        if (value.containsKey(null)) {
-            throw new IllegalArgumentException(fieldName + " must not contain null keys.");
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : value.entrySet()) {
+            if (entry.getKey() == null) {
+                throw new IllegalArgumentException(fieldName + " must not contain null keys.");
+            }
+            copy.put(entry.getKey(), entry.getValue());
         }
-        return Map.copyOf(value);
+        return Collections.unmodifiableMap(copy);
     }
 }

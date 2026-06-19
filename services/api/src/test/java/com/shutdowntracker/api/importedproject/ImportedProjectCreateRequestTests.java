@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -78,6 +79,21 @@ class ImportedProjectCreateRequestTests {
         assertThat(resource.rawData()).containsEntry("source", "synthetic-fixture");
         assertThatThrownBy(() -> resource.rawData().put("extra", "not allowed"))
                 .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void rejectsRawDataMapsWithNullKeysWithoutDependingOnMapImplementation() {
+        Map<String, Object> rawData = new HashMap<>();
+        rawData.put(null, "not allowed");
+
+        assertThatThrownBy(() -> new ImportedResourceCreateRequest(
+                "SYN-RES-1",
+                "Synthetic Resource",
+                "work",
+                rawData
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("rawData must not contain null keys.");
     }
 
     private ImportedTaskCreateRequest syntheticTask(BigDecimal percentComplete) {
