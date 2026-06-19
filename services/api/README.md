@@ -23,6 +23,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Export batch approval orchestration has local-profile endpoints for approving or rejecting draft preview batches, recording generated artifact metadata, and recording manual Microsoft Project reopen/verification metadata.
 - Project parse handoff has a shared request builder, local-profile API trigger endpoint, default disconnected client, and opt-in HTTP worker client.
 - Project export artifact handoff has a shared request builder, local-profile API trigger endpoint, default disconnected client, and opt-in HTTP worker client.
+- Future queue/background-job wrapping for those handoffs is documented in [Worker Handoff Queue Strategy](../../docs/architecture/worker-handoff-queue-strategy.md); no queue implementation exists yet.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, evidence, scheduler, parser execution, automatic lineage matching, automated Project verification, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -259,7 +260,7 @@ The default `ProjectExportArtifactJobClient` is intentionally disconnected and t
 - `SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH`, default `/worker/project-export/generate-artifact`
 - `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT`, default `.shutdown-tracker/export-artifacts`
 
-The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, automate Microsoft Project reopen, verify artifact contents automatically, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
+The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, automate Microsoft Project reopen, verify artifact contents automatically, mutate imported task rows, calculate schedules, or write back to Microsoft Project. Future asynchronous wrapping should follow the [Worker Handoff Queue Strategy](../../docs/architecture/worker-handoff-queue-strategy.md), keeping the export batch in existing product states while any internal job-run state is tracked separately.
 
 ## Audit Event Writes
 
@@ -278,6 +279,8 @@ The API includes a local-profile handoff boundary for worker-owned parsing:
 - Set `SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED=true` and `SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_BASE_URL` to enable the HTTP worker client. The default worker base URL is `http://localhost:8081`, and the default path is `/worker/project-import/parse-summary`.
 
 This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create imported snapshots, persist imported task/resource/assignment rows, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project.
+
+Future asynchronous wrapping should follow the [Worker Handoff Queue Strategy](../../docs/architecture/worker-handoff-queue-strategy.md): the API validates state and idempotency, the worker owns file processing, and visible import batch status continues to use `pending`, `parsing`, `parsed`, `accepted`, `failed`, and `superseded`.
 
 ## Database Runtime Config
 
