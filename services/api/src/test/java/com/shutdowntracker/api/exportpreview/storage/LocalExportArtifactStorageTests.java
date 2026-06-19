@@ -25,7 +25,8 @@ class LocalExportArtifactStorageTests {
         assertThat(location.projectId()).isEqualTo(projectId);
         assertThat(location.exportBatchId()).isEqualTo(exportBatchId);
         assertThat(location.artifactFilename()).isEqualTo(exportBatchId + ".mspdi.xml");
-        assertThat(location.outputPath()).startsWith(tempDir.toAbsolutePath());
+        assertThat(location.outputPath().toAbsolutePath().normalize().startsWith(tempDir.toAbsolutePath().normalize()))
+                .isTrue();
         assertThat(location.outputPath().toString()).endsWith(exportBatchId + ".mspdi.xml");
         assertThat(location.storageUri()).isEqualTo(location.outputPath().toUri().toString());
         assertThat(location.storageKind()).isEqualTo("local_filesystem");

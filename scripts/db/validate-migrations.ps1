@@ -54,15 +54,31 @@ function Invoke-Compose {
     }
 }
 
+function Test-PostgresSqlReady {
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Docker compose -f $ComposeFile exec -T postgres psql -U $DbUser -d $DbName -tAc "SELECT 1;" *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+}
+
 Write-Host "Resetting local PostgreSQL validation database..."
 Invoke-Compose @("down", "-v")
 Invoke-Compose @("up", "-d")
 
 Write-Host "Waiting for PostgreSQL to become ready..."
 $ready = $false
-for ($attempt = 1; $attempt -le 60; $attempt++) {
-    & $Docker compose -f $ComposeFile exec -T postgres pg_isready -U $DbUser -d $DbName *> $null
-    if ($LASTEXITCODE -eq 0) {
+$stable = 0
+for ($attempt = 1; $attempt -le 90; $attempt++) {
+    if (Test-PostgresSqlReady) {
+        $stable++
+    } else {
+        $stable = 0
+    }
+    if ($stable -ge 3) {
         $ready = $true
         break
     }
