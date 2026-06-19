@@ -168,7 +168,8 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 - `export_batch_approved`
 - `export_batch_rejected`
 - `export_file_generated`
-- `export_verified_in_project`
+- `export_file_opened_in_microsoft_project`
+- `export_file_verified`
 - `offline_event_queued`
 - `offline_event_synced`
 - `offline_event_failed`
@@ -178,7 +179,7 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 
 - Audit event storage should be designed before domain tables are implemented.
 - The baseline SQL migration now exists in [infra/migrations/V004__audit_events.sql](../../infra/migrations/V004__audit_events.sql).
-- The API currently records local-profile audit rows for import snapshot accept/reject decisions, task lineage link create/accept/reject decisions, export preview creation, export batch approval/rejection, and generated artifact metadata recording. These writes use the existing `audit_events` table and do not add public audit query APIs yet.
+- The API currently records local-profile audit rows for import snapshot accept/reject decisions, task lineage link create/accept/reject decisions, export preview creation, export batch approval/rejection, generated artifact metadata recording, and manual Project reopen/verification metadata recording. These writes use the existing `audit_events` table and do not add public audit query APIs yet.
 - Offline events need both local capture time and server received time.
 - Export audit events must identify the export batch and the imported project snapshot.
 - Evidence audit events must identify evidence metadata even if the original file is stored in object storage.

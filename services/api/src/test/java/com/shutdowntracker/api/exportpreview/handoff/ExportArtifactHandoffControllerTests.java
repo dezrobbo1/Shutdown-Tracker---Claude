@@ -74,6 +74,8 @@ class ExportArtifactHandoffControllerTests {
                 null,
                 OffsetDateTime.parse("2026-01-01T02:00:00Z"),
                 null,
+                null,
+                null,
                 "file:///synthetic/export-artifacts/export.mspdi.xml",
                 "synthetic-sha256",
                 null,

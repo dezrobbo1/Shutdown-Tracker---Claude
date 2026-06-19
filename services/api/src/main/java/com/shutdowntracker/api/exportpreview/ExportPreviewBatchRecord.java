@@ -13,6 +13,8 @@ public record ExportPreviewBatchRecord(
         UUID approvedByUserId,
         OffsetDateTime generatedAt,
         UUID generatedByUserId,
+        OffsetDateTime verifiedAt,
+        UUID verifiedByUserId,
         String exportFileUri,
         String exportFileHash,
         String failureReason,

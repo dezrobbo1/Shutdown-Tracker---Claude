@@ -222,6 +222,8 @@ export type ExportPreviewBatchRecord = {
   approvedByUserId: string | null;
   generatedAt: string | null;
   generatedByUserId: string | null;
+  verifiedAt: string | null;
+  verifiedByUserId: string | null;
   exportFileUri: string | null;
   exportFileHash: string | null;
   failureReason: string | null;
@@ -268,6 +270,18 @@ export type ExportBatchGeneratedRequest = {
   exportFileUri: string;
   exportFileHash: string;
   generatedByUserId?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportBatchProjectOpenRequest = {
+  openedByUserId: string;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportBatchVerificationRequest = {
+  verifiedByUserId: string;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -327,6 +341,12 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
   { label: "Reject export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/reject" },
   { label: "Record generated artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated" },
+  {
+    label: "Record Project reopen",
+    method: "POST",
+    path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-opened-in-microsoft-project"
+  },
+  { label: "Verify export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/verify" },
   { label: "Generate export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact" }
 ];
 
@@ -448,6 +468,20 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           transport,
           baseUrl,
           exportPreviewPath(projectId, `${exportBatchId}/mark-generated`),
+          { method: "POST", body: request }
+        ),
+      markOpenedInMicrosoftProject: (projectId: string, exportBatchId: string, request: ExportBatchProjectOpenRequest) =>
+        requestJson<ExportPreviewDetail>(
+          transport,
+          baseUrl,
+          exportPreviewPath(projectId, `${exportBatchId}/mark-opened-in-microsoft-project`),
+          { method: "POST", body: request }
+        ),
+      verify: (projectId: string, exportBatchId: string, request: ExportBatchVerificationRequest) =>
+        requestJson<ExportPreviewDetail>(
+          transport,
+          baseUrl,
+          exportPreviewPath(projectId, `${exportBatchId}/verify`),
           { method: "POST", body: request }
         ),
       generateArtifact: (projectId: string, exportBatchId: string, request?: ExportArtifactGenerationRequest) =>

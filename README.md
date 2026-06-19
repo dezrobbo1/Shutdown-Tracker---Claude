@@ -37,6 +37,7 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a local-profile export preview API for creating draft preview batches from explicit candidate lines and marking line eligibility for approved leaf-task progress/actual fields.
 - `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - `services/api` contains local-profile export batch approval/rejection endpoints and a generated-artifact metadata endpoint using existing export batch status values.
+- `services/api` contains local-profile Project reopen/verification metadata endpoints that use existing export batch status values and do not automate Microsoft Project.
 - `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It calls an explicitly configured project-worker endpoint, records returned artifact URI/hash metadata, and does not generate files in the API.
 - `services/api` contains a local-profile import-batch parse-summary handoff endpoint. It can call an explicitly configured project-worker endpoint, record summary-only parser metadata on the import batch, and still does not parse Project files in the API.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
@@ -48,7 +49,7 @@ The backend scaffold is placeholder-only:
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface while still rendering synthetic UI state by default.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -102,6 +103,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add Project reopen/verification metadata endpoint.
+1. Add generated export artifact storage/object-store strategy.
 2. Add live console data fetching for import/export review once a review environment is seeded.
-3. Add generated export artifact storage/object-store strategy.
+3. Add worker queue/background job strategy for import/export handoffs.

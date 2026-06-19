@@ -12,6 +12,9 @@ public final class AuditEventTypes {
     public static final String EXPORT_BATCH_APPROVED = "export_batch_approved";
     public static final String EXPORT_BATCH_REJECTED = "export_batch_rejected";
     public static final String EXPORT_FILE_GENERATED = "export_file_generated";
+    public static final String EXPORT_FILE_OPENED_IN_MICROSOFT_PROJECT =
+            "export_file_opened_in_microsoft_project";
+    public static final String EXPORT_FILE_VERIFIED = "export_file_verified";
 
     private AuditEventTypes() {
     }

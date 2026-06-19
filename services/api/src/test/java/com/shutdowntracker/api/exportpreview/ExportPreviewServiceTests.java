@@ -218,6 +218,167 @@ class ExportPreviewServiceTests {
     }
 
     @Test
+    void marksGeneratedBatchOpenedInMicrosoftProjectForManualVerification() {
+        UUID projectId = UUID.randomUUID();
+        UUID openedByUserId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                "sha256:synthetic",
+                UUID.randomUUID(),
+                "Synthetic worker artifact recorded",
+                null
+        ));
+
+        ExportPreviewDetail detail = service.markOpenedInMicrosoftProject(
+                projectId,
+                generated.batch().id(),
+                new ExportBatchProjectOpenRequest(
+                        openedByUserId,
+                        "Synthetic Microsoft Project reopen",
+                        Map.of("review", "manual-smoke")
+                )
+        );
+        AuditEventCreateRequest event = audit.events().getLast();
+
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.OPENED_IN_MICROSOFT_PROJECT);
+        assertThat(detail.batch().exportFileUri()).isEqualTo("object://synthetic/export-batches/export-1.mspdi.xml");
+        assertThat(detail.batch().exportFileHash()).isEqualTo("sha256:synthetic");
+        assertThat(detail.batch().verifiedAt()).isNull();
+        assertThat(detail.batch().verifiedByUserId()).isNull();
+        assertThat(detail.message()).contains("for manual verification");
+        assertThat(detail.message()).contains("No Microsoft Project write-back was run");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_FILE_OPENED_IN_MICROSOFT_PROJECT);
+        assertThat(event.oldValueSummary()).containsEntry("status", "generated");
+        assertThat(event.newValueSummary()).containsEntry("status", "opened_in_microsoft_project");
+        assertThat(event.metadata())
+                .containsEntry("artifactGenerated", true)
+                .containsEntry("openedInMicrosoftProject", true)
+                .containsEntry("artifactVerified", false)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    @Test
+    void verifiesBatchAfterMicrosoftProjectOpen() {
+        UUID projectId = UUID.randomUUID();
+        UUID verifiedByUserId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                "sha256:synthetic",
+                UUID.randomUUID(),
+                "Synthetic worker artifact recorded",
+                null
+        ));
+        ExportPreviewDetail opened = service.markOpenedInMicrosoftProject(
+                projectId,
+                generated.batch().id(),
+                new ExportBatchProjectOpenRequest(UUID.randomUUID(), "Synthetic Microsoft Project reopen", null)
+        );
+
+        ExportPreviewDetail detail = service.verifyBatch(
+                projectId,
+                opened.batch().id(),
+                new ExportBatchVerificationRequest(
+                        verifiedByUserId,
+                        "Synthetic manual verification complete",
+                        Map.of("review", "manual-smoke")
+                )
+        );
+        AuditEventCreateRequest event = audit.events().getLast();
+
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.VERIFIED);
+        assertThat(detail.batch().verifiedByUserId()).isEqualTo(verifiedByUserId);
+        assertThat(detail.batch().verifiedAt()).isNotNull();
+        assertThat(detail.message()).contains("manually verified after Microsoft Project reopen");
+        assertThat(detail.message()).contains("No Microsoft Project write-back was run");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_FILE_VERIFIED);
+        assertThat(event.oldValueSummary()).containsEntry("status", "opened_in_microsoft_project");
+        assertThat(event.newValueSummary())
+                .containsEntry("status", "verified")
+                .containsEntry("verifiedByUserId", verifiedByUserId.toString());
+        assertThat(event.metadata())
+                .containsEntry("artifactGenerated", true)
+                .containsEntry("openedInMicrosoftProject", true)
+                .containsEntry("artifactVerified", true)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    @Test
+    void rejectsProjectOpenBeforeGeneration() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+
+        assertThatThrownBy(() -> service.markOpenedInMicrosoftProject(
+                projectId,
+                created.batch().id(),
+                new ExportBatchProjectOpenRequest(UUID.randomUUID(), "Synthetic Microsoft Project reopen", null)
+        ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Only generated export batches can be marked opened in Microsoft Project.");
+        assertThat(audit.events()).hasSize(1);
+    }
+
+    @Test
+    void rejectsVerificationBeforeProjectOpen() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                "sha256:synthetic",
+                UUID.randomUUID(),
+                "Synthetic worker artifact recorded",
+                null
+        ));
+
+        assertThatThrownBy(() -> service.verifyBatch(
+                projectId,
+                generated.batch().id(),
+                new ExportBatchVerificationRequest(
+                        UUID.randomUUID(),
+                        "Synthetic manual verification complete",
+                        null
+                )
+        ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Only export batches opened in Microsoft Project can be verified.");
+        assertThat(audit.events()).hasSize(3);
+    }
+
+    @Test
     void rejectsApprovalWhenNoLinesAreEligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
@@ -333,6 +494,8 @@ class ExportPreviewServiceTests {
         private UUID approvedByUserId;
         private OffsetDateTime generatedAt;
         private UUID generatedByUserId;
+        private OffsetDateTime verifiedAt;
+        private UUID verifiedByUserId;
         private String exportFileUri;
         private String exportFileHash;
         private boolean acceptedSnapshot = true;
@@ -441,6 +604,35 @@ class ExportPreviewServiceTests {
         }
 
         @Override
+        public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
+                UUID projectId,
+                UUID exportBatchId,
+                Map<String, Object> metadata
+        ) {
+            if (status != ExportBatchState.GENERATED) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.OPENED_IN_MICROSOFT_PROJECT;
+            return findBatch(projectId, exportBatchId);
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> markBatchVerified(
+                UUID projectId,
+                UUID exportBatchId,
+                UUID verifiedByUserId,
+                Map<String, Object> metadata
+        ) {
+            if (status != ExportBatchState.OPENED_IN_MICROSOFT_PROJECT) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.VERIFIED;
+            verifiedAt = OffsetDateTime.parse("2026-01-01T03:00:00Z");
+            this.verifiedByUserId = verifiedByUserId;
+            return findBatch(projectId, exportBatchId);
+        }
+
+        @Override
         public Optional<ExportPreviewTaskContext> findTaskContext(
                 UUID projectId,
                 UUID projectSnapshotId,
@@ -517,6 +709,8 @@ class ExportPreviewServiceTests {
                     approvedByUserId,
                     generatedAt,
                     generatedByUserId,
+                    verifiedAt,
+                    verifiedByUserId,
                     exportFileUri,
                     exportFileHash,
                     null,

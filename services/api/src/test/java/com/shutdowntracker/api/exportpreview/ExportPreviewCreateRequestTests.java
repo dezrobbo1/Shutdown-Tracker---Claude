@@ -104,6 +104,28 @@ class ExportPreviewCreateRequestTests {
                 .hasMessage("exportFileHash is required.");
     }
 
+    @Test
+    void rejectsProjectOpenRequestWithoutActor() {
+        assertThatThrownBy(() -> new ExportBatchProjectOpenRequest(
+                null,
+                "Synthetic Microsoft Project reopen",
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("openedByUserId is required.");
+    }
+
+    @Test
+    void rejectsVerificationRequestWithoutActor() {
+        assertThatThrownBy(() -> new ExportBatchVerificationRequest(
+                null,
+                "Synthetic manual verification complete",
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("verifiedByUserId is required.");
+    }
+
     private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {
         return new ExportPreviewLineCreateRequest(
                 UUID.randomUUID(),

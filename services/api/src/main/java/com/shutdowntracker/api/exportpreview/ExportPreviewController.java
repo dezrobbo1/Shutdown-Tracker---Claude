@@ -62,4 +62,22 @@ public class ExportPreviewController {
     ) {
         return service.markGenerated(projectId, exportBatchId, request);
     }
+
+    @PostMapping("/{exportBatchId}/mark-opened-in-microsoft-project")
+    public ExportPreviewDetail markOpenedInMicrosoftProject(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            @RequestBody ExportBatchProjectOpenRequest request
+    ) {
+        return service.markOpenedInMicrosoftProject(projectId, exportBatchId, request);
+    }
+
+    @PostMapping("/{exportBatchId}/verify")
+    public ExportPreviewDetail verifyBatch(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            @RequestBody ExportBatchVerificationRequest request
+    ) {
+        return service.verifyBatch(projectId, exportBatchId, request);
+    }
 }

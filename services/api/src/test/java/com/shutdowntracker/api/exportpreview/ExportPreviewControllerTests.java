@@ -159,6 +159,72 @@ class ExportPreviewControllerTests {
         verify(service).markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class));
     }
 
+    @Test
+    void marksExportBatchOpenedInMicrosoftProject() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        ExportPreviewDetail detail = detail(
+                projectId,
+                UUID.randomUUID(),
+                true,
+                ExportBatchState.OPENED_IN_MICROSOFT_PROJECT
+        );
+        when(service.markOpenedInMicrosoftProject(
+                eq(projectId),
+                eq(exportBatchId),
+                any(ExportBatchProjectOpenRequest.class)
+        )).thenReturn(detail);
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-opened-in-microsoft-project",
+                        projectId,
+                        exportBatchId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "openedByUserId": "11111111-1111-1111-1111-111111111111",
+                                  "reason": "Synthetic Microsoft Project reopen"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batch.status").value("OPENED_IN_MICROSOFT_PROJECT"))
+                .andExpect(jsonPath("$.batch.exportFileUri").value("object://synthetic/export-batches/export-1.mspdi.xml"))
+                .andExpect(jsonPath("$.batch.exportFileHash").value("sha256:synthetic"))
+                .andExpect(jsonPath("$.message").value(detail.message()));
+
+        verify(service).markOpenedInMicrosoftProject(
+                eq(projectId),
+                eq(exportBatchId),
+                any(ExportBatchProjectOpenRequest.class)
+        );
+    }
+
+    @Test
+    void verifiesExportBatchAfterMicrosoftProjectOpen() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.VERIFIED);
+        when(service.verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class)))
+                .thenReturn(detail);
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/verify", projectId, exportBatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "verifiedByUserId": "22222222-2222-2222-2222-222222222222",
+                                  "reason": "Synthetic manual verification complete"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batch.status").value("VERIFIED"))
+                .andExpect(jsonPath("$.batch.verifiedAt").value("2026-01-01T03:00:00Z"))
+                .andExpect(jsonPath("$.batch.verifiedByUserId").value("22222222-2222-2222-2222-222222222222"))
+                .andExpect(jsonPath("$.message").value(detail.message()));
+
+        verify(service).verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class));
+    }
+
     private ExportPreviewDetail detail(UUID projectId, UUID snapshotId, boolean eligible) {
         return detail(projectId, snapshotId, eligible, ExportBatchState.DRAFT_PREVIEW);
     }
@@ -176,18 +242,35 @@ class ExportPreviewControllerTests {
                 snapshotId,
                 status,
                 OffsetDateTime.parse("2026-01-01T00:00:00Z"),
-                status == ExportBatchState.APPROVED || status == ExportBatchState.GENERATED
+                status == ExportBatchState.APPROVED
+                        || status == ExportBatchState.GENERATED
+                        || status == ExportBatchState.OPENED_IN_MICROSOFT_PROJECT
+                        || status == ExportBatchState.VERIFIED
                         ? OffsetDateTime.parse("2026-01-01T01:00:00Z")
                         : null,
                 null,
                 status == ExportBatchState.GENERATED
+                        || status == ExportBatchState.OPENED_IN_MICROSOFT_PROJECT
+                        || status == ExportBatchState.VERIFIED
                         ? OffsetDateTime.parse("2026-01-01T02:00:00Z")
                         : null,
                 null,
+                status == ExportBatchState.VERIFIED
+                        ? OffsetDateTime.parse("2026-01-01T03:00:00Z")
+                        : null,
+                status == ExportBatchState.VERIFIED
+                        ? UUID.fromString("22222222-2222-2222-2222-222222222222")
+                        : null,
                 status == ExportBatchState.GENERATED
+                        || status == ExportBatchState.OPENED_IN_MICROSOFT_PROJECT
+                        || status == ExportBatchState.VERIFIED
                         ? "object://synthetic/export-batches/export-1.mspdi.xml"
                         : null,
-                status == ExportBatchState.GENERATED ? "sha256:synthetic" : null,
+                status == ExportBatchState.GENERATED
+                        || status == ExportBatchState.OPENED_IN_MICROSOFT_PROJECT
+                        || status == ExportBatchState.VERIFIED
+                        ? "sha256:synthetic"
+                        : null,
                 null,
                 1,
                 eligible ? 1 : 0,

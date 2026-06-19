@@ -19,11 +19,11 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Task lineage review has local-profile API endpoints for creating concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
 - Export preview has local-profile API endpoints for creating `draft_preview` batches and previewing eligibility for approved leaf-task progress/actual fields.
 - Audit event writes are wired for import snapshot review decisions, task lineage review decisions, export preview creation, and export batch lifecycle decisions using the existing `audit_events` table.
-- Export batch approval orchestration has local-profile endpoints for approving or rejecting draft preview batches and recording generated artifact metadata for already-approved batches.
+- Export batch approval orchestration has local-profile endpoints for approving or rejecting draft preview batches, recording generated artifact metadata, and recording manual Microsoft Project reopen/verification metadata.
 - Project parse handoff has a shared request builder, local-profile API trigger endpoint, default disconnected client, and opt-in HTTP worker client.
 - Project export artifact handoff has a shared request builder, local-profile API trigger endpoint, default disconnected client, and opt-in HTTP worker client.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
-- No task execution, evidence, scheduler, parser execution, automatic lineage matching, Project verification, or write-back endpoints exist yet.
+- No task execution, evidence, scheduler, parser execution, automatic lineage matching, automated Project verification, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
 
 ## Source File Validation Placeholder
@@ -212,16 +212,22 @@ When persistence is enabled, the API exposes additive lifecycle endpoints on the
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/approve`
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/reject`
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated`
+- `POST /api/projects/{projectId}/export-preview/{exportBatchId}/mark-opened-in-microsoft-project`
+- `POST /api/projects/{projectId}/export-preview/{exportBatchId}/verify`
 
 Approve and reject operate only on `draft_preview` batches. Approval requires at least one eligible line and moves the batch to `approved`, stamping `approved_at` and optional `approved_by_user_id`. Rejection moves the batch to `rejected`; rejection details are carried in request/audit metadata because the baseline schema has no dedicated rejected timestamp column.
 
 `mark-generated` operates only on `approved` batches and records an existing generated artifact URI/hash into `export_file_uri` and `export_file_hash`, stamps `generated_at`, and moves the batch to `generated`. It does not call the worker, write files, generate MSPDI/XML, open Microsoft Project, verify the artifact, mutate imported task rows, or write back to Microsoft Project.
+
+`mark-opened-in-microsoft-project` operates only on `generated` batches and records that a generated artifact has been manually opened in Microsoft Project for review. `verify` operates only after that manual-open step and records manual artifact verification with `verified_at` and `verified_by_user_id`. These endpoints record lifecycle metadata only. They do not automate Microsoft Project, parse artifacts, mutate imported task rows, generate exports, or write back to Microsoft Project.
 
 Lifecycle writes record audit events:
 
 - `export_batch_approved`
 - `export_batch_rejected`
 - `export_file_generated`
+- `export_file_opened_in_microsoft_project`
+- `export_file_verified`
 
 The audit rows target the export batch, include previous/new batch status, reference both `project_snapshot_id` and `export_batch_id`, and preserve metadata confirming no Project write-back occurred.
 
@@ -240,7 +246,7 @@ The default `ProjectExportArtifactJobClient` is intentionally disconnected and t
 - `SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH`, default `/worker/project-export/generate-artifact`
 - `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_OUTPUT_ROOT`, default `.shutdown-tracker/export-artifacts`
 
-The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, open Microsoft Project, verify the generated artifact, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
+The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, automate Microsoft Project reopen, verify artifact contents automatically, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
 
 ## Audit Event Writes
 
