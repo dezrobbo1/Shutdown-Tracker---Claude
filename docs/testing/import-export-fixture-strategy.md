@@ -53,7 +53,8 @@ Fixture IDs should be lowercase kebab-case. Expected-output files should reuse t
 
 Expected outputs should be deterministic text files derived from safe fixtures:
 
-- Import summaries should include source format, fixture ID, safe project name, count totals, warning counts, error counts, and notes.
+- Import summaries should include source format, fixture ID, safe project name, count totals, warning counts, error counts, summary-only scope, and notes.
+- Where the worker parse contract is available, expected import summaries should include a `worker_response` block that mirrors stable response fields such as source filename, detected format, project name, counts, warning/error counts, and expected notes.
 - Parser expectations should focus on task, summary-task, resource, assignment, custom-field, calendar, lineage, and warning counts.
 - Export preview expectations should describe eligible leaf-task progress/actual updates, excluded summary tasks, approval state, and warning counts.
 - Expected outputs must not include real names, work orders, sites, assets, costs, people, vendors, locations, or commercial data.
@@ -62,7 +63,7 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 ## Import/Export Test Levels
 
 1. Manifest validation: verify every fixture declares whether it contains real project data and whether it is allowed to commit.
-2. Parser summary tests: compare MPXJ parser counts, warnings, and errors against expected JSON.
+2. Parser summary tests: compare MPXJ parser counts, warnings, errors, and stable worker response fields against expected JSON.
 3. Snapshot persistence tests: verify imported task/resource/assignment lineage after parsing is implemented.
 4. Export preview tests: verify only approved, export-eligible leaf-task actual/progress fields are selected.
 5. Export artifact tests: generate MSPDI/XML from safe data only.

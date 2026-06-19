@@ -8,7 +8,7 @@ This folder holds text-only import/export fixture metadata and expected outputs.
 - `example-fixture-manifest.json`: safe synthetic manifest example.
 - `expected-import-summary.example.json`: safe synthetic expected import summary example.
 - `synthetic-basic-wbs/`: first approved synthetic MSPDI import fixture, manifest, and expected summary.
-- Future expected parser outputs should use the fixture ID in the filename, such as `synthetic-basic-wbs.expected-import-summary.json`.
+- Future expected parser outputs should live with their fixture folder and use clear names such as `expected-import-summary.json`.
 
 ## Parser Summary Expectations
 
@@ -17,6 +17,7 @@ Expected import summaries should record deterministic counts and notes, includin
 - Fixture ID and safe project name.
 - Source format.
 - Task, summary task, milestone, resource, assignment, calendar, custom field, dependency, and baseline counts when relevant.
+- `worker_response` fields that mirror the shared worker parse summary response where practical.
 - Warning and error counts.
 - Notes that contain no real names, work orders, sites, assets, vendors, people, locations, costs, or commercial data.
 
@@ -36,4 +37,4 @@ Manual Microsoft Project round-trip validation should use synthetic or fully san
 
 ## Approved Synthetic Fixtures
 
-`synthetic-basic-wbs` is a tiny hand-built MSPDI XML fixture with neutral names only. It is approved for parser summary tests and expected-output checks. This approval does not allow real Project XML, real schedules, generated exports, screenshots, or broad binary/project-file commits.
+`synthetic-basic-wbs` is a tiny hand-built MSPDI XML fixture with neutral names only. Its expected import summary now includes a structured `worker_response` block used by automated worker tests. This approval does not allow real Project XML, real schedules, generated exports, screenshots, or broad binary/project-file commits.
