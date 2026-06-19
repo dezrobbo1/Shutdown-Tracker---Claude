@@ -36,12 +36,12 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a local-profile export preview API for creating draft preview batches from explicit candidate lines and marking line eligibility for approved leaf-task progress/actual fields.
 - `services/api` contains a disconnected Project parse handoff client and request builder for future worker integration; no public endpoint calls it yet and the API still does not parse Project files.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
-- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike and a shared-contract parse summary handoff service.
+- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service, and a synthetic MSPDI/XML export artifact spike.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
 - `apps/console` and `apps/mobile-pwa` contain React/Vite scaffolds with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, export approval, export generation, Project write-back, frontend API integration, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, export approval endpoint, Project write-back, frontend API integration, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -94,6 +94,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add first MSPDI/XML export artifact generation.
-2. Add audit-event writes for import/export review decisions once the audit pipeline is wired.
-3. Add frontend API client wiring after the backend workflow contracts settle.
+1. Add audit-event writes for import/export review decisions once the audit pipeline is wired.
+2. Add frontend API client wiring after the backend workflow contracts settle.
+3. Add export batch approval/generation API orchestration.
