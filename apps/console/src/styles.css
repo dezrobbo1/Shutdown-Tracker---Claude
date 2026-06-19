@@ -214,6 +214,51 @@ button {
   align-items: start;
 }
 
+.api-surface {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.35fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  border: 1px solid #dbe1d6;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.api-surface h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.api-surface div > span {
+  color: #66756a;
+}
+
+.api-surface-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.api-surface-list span {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #f8faf5;
+  padding: 8px 10px;
+  color: #24322b;
+  font-size: 0.84rem;
+}
+
+.api-surface-list strong {
+  color: #4361a3;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
 .work-panel {
   border: 1px solid #dbe1d6;
   border-radius: 8px;
@@ -352,7 +397,12 @@ button {
   }
 
   .metric-grid,
+  .api-surface,
   .content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .api-surface-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -369,7 +419,12 @@ button {
   }
 
   .metric-grid,
+  .api-surface,
   .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .api-surface-list {
     grid-template-columns: 1fr;
   }
 

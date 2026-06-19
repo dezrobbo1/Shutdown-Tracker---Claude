@@ -39,11 +39,13 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a disconnected Project parse handoff client and request builder for future worker integration; no public endpoint calls it yet and the API still does not parse Project files.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service, and a synthetic MSPDI/XML export artifact spike.
+- `packages/api-client` contains a TypeScript API client for the current import/export review surfaces.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
-- `apps/console` and `apps/mobile-pwa` contain React/Vite scaffolds with static synthetic UI state only.
+- `apps/console` contains a React/Vite scaffold wired to the shared API client surface while still rendering synthetic UI state by default.
+- `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, Project write-back, frontend API integration, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -96,6 +98,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add frontend API client wiring after the backend workflow contracts settle.
-2. Add source-file upload orchestration from validation through storage metadata and import batch creation.
-3. Add worker-backed export artifact generation handoff.
+1. Add source-file upload orchestration from validation through storage metadata and import batch creation.
+2. Add worker-backed export artifact generation handoff.
+3. Add live console data fetching for import/export review once a review environment is seeded.

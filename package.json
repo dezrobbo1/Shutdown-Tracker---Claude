@@ -5,7 +5,8 @@
   "description": "Shutdown Tracker monorepo frontend workspace.",
   "workspaces": [
     "apps/console",
-    "apps/mobile-pwa"
+    "apps/mobile-pwa",
+    "packages/api-client"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

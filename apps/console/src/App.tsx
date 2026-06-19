@@ -1,4 +1,5 @@
 import { ChevronDown, FileSearch, RefreshCw } from "lucide-react";
+import { reviewApiConnection } from "./apiReviewClient";
 import {
   consoleMetrics,
   consoleNavItems,
@@ -64,6 +65,26 @@ export function App() {
               </div>
             </article>
           ))}
+        </section>
+
+        <section className="api-surface" aria-label="Review API client wiring">
+          <div>
+            <p className="eyebrow">API client</p>
+            <h2>Import/export review operations</h2>
+            <span>{reviewApiConnection.baseUrlLabel}</span>
+          </div>
+          <div className="api-surface-list">
+            {reviewApiConnection.highlightedSurfaces.map((surface) => (
+              <span key={`${surface.method}-${surface.path}`}>
+                <strong>{surface.method}</strong>
+                {surface.label}
+              </span>
+            ))}
+            <span>
+              <strong>{reviewApiConnection.operationCount}</strong>
+              Wired operations
+            </span>
+          </div>
         </section>
 
         <section className="content-grid">

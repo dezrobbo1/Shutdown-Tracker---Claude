@@ -1,6 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
+import { reviewApiConnection } from "./apiReviewClient";
 import { consoleNavItems, exportPreviewSignals } from "./consoleData";
 
 describe("console scaffold", () => {
@@ -19,6 +20,16 @@ describe("console scaffold", () => {
       expect(html).toContain(signal.label);
       expect(html).toContain(signal.value);
     }
+  });
+
+  it("renders the wired import and export review API client operations", () => {
+    const html = renderToString(<App />);
+
+    expect(reviewApiConnection.operationCount).toBeGreaterThanOrEqual(10);
+    expect(html).toContain("Import/export review operations");
+    expect(html).toContain("List import snapshots");
+    expect(html).toContain("Create export preview");
+    expect(html).toContain("Wired operations");
   });
 
   it("does not surface schedule-authoring language", () => {

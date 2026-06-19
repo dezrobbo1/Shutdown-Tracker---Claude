@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+import {
+  ShutdownTrackerApiError,
+  createShutdownTrackerApiClient,
+  shutdownTrackerReviewApiSurfaces
+} from "./index";
+
+describe("shutdown tracker api client", () => {
+  it("requests import review snapshots with encoded project ids", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://api.example.test/",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.importReview.listSnapshots("project 1");
+
+    expect(calls).toEqual([
+      {
+        input: "https://api.example.test/api/projects/project%201/import-review/snapshots",
+        method: "GET",
+        body: undefined
+      }
+    ]);
+  });
+
+  it("adds lineage query parameters", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.taskLineage.listBySnapshotPair("project-a", "previous snap", "current snap");
+
+    expect(calls[0].input).toBe(
+      "/api/projects/project-a/import-review/lineage-links?previousSnapshotId=previous+snap&currentSnapshotId=current+snap"
+    );
+  });
+
+  it("posts export preview lifecycle requests as json", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, { batch: { status: "APPROVED" }, lines: [], message: "ok" })
+    });
+
+    await client.exportPreview.approve("project-a", "batch-a", {
+      reason: "Synthetic approval"
+    });
+    await client.exportPreview.markGenerated("project-a", "batch-a", {
+      exportFileUri: "object://synthetic/export.mspdi.xml",
+      exportFileHash: "sha256:synthetic"
+    });
+
+    expect(calls.map((call) => call.input)).toEqual([
+      "/api/projects/project-a/export-preview/batch-a/approve",
+      "/api/projects/project-a/export-preview/batch-a/mark-generated"
+    ]);
+    expect(calls[0].body).toBe(JSON.stringify({ reason: "Synthetic approval" }));
+    expect(calls[1].body).toBe(
+      JSON.stringify({
+        exportFileUri: "object://synthetic/export.mspdi.xml",
+        exportFileHash: "sha256:synthetic"
+      })
+    );
+  });
+
+  it("throws a typed error for non-successful responses", async () => {
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: async () => new Response("conflict", { status: 409 })
+    });
+
+    await expect(client.importReview.acceptSnapshot("project-a", "snapshot-a")).rejects.toMatchObject({
+      name: "ShutdownTrackerApiError",
+      status: 409,
+      responseBody: "conflict"
+    } satisfies Partial<ShutdownTrackerApiError>);
+  });
+
+  it("describes the import and export review API surface", () => {
+    expect(shutdownTrackerReviewApiSurfaces.map((surface) => surface.label)).toEqual(
+      expect.arrayContaining([
+        "List import snapshots",
+        "Create lineage link",
+        "Create export preview",
+        "Approve export batch",
+        "Record generated artifact"
+      ])
+    );
+  });
+});
+
+type CapturedRequest = {
+  input: string;
+  method: string;
+  body: BodyInit | null | undefined;
+};
+
+function captureFetch(calls: CapturedRequest[], payload: unknown) {
+  return async (input: string, init?: RequestInit) => {
+    calls.push({
+      input,
+      method: init?.method ?? "GET",
+      body: init?.body
+    });
+
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+  };
+}
