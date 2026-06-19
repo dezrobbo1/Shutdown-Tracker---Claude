@@ -1,21 +1,22 @@
-package com.shutdowntracker.api.exportpreview.handoff;
+package com.shutdowntracker.api.exportpreview;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
-import com.shutdowntracker.api.exportpreview.ApprovalState;
-import com.shutdowntracker.api.exportpreview.ExportBatchState;
-import com.shutdowntracker.api.exportpreview.ExportPreviewBatchRecord;
-import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
-import com.shutdowntracker.api.exportpreview.ExportPreviewLineRecord;
-import com.shutdowntracker.api.exportpreview.ExportPreviewMaterializedLine;
-import com.shutdowntracker.api.exportpreview.ExportPreviewRepository;
-import com.shutdowntracker.api.exportpreview.ExportPreviewService;
-import com.shutdowntracker.api.exportpreview.ExportPreviewTaskContext;
+import com.shutdowntracker.api.exportpreview.handoff.DisconnectedProjectExportArtifactJobClient;
+import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationRequest;
+import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationResponse;
+import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffProperties;
+import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffService;
+import com.shutdowntracker.api.exportpreview.handoff.ProjectExportArtifactJobClient;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -224,14 +225,25 @@ class ExportArtifactHandoffServiceTests {
         }
 
         private ProjectExportArtifactGenerationRequest workerRequest() {
-            ExportArtifactHandoffService service = new ExportArtifactHandoffService(
-                    new ExportPreviewService(this, new CapturingAuditEventRecorder()),
-                    request -> {
-                        throw new AssertionError("Worker client should not be called.");
-                    },
-                    new ExportArtifactHandoffProperties(".shutdown-tracker/export-artifacts")
+            return new ProjectExportArtifactGenerationRequest(
+                    exportBatchId,
+                    projectId,
+                    ".shutdown-tracker/export-artifacts/" + exportBatchId + ".mspdi.xml",
+                    new ProjectExportArtifactRequest(
+                            "Synthetic Export Preview",
+                            List.of(new ProjectExportArtifactTask(
+                                    importedTaskId.toString(),
+                                    "101",
+                                    "1",
+                                    "Synthetic Task A1",
+                                    true,
+                                    List.of(new ProjectExportArtifactFieldValue(
+                                            ProjectExportArtifactField.PERCENT_COMPLETE,
+                                            "75"
+                                    ))
+                            ))
+                    )
             );
-            return service.buildWorkerRequest(new ExportPreviewDetail(batch(), lines, "synthetic"));
         }
 
         @Override
