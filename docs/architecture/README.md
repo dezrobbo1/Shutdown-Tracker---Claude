@@ -14,6 +14,8 @@ The API service will own request/response workflows, authentication, authorizati
 
 The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, import batch persistence services, parse summary persistence, immutable project snapshot/imported entity persistence, a local-profile import review API, local-profile task lineage review persistence, a local-profile export preview model, and a disconnected Project parse handoff boundary exist. No task execution endpoints, export approval/generation endpoints, scheduler logic, parser execution in the API, automatic lineage matching, or authorization behavior exists yet.
 
+The repository also includes React/Vite scaffolds in [apps/console](../../apps/console) and [apps/mobile-pwa](../../apps/mobile-pwa). These are static UI shells for review of the desktop console and mobile PWA surfaces only; they do not call backend APIs, write execution state, implement offline queues, store files, parse Project files, generate exports, or write back to Microsoft Project.
+
 ## Project Worker
 
 The project worker will process stored Microsoft Project source files for import batches, run MPXJ parsing, capture warnings, help persist snapshots, and later generate MSPDI/XML export artifacts.

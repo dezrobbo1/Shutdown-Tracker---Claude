@@ -39,11 +39,12 @@ The backend scaffold is placeholder-only:
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike and a shared-contract parse summary handoff service.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
+- `apps/console` and `apps/mobile-pwa` contain React/Vite scaffolds with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, export approval, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, parser execution in the API, automatic lineage matching, live execution state, export approval, export generation, Project write-back, frontend API integration, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
-- CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
+- CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
 
 ## Architecture Direction
 
@@ -93,6 +94,6 @@ fixtures/
 
 ## Next Steps
 
-1. Scaffold the console and mobile PWA in a follow-up PR.
-2. Add first MSPDI/XML export artifact generation.
-3. Add audit-event writes for import/export review decisions once the audit pipeline is wired.
+1. Add first MSPDI/XML export artifact generation.
+2. Add audit-event writes for import/export review decisions once the audit pipeline is wired.
+3. Add frontend API client wiring after the backend workflow contracts settle.

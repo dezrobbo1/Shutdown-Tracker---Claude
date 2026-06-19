@@ -1,0 +1,387 @@
+:root {
+  color: #17201a;
+  background: #f6f7f2;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.console-shell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px 18px;
+  border-right: 1px solid #d7ddd2;
+  background: #fbfcf8;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: #1d473d;
+  color: #f7f9f4;
+  font-weight: 800;
+}
+
+.brand strong,
+.brand span {
+  display: block;
+}
+
+.brand span {
+  color: #5f6f66;
+  font-size: 0.86rem;
+}
+
+.nav-list {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-item,
+.filter-button,
+.icon-button {
+  border: 1px solid #cfd8ce;
+  background: #ffffff;
+  color: #24322b;
+  cursor: pointer;
+}
+
+.nav-item {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.nav-item.active {
+  border-color: #1d473d;
+  background: #e8f1ec;
+  color: #12362d;
+  font-weight: 700;
+}
+
+.workspace {
+  display: grid;
+  gap: 22px;
+  align-content: start;
+  padding: 28px;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.workspace-header h1,
+.panel-heading h2 {
+  margin: 0;
+}
+
+.workspace-header h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.05;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #9f5f25;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.filter-button,
+.icon-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.icon-button {
+  width: 42px;
+  padding: 0;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 128px;
+  border: 1px solid #dbe1d6;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.metric-card p,
+.metric-card span {
+  margin: 0;
+  color: #66756a;
+}
+
+.metric-card strong {
+  display: block;
+  margin: 7px 0;
+  font-size: 1.05rem;
+}
+
+.metric-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.metric-card.green .metric-icon {
+  background: #dff0e8;
+  color: #287c65;
+}
+
+.metric-card.blue .metric-icon {
+  background: #e4ebf7;
+  color: #4361a3;
+}
+
+.metric-card.amber .metric-icon {
+  background: #faeddd;
+  color: #9f5f25;
+}
+
+.metric-card.red .metric-icon {
+  background: #f8e2df;
+  color: #a8463b;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.work-panel {
+  border: 1px solid #dbe1d6;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.status-chip {
+  border-radius: 999px;
+  background: #e8f1ec;
+  color: #1d473d;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.status-chip.amber {
+  background: #faeddd;
+  color: #7b481d;
+}
+
+.review-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(150px, 1fr) minmax(120px, 0.8fr);
+  min-height: 52px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e8ece4;
+}
+
+.review-row:last-child {
+  border-bottom: 0;
+}
+
+.review-head {
+  min-height: 42px;
+  background: #f2f5ef;
+  color: #66756a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.preview-line {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.preview-line span {
+  color: #4361a3;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.preview-line strong {
+  color: #17201a;
+}
+
+.preview-line em {
+  color: #66756a;
+  font-style: normal;
+}
+
+.preview-signals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.preview-signals div {
+  display: grid;
+  gap: 5px;
+  min-height: 68px;
+  align-content: center;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #f8faf5;
+  padding: 10px;
+}
+
+.preview-signals span {
+  color: #66756a;
+  font-size: 0.78rem;
+}
+
+.preview-signals strong {
+  color: #1d473d;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 1040px) {
+  .console-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid #d7ddd2;
+  }
+
+  .nav-list {
+    display: flex;
+    min-width: max-content;
+  }
+
+  .metric-grid,
+  .content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace {
+    padding: 20px;
+  }
+
+  .workspace-header,
+  .panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metric-grid,
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-table {
+    overflow-x: auto;
+  }
+
+  .review-row {
+    min-width: 680px;
+  }
+
+  .preview-signals {
+    grid-template-columns: 1fr;
+  }
+}

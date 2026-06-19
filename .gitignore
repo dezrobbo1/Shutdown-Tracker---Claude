@@ -67,3 +67,7 @@ fixtures/project-files/**/*.xer
 fixtures/project-files/**/*.zip
 fixtures/project-files/_local/
 fixtures/import-export/_local/
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
