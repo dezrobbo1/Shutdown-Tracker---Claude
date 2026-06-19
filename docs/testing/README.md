@@ -10,6 +10,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Store fixture metadata and expected parse outcomes in text form where possible.
 - Follow the [Import/Export Fixture Strategy](import-export-fixture-strategy.md) before adding any fixture metadata or future approved fixture files.
 - Current MPXJ import spike tests use synthetic in-memory MPXJ objects and do not commit real Project files.
+- The approved `synthetic-basic-wbs` MSPDI fixture has structured expected-output JSON that is compared against the worker parse summary response.
 - Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
 - Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks.
 
@@ -49,7 +50,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
 - Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, parse summary update mapping, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
 - Import summary persistence tests use synthetic worker summary responses only. They verify summary-only count metadata and do not create snapshots, imported tasks, parser executions, queue jobs, source files, or real Project fixtures.
-- Project parse handoff tests use synthetic IDs and metadata only. API tests verify request construction and the disconnected client; worker tests verify local URI resolution and summary response mapping.
+- Project parse handoff tests use synthetic IDs and metadata only. API tests verify request construction and the disconnected client; worker tests verify local URI resolution, summary response mapping, and expected-output matching for the approved synthetic MSPDI fixture.
 - The project worker has a worker-only MPXJ import summary spike and shared-contract parse summary handoff; no committed real Project files, persistence, background jobs, queue integration, export generation, or scheduler logic exists yet.
 - Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
 - The migration validation scripts apply SQL directly and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.

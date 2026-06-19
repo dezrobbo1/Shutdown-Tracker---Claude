@@ -34,6 +34,7 @@ The backend scaffold is placeholder-only:
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike and a shared-contract parse summary handoff service.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
+- `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
 - No domain logic, scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, project snapshot persistence, imported task/resource/assignment persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
@@ -88,8 +89,7 @@ fixtures/
 
 ## Next Steps
 
-1. Add parser expected-output expansion.
-2. Persist project snapshots and imported Project entities.
-3. Add import review API.
-4. Add export preview model.
-5. Scaffold the console and mobile PWA in a follow-up PR.
+1. Persist project snapshots and imported Project entities.
+2. Add import review API.
+3. Add export preview model.
+4. Scaffold the console and mobile PWA in a follow-up PR.

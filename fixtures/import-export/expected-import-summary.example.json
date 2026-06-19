@@ -4,17 +4,36 @@
   "source_format": "mspdi_xml",
   "synthetic_or_sanitized": "synthetic",
   "contains_real_project_data": false,
+  "summary_only": true,
   "counts": {
     "tasks": 6,
     "summary_tasks": 2,
     "leaf_tasks": 4,
-    "milestones": 1,
+    "milestones": 0,
     "resources": 0,
     "assignments": 0,
     "calendars": 1,
     "custom_fields": 0,
     "dependencies": 0,
     "baselines": 0
+  },
+  "worker_response": {
+    "parser_name": "mpxj",
+    "source_filename": "synthetic-basic-wbs.mspdi.xml",
+    "detected_format": "MSPDI",
+    "project_name": "Synthetic Basic WBS",
+    "task_count": 6,
+    "summary_task_count": 2,
+    "leaf_task_count": 4,
+    "resource_count": 0,
+    "assignment_count": 0,
+    "calendar_count": 1,
+    "custom_field_count": 0,
+    "warning_count": 0,
+    "error_count": 0,
+    "expected_notes": [
+      "Summary only; no schedule calculations were run."
+    ]
   },
   "warnings": [],
   "errors": [],

@@ -11,7 +11,8 @@
   "expected_counts": {
     "tasks": 6,
     "summary_tasks": 2,
-    "milestones": 1,
+    "leaf_tasks": 4,
+    "milestones": 0,
     "resources": 0,
     "assignments": 0,
     "calendars": 1,

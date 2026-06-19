@@ -34,6 +34,8 @@ The response is summary-only: parser name/version, source filename, detected for
 
 Only local file storage URIs are accepted for this early handoff. Non-local object-storage URIs should wait for the future storage/queue contract.
 
+Worker tests compare the approved `synthetic-basic-wbs` MSPDI fixture against its structured expected import summary JSON, including the stable `worker_response` fields. This remains synthetic and summary-only.
+
 ## Database Runtime Config
 
 The `local` profile uses PostgreSQL and Flyway. Run commands from the repository root so Flyway can resolve `filesystem:infra/migrations`.
