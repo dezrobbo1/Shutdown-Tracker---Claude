@@ -20,7 +20,7 @@
   "worker_response": {
     "parser_name": "mpxj",
     "source_filename": "synthetic-basic-wbs.mspdi.xml",
-    "detected_format": "MSPDIReader",
+    "detected_format": "MSPDI",
     "project_name": "Synthetic Basic WBS",
     "task_count": 6,
     "summary_task_count": 2,

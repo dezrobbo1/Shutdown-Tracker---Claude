@@ -6,7 +6,7 @@
   "synthetic_or_sanitized": "synthetic",
   "contains_real_project_data": false,
   "summary_only": true,
-  "detected_format": "MSPDIReader",
+  "detected_format": "MSPDI",
   "counts": {
     "tasks": 6,
     "summary_tasks": 2,
@@ -24,7 +24,7 @@
   "worker_response": {
     "parser_name": "mpxj",
     "source_filename": "synthetic-basic-wbs.mspdi.xml",
-    "detected_format": "MSPDIReader",
+    "detected_format": "MSPDI",
     "project_name": "Synthetic Basic WBS",
     "task_count": 6,
     "summary_task_count": 2,
