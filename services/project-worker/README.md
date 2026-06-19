@@ -6,7 +6,7 @@ Purpose: Spring Boot worker service shell for future Microsoft Project import/ex
 
 - Placeholder Spring Boot application in package `com.shutdowntracker.projectworker`.
 - Worker-only MPXJ import summary spike in package `com.shutdowntracker.projectworker.importer`.
-- Shared-contract parse summary handoff service in package `com.shutdowntracker.projectworker.handoff`.
+- Shared-contract parse summary handoff service and worker endpoint in package `com.shutdowntracker.projectworker.handoff`.
 - Worker-only MSPDI/XML export artifact spike in package `com.shutdowntracker.projectworker.exporter`.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The import spike reads one explicit local file path only when `shutdown-tracker.import-spike.path` is set.
@@ -31,6 +31,10 @@ Local files are for local testing only. Do not commit real customer/project file
 ## Project Parse Handoff Boundary
 
 `WorkerProjectParseHandoffService` accepts the shared `ProjectParseSummaryRequest`, resolves an explicit local file URI/path, calls the existing MPXJ summary service, and returns a shared `ProjectParseSummaryResponse`.
+
+The worker exposes the same contract through:
+
+- `POST /worker/project-import/parse-summary`
 
 The response is summary-only: parser name/version, source filename, detected format, project name, task/resource/assignment/calendar/custom-field counts, warning/error counts, and notes. It does not persist import output, create snapshots, create imported tasks, run jobs, integrate a queue, generate exports, write back to Microsoft Project, or calculate schedules.
 
@@ -63,7 +67,7 @@ mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.profiles=local
 mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.arguments=--shutdown-tracker.import-spike.path=/absolute/path/to/local/safe-file.mpp
 ```
 
-The import spike command uses the default profile so it does not require PostgreSQL. When the path property is absent, the worker starts normally and does not run the import spike. With the path property set, the current non-web worker logs the summary and exits after startup work completes.
+The worker HTTP endpoint defaults to port `8081`, or `PORT` when set. The import spike command uses the default profile so it does not require PostgreSQL. When the path property is absent, the worker starts normally and does not run the import spike. With the path property set, the worker logs the summary during startup and continues serving until stopped.
 
 ## MSPDI/XML Export Artifact Spike
 

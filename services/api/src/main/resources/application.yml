@@ -24,6 +24,10 @@ shutdown-tracker:
     max-size-bytes: 52428800
   source-file-storage:
     local-root: ${SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT:.shutdown-tracker/source-files}
+  project-parse-worker:
+    enabled: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED:false}
+    base-url: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_BASE_URL:http://localhost:8081}
+    parse-summary-path: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_PARSE_SUMMARY_PATH:/worker/project-import/parse-summary}
   review-project-bootstrap:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
     project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}

@@ -45,6 +45,31 @@ export type ImportBatchRecord = {
   errorCount: number;
 };
 
+export type ProjectParseSummaryResponse = {
+  importBatchId: string;
+  parserName: string;
+  parserVersion: string;
+  sourceFilename: string;
+  detectedFormat: string;
+  projectName: string;
+  taskCount: number;
+  summaryTaskCount: number;
+  leafTaskCount: number;
+  resourceCount: number;
+  assignmentCount: number;
+  calendarCount: number;
+  customFieldCount: number;
+  warningCount: number;
+  errorCount: number;
+  notes: string[];
+};
+
+export type ImportBatchParseHandoffResponse = {
+  importBatch: ImportBatchRecord;
+  parseSummary: ProjectParseSummaryResponse;
+  message: string;
+};
+
 export type SourceFileUploadResponse = {
   originalFilename: string | null;
   sizeBytes: number;
@@ -254,6 +279,11 @@ export type ReviewApiSurface = {
 
 export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Upload source file", method: "POST", path: "/api/projects/{projectId}/source-files" },
+  {
+    label: "Request import batch parse summary",
+    method: "POST",
+    path: "/api/projects/{projectId}/import-batches/{importBatchId}/request-parse-summary"
+  },
   { label: "List import snapshots", method: "GET", path: "/api/projects/{projectId}/import-review/snapshots" },
   { label: "Read import snapshot", method: "GET", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}" },
   { label: "Accept import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/accept" },
@@ -304,6 +334,15 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           formData
         });
       }
+    },
+    importBatches: {
+      requestParseSummary: (projectId: string, importBatchId: string) =>
+        requestJson<ImportBatchParseHandoffResponse>(
+          transport,
+          baseUrl,
+          importBatchPath(projectId, importBatchId, "request-parse-summary"),
+          { method: "POST" }
+        )
     },
     importReview: {
       listSnapshots: (projectId: string) =>
@@ -427,6 +466,10 @@ async function requestJson<T>(
 
 function sourceFilesPath(projectId: string) {
   return `/api/projects/${encodePathSegment(projectId)}/source-files`;
+}
+
+function importBatchPath(projectId: string, importBatchId: string, path: string) {
+  return `/api/projects/${encodePathSegment(projectId)}/import-batches/${encodePathSegment(importBatchId)}/${encodePath(path)}`;
 }
 
 function importReviewPath(projectId: string, path: string) {

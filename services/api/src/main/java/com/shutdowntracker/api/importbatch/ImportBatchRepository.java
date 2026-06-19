@@ -1,8 +1,11 @@
 package com.shutdowntracker.api.importbatch;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ImportBatchRepository {
+
+    Optional<ImportBatchRecord> findByProjectIdAndId(UUID projectId, UUID importBatchId);
 
     ImportBatchRecord create(ImportBatchCreateRequest request);
 

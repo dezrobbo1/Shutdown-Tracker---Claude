@@ -22,6 +22,7 @@ import com.shutdowntracker.api.sourcefile.storage.SourceFileStorageRequest;
 import com.shutdowntracker.api.sourcefile.storage.StoredSourceFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -143,6 +144,11 @@ class SourceFileUploadServiceTests {
         private SourceFileMetadataCreateRequest createRequest;
 
         @Override
+        public Optional<SourceFileMetadataRecord> findByProjectIdAndId(UUID projectId, UUID sourceFileId) {
+            return Optional.empty();
+        }
+
+        @Override
         public SourceFileMetadataRecord create(SourceFileMetadataCreateRequest request) {
             createRequest = request;
             return new SourceFileMetadataRecord(
@@ -160,6 +166,11 @@ class SourceFileUploadServiceTests {
     private static class CapturingImportBatchRepository implements ImportBatchRepository {
 
         private ImportBatchCreateRequest createRequest;
+
+        @Override
+        public Optional<ImportBatchRecord> findByProjectIdAndId(UUID projectId, UUID importBatchId) {
+            return Optional.empty();
+        }
 
         @Override
         public ImportBatchRecord create(ImportBatchCreateRequest request) {

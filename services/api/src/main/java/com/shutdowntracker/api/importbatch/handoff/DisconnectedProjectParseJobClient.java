@@ -3,9 +3,11 @@ package com.shutdowntracker.api.importbatch.handoff;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnMissingBean(ProjectParseJobClient.class)
 public class DisconnectedProjectParseJobClient implements ProjectParseJobClient {
 
     @Override

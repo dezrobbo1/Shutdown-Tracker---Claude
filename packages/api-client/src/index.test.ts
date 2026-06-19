@@ -86,6 +86,25 @@ describe("shutdown tracker api client", () => {
     expect(calls[0].body).toBeInstanceOf(FormData);
   });
 
+  it("requests import batch parse handoff", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, {
+        importBatch: { id: "batch-a", status: "PARSED" },
+        parseSummary: { parserName: "mpxj" },
+        message: "recorded"
+      })
+    });
+
+    await client.importBatches.requestParseSummary("project a", "batch a");
+
+    expect(calls[0].input).toBe(
+      "/api/projects/project%20a/import-batches/batch%20a/request-parse-summary"
+    );
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].body).toBeUndefined();
+  });
+
   it("throws a typed error for non-successful responses", async () => {
     const client = createShutdownTrackerApiClient({
       fetchImpl: async () => new Response("conflict", { status: 409 })
@@ -103,6 +122,7 @@ describe("shutdown tracker api client", () => {
       expect.arrayContaining([
         "List import snapshots",
         "Upload source file",
+        "Request import batch parse summary",
         "Create lineage link",
         "Create export preview",
         "Approve export batch",

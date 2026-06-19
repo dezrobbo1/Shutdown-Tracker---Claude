@@ -2,6 +2,7 @@ package com.shutdowntracker.api.importbatch;
 
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,12 @@ public class ImportBatchService {
 
     public ImportBatchService(ImportBatchRepository repository) {
         this.repository = repository;
+    }
+
+    public Optional<ImportBatchRecord> find(UUID projectId, UUID importBatchId) {
+        Objects.requireNonNull(projectId, "projectId is required.");
+        Objects.requireNonNull(importBatchId, "importBatchId is required.");
+        return repository.findByProjectIdAndId(projectId, importBatchId);
     }
 
     public ImportBatchRecord createPending(UUID projectId, UUID sourceFileId) {
