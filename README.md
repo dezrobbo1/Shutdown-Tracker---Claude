@@ -41,6 +41,7 @@ The backend scaffold is placeholder-only:
 - `services/api` contains local-profile Project reopen/verification metadata endpoints that use existing export batch status values and do not automate Microsoft Project.
 - `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It prepares an export-artifact storage target, calls an explicitly configured project-worker endpoint, verifies the returned URI matches the reserved target, records returned artifact URI/hash metadata, and does not generate files in the API.
 - `services/api` contains a local-profile import-batch parse-summary handoff endpoint. It can call an explicitly configured project-worker endpoint, record summary-only parser metadata on the import batch, and still does not parse Project files in the API.
+- `docs/architecture/worker-handoff-queue-strategy.md` documents the future queue/background-job strategy for import/export handoffs while keeping existing product status enums and Microsoft Project boundaries intact.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, a synthetic MSPDI/XML export artifact spike, and a shared-contract export artifact generation endpoint.
 - `packages/api-client` contains a TypeScript API client for source-file upload and the current import/export review surfaces.
@@ -104,6 +105,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add worker queue/background job strategy for import/export handoffs.
-2. Expand export artifact expected-output tests.
-3. Add manual Microsoft Project round-trip evidence notes.
+1. Expand export artifact expected-output tests.
+2. Add manual Microsoft Project round-trip evidence notes.
+3. Add production object-store provider selection/config notes.

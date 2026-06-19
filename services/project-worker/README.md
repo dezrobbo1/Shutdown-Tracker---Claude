@@ -9,6 +9,7 @@ Purpose: Spring Boot worker service shell for future Microsoft Project import/ex
 - Shared-contract parse summary handoff service and worker endpoint in package `com.shutdowntracker.projectworker.handoff`.
 - Worker-only MSPDI/XML export artifact spike in package `com.shutdowntracker.projectworker.exporter`.
 - Shared-contract export artifact generation handoff service and worker endpoint in package `com.shutdowntracker.projectworker.handoff`.
+- Future queue/background-job wrapping for API-to-worker handoffs is documented in [Worker Handoff Queue Strategy](../../docs/architecture/worker-handoff-queue-strategy.md); no worker queue consumer exists yet.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The import spike reads one explicit local file path only when `shutdown-tracker.import-spike.path` is set.
 - The export spike writes one explicit local MSPDI/XML output path only when `shutdown-tracker.export-spike.output-path` is set.
@@ -40,6 +41,8 @@ The worker exposes the same contract through:
 The response is summary-only: parser name/version, source filename, detected format, project name, task/resource/assignment/calendar/custom-field counts, warning/error counts, and notes. It does not persist import output, create snapshots, create imported tasks, run jobs, integrate a queue, generate exports, write back to Microsoft Project, or calculate schedules.
 
 Only local file storage URIs are accepted for this early handoff. Non-local object-storage URIs should wait for the future storage/queue contract.
+
+When a future queue consumer is added, it should reuse this worker-owned parsing boundary rather than moving MPXJ into the API. Product workflow state and audit writes should remain API-owned.
 
 Worker tests compare the approved `synthetic-basic-wbs` MSPDI fixture against its structured expected import summary JSON, including the stable `worker_response` fields. This remains synthetic and summary-only.
 
@@ -88,6 +91,8 @@ The worker also exposes the same artifact generation through:
 The endpoint accepts the shared export handoff contract, writes the requested local MSPDI/XML path, and returns artifact URI/hash plus summary counts. The API remains responsible for checking export-batch approval and recording generated metadata.
 
 The spike and endpoint do not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. They do not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
+
+When a future queue consumer is added, it should reuse this worker-owned artifact generation boundary. The API remains responsible for export approval checks, storage target reservation, URI/hash recording, audit writes, and product lifecycle state.
 
 Run a synthetic local generation only when explicitly needed:
 

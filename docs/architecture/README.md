@@ -42,7 +42,7 @@ Object storage should hold uploaded source files, evidence files, and generated 
 
 The API now has internal source-file and export-artifact storage abstractions with local filesystem implementations for development and review wiring. They are not production object storage. The local-profile upload orchestration endpoint writes accepted source files through source-file storage, then stores the returned storage URI and content hash in metadata rather than raw file bytes. The export-artifact handoff endpoint prepares a storage-owned output target before calling the worker and verifies the worker response uses that reserved URI before recording artifact metadata.
 
-The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, `import_batches` creation/status updates, worker parse-summary handoff, parse summary persistence, immutable `project_snapshots`, imported Project entity rows, import review endpoints over already-persisted snapshots, task lineage review persistence over `task_lineage_links`, draft export preview persistence over `export_batches` and `export_batch_lines`, export batch lifecycle status transitions including manual Project reopen/verification metadata, worker-backed export artifact handoff, export artifact storage target preparation, and audit event writes for those upload/review/export mutations. The API can call explicitly configured worker endpoints for summary-only parsing and approved export artifact generation, but the default API clients are disconnected. These services use existing baseline tables and do not parse Project files in the API, enqueue worker jobs, automatically match task lineage, create live execution records, automate Microsoft Project, write directly to Microsoft Project, or create demo execution data.
+The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, `import_batches` creation/status updates, worker parse-summary handoff, parse summary persistence, immutable `project_snapshots`, imported Project entity rows, import review endpoints over already-persisted snapshots, task lineage review persistence over `task_lineage_links`, draft export preview persistence over `export_batches` and `export_batch_lines`, export batch lifecycle status transitions including manual Project reopen/verification metadata, worker-backed export artifact handoff, export artifact storage target preparation, and audit event writes for those upload/review/export mutations. The API can call explicitly configured worker endpoints for summary-only parsing and approved export artifact generation, but the default API clients are disconnected. The future async handoff direction is documented in [Worker Handoff Queue Strategy](worker-handoff-queue-strategy.md). These services use existing baseline tables and do not parse Project files in the API, enqueue worker jobs, automatically match task lineage, create live execution records, automate Microsoft Project, write directly to Microsoft Project, or create demo execution data.
 
 ## PWA and Offline Model
 
@@ -55,7 +55,7 @@ The Mobile Field App should eventually use IndexedDB for queued local state, ser
 3. Ensure a project exists for the source file.
 4. Persist source-file metadata.
 5. Create an import batch.
-6. Hand off the stored source file to the project worker.
+6. Hand off the stored source file to the project worker through the current explicit HTTP boundary, later wrapped by the queue strategy.
 7. Parse with MPXJ in the worker and capture warnings.
 8. Persist parse summary metadata on the import batch.
 9. Persist snapshot data for tasks, resources, and assignments.
@@ -64,6 +64,6 @@ The Mobile Field App should eventually use IndexedDB for queued local state, ser
 12. Track live execution state in Shutdown Tracker.
 13. Preview export-eligible approved updates.
 14. Approve export batch.
-15. Hand approved export batch to the worker to generate an MSPDI/XML artifact.
+15. Hand approved export batch to the worker through the current explicit HTTP boundary, later wrapped by the queue strategy, to generate an MSPDI/XML artifact.
 16. Manually reopen and verify in Microsoft Project.
 17. Record reopen/verification metadata in Shutdown Tracker without write-back.
