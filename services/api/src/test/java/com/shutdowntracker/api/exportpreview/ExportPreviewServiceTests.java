@@ -116,6 +116,152 @@ class ExportPreviewServiceTests {
     }
 
     @Test
+    void approvesDraftPreviewAndRecordsAuditEvent() {
+        UUID projectId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+
+        ExportPreviewDetail detail = service.approveBatch(
+                projectId,
+                created.batch().id(),
+                new ExportBatchDecisionRequest(reviewerId, "Synthetic approval", Map.of("review", "local"))
+        );
+        AuditEventCreateRequest event = audit.events().getLast();
+
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.APPROVED);
+        assertThat(detail.batch().approvedByUserId()).isEqualTo(reviewerId);
+        assertThat(detail.batch().approvedAt()).isNotNull();
+        assertThat(detail.message()).contains("No file was generated");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_BATCH_APPROVED);
+        assertThat(event.oldValueSummary()).containsEntry("status", "draft_preview");
+        assertThat(event.newValueSummary()).containsEntry("status", "approved");
+        assertThat(event.metadata())
+                .containsEntry("eligibleLineCount", 1)
+                .containsEntry("artifactGenerated", false)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    @Test
+    void rejectsDraftPreviewAndRecordsAuditEvent() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
+                null
+        ));
+
+        ExportPreviewDetail detail = service.rejectBatch(
+                projectId,
+                created.batch().id(),
+                new ExportBatchDecisionRequest(null, "Synthetic rejection", null)
+        );
+        AuditEventCreateRequest event = audit.events().getLast();
+
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.REJECTED);
+        assertThat(detail.message()).contains("No MSPDI/XML artifact was generated");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_BATCH_REJECTED);
+        assertThat(event.oldValueSummary()).containsEntry("status", "draft_preview");
+        assertThat(event.newValueSummary()).containsEntry("status", "rejected");
+        assertThat(event.metadata())
+                .containsEntry("artifactGenerated", false)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    @Test
+    void marksApprovedBatchGeneratedFromArtifactMetadataOnly() {
+        UUID projectId = UUID.randomUUID();
+        UUID generatedByUserId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+
+        ExportPreviewDetail detail = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                "sha256:synthetic",
+                generatedByUserId,
+                "Synthetic worker artifact recorded",
+                Map.of("source", "worker-spike")
+        ));
+        AuditEventCreateRequest event = audit.events().getLast();
+
+        assertThat(detail.batch().status()).isEqualTo(ExportBatchState.GENERATED);
+        assertThat(detail.batch().generatedByUserId()).isEqualTo(generatedByUserId);
+        assertThat(detail.batch().generatedAt()).isNotNull();
+        assertThat(detail.batch().exportFileUri()).isEqualTo("object://synthetic/export-batches/export-1.mspdi.xml");
+        assertThat(detail.batch().exportFileHash()).isEqualTo("sha256:synthetic");
+        assertThat(detail.message()).contains("No Microsoft Project write-back was run");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_FILE_GENERATED);
+        assertThat(event.oldValueSummary()).containsEntry("status", "approved");
+        assertThat(event.newValueSummary())
+                .containsEntry("status", "generated")
+                .containsEntry("exportFileUri", "object://synthetic/export-batches/export-1.mspdi.xml")
+                .containsEntry("exportFileHash", "sha256:synthetic");
+        assertThat(event.metadata())
+                .containsEntry("artifactGenerated", true)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    @Test
+    void rejectsApprovalWhenNoLinesAreEligible() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
+                null
+        ));
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Only export batches with at least one eligible line can be approved.");
+        assertThat(audit.events()).hasSize(1);
+    }
+
+    @Test
+    void rejectsGenerationBeforeApproval() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+
+        assertThatThrownBy(() -> service.markGenerated(projectId, created.batch().id(), new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                "sha256:synthetic",
+                null,
+                null,
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Only approved export batches can be marked generated.");
+        assertThat(audit.events()).hasSize(1);
+    }
+
+    @Test
     void rejectsUnknownImportedTaskForPreviewLine() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
@@ -182,6 +328,13 @@ class ExportPreviewServiceTests {
         private final UUID awaitingReviewSourceEntityId = UUID.randomUUID();
         private final Map<UUID, ExportPreviewTaskContext> tasks = new HashMap<>();
         private final List<ExportPreviewLineRecord> lines = new ArrayList<>();
+        private ExportBatchState status = ExportBatchState.DRAFT_PREVIEW;
+        private OffsetDateTime approvedAt;
+        private UUID approvedByUserId;
+        private OffsetDateTime generatedAt;
+        private UUID generatedByUserId;
+        private String exportFileUri;
+        private String exportFileHash;
         private boolean acceptedSnapshot = true;
         private UUID createBatchProjectId;
         private UUID createBatchProjectSnapshotId;
@@ -234,6 +387,55 @@ class ExportPreviewServiceTests {
                 return Optional.empty();
             }
             return Optional.of(batch());
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> approveBatch(
+                UUID projectId,
+                UUID exportBatchId,
+                UUID approvedByUserId,
+                Map<String, Object> metadata
+        ) {
+            if (status != ExportBatchState.DRAFT_PREVIEW) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.APPROVED;
+            approvedAt = OffsetDateTime.parse("2026-01-01T01:00:00Z");
+            this.approvedByUserId = approvedByUserId;
+            return findBatch(projectId, exportBatchId);
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> rejectBatch(
+                UUID projectId,
+                UUID exportBatchId,
+                Map<String, Object> metadata
+        ) {
+            if (status != ExportBatchState.DRAFT_PREVIEW) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.REJECTED;
+            return findBatch(projectId, exportBatchId);
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> markBatchGenerated(
+                UUID projectId,
+                UUID exportBatchId,
+                String exportFileUri,
+                String exportFileHash,
+                UUID generatedByUserId,
+                Map<String, Object> metadata
+        ) {
+            if (status != ExportBatchState.APPROVED) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.GENERATED;
+            generatedAt = OffsetDateTime.parse("2026-01-01T02:00:00Z");
+            this.generatedByUserId = generatedByUserId;
+            this.exportFileUri = exportFileUri;
+            this.exportFileHash = exportFileHash;
+            return findBatch(projectId, exportBatchId);
         }
 
         @Override
@@ -306,8 +508,15 @@ class ExportPreviewServiceTests {
                     exportBatchId,
                     projectId,
                     projectSnapshotId,
-                    ExportBatchState.DRAFT_PREVIEW,
+                    status,
                     OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                    approvedAt,
+                    approvedByUserId,
+                    generatedAt,
+                    generatedByUserId,
+                    exportFileUri,
+                    exportFileHash,
+                    null,
                     lines.size(),
                     eligible,
                     lines.size() - eligible

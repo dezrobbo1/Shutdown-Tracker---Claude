@@ -24,6 +24,13 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    eb.project_snapshot_id,
                    eb.status,
                    eb.preview_created_at,
+                   eb.approved_at,
+                   eb.approved_by_user_id,
+                   eb.generated_at,
+                   eb.generated_by_user_id,
+                   eb.export_file_uri,
+                   eb.export_file_hash,
+                   eb.failure_reason,
                    CAST(COUNT(ebl.id) AS int) AS line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE ebl.is_export_eligible) AS int) AS eligible_line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE NOT ebl.is_export_eligible) AS int) AS ineligible_line_count
@@ -120,7 +127,18 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
         String sql = BATCH_SELECT + """
                 WHERE eb.project_id = :projectId
                   AND eb.id = :exportBatchId
-                GROUP BY eb.id, eb.project_id, eb.project_snapshot_id, eb.status, eb.preview_created_at
+                GROUP BY eb.id,
+                         eb.project_id,
+                         eb.project_snapshot_id,
+                         eb.status,
+                         eb.preview_created_at,
+                         eb.approved_at,
+                         eb.approved_by_user_id,
+                         eb.generated_at,
+                         eb.generated_by_user_id,
+                         eb.export_file_uri,
+                         eb.export_file_hash,
+                         eb.failure_reason
                 """;
 
         return jdbcTemplate.query(
@@ -128,6 +146,104 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 Map.of("projectId", projectId, "exportBatchId", exportBatchId),
                 this::mapBatch
         ).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ExportPreviewBatchRecord> approveBatch(
+            UUID projectId,
+            UUID exportBatchId,
+            UUID approvedByUserId,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    approved_at = now(),
+                    approved_by_user_id = :approvedByUserId,
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'draft_preview'
+                RETURNING id
+                """;
+
+        return updateBatchState(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId)
+                        .addValue("approvedByUserId", approvedByUserId)
+                        .addValue("status", ExportBatchState.APPROVED.databaseValue())
+                        .addValue("metadata", toJson(metadata)),
+                projectId,
+                exportBatchId
+        );
+    }
+
+    @Override
+    public Optional<ExportPreviewBatchRecord> rejectBatch(
+            UUID projectId,
+            UUID exportBatchId,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'draft_preview'
+                RETURNING id
+                """;
+
+        return updateBatchState(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId)
+                        .addValue("status", ExportBatchState.REJECTED.databaseValue())
+                        .addValue("metadata", toJson(metadata)),
+                projectId,
+                exportBatchId
+        );
+    }
+
+    @Override
+    public Optional<ExportPreviewBatchRecord> markBatchGenerated(
+            UUID projectId,
+            UUID exportBatchId,
+            String exportFileUri,
+            String exportFileHash,
+            UUID generatedByUserId,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    generated_at = now(),
+                    generated_by_user_id = :generatedByUserId,
+                    export_file_uri = :exportFileUri,
+                    export_file_hash = :exportFileHash,
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'approved'
+                RETURNING id
+                """;
+
+        return updateBatchState(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId)
+                        .addValue("exportFileUri", exportFileUri)
+                        .addValue("exportFileHash", exportFileHash)
+                        .addValue("generatedByUserId", generatedByUserId)
+                        .addValue("status", ExportBatchState.GENERATED.databaseValue())
+                        .addValue("metadata", toJson(metadata)),
+                projectId,
+                exportBatchId
+        );
     }
 
     @Override
@@ -293,6 +409,13 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getObject("project_snapshot_id", UUID.class),
                 ExportBatchState.fromDatabaseValue(rs.getString("status")),
                 rs.getObject("preview_created_at", OffsetDateTime.class),
+                rs.getObject("approved_at", OffsetDateTime.class),
+                rs.getObject("approved_by_user_id", UUID.class),
+                rs.getObject("generated_at", OffsetDateTime.class),
+                rs.getObject("generated_by_user_id", UUID.class),
+                rs.getString("export_file_uri"),
+                rs.getString("export_file_hash"),
+                rs.getString("failure_reason"),
                 rs.getInt("line_count"),
                 rs.getInt("eligible_line_count"),
                 rs.getInt("ineligible_line_count")
@@ -321,6 +444,20 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getBoolean("is_leaf_task"),
                 rs.getBoolean("is_export_eligible")
         );
+    }
+
+    private Optional<ExportPreviewBatchRecord> updateBatchState(
+            String sql,
+            MapSqlParameterSource parameters,
+            UUID projectId,
+            UUID exportBatchId
+    ) {
+        List<UUID> ids = jdbcTemplate.query(sql, parameters, (rs, rowNum) -> rs.getObject("id", UUID.class));
+        if (ids.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return findBatch(projectId, exportBatchId);
     }
 
     private String toJson(Object value) {

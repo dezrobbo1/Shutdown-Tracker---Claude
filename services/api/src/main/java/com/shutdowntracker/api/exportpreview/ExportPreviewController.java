@@ -35,4 +35,31 @@ public class ExportPreviewController {
     ) {
         return service.getPreview(projectId, exportBatchId);
     }
+
+    @PostMapping("/{exportBatchId}/approve")
+    public ExportPreviewDetail approveBatch(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            @RequestBody(required = false) ExportBatchDecisionRequest request
+    ) {
+        return service.approveBatch(projectId, exportBatchId, request);
+    }
+
+    @PostMapping("/{exportBatchId}/reject")
+    public ExportPreviewDetail rejectBatch(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            @RequestBody(required = false) ExportBatchDecisionRequest request
+    ) {
+        return service.rejectBatch(projectId, exportBatchId, request);
+    }
+
+    @PostMapping("/{exportBatchId}/mark-generated")
+    public ExportPreviewDetail markGenerated(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            @RequestBody ExportBatchGeneratedRequest request
+    ) {
+        return service.markGenerated(projectId, exportBatchId, request);
+    }
 }
