@@ -32,8 +32,8 @@ shutdown-tracker:
     enabled: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_ENABLED:false}
     base-url: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_BASE_URL:http://localhost:8081}
     generate-artifact-path: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH:/worker/project-export/generate-artifact}
-  export-artifact-handoff:
-    output-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_OUTPUT_ROOT:.shutdown-tracker/export-artifacts}
+  export-artifact-storage:
+    local-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT:.shutdown-tracker/export-artifacts}
   review-project-bootstrap:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
     project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}

@@ -5,13 +5,14 @@ import com.shutdowntracker.api.exportpreview.ExportBatchState;
 import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
 import com.shutdowntracker.api.exportpreview.ExportPreviewLineRecord;
 import com.shutdowntracker.api.exportpreview.ExportPreviewService;
+import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorage;
+import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorageLocation;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,16 +35,16 @@ public class ExportArtifactHandoffService {
 
     private final ExportPreviewService exportPreviewService;
     private final ProjectExportArtifactJobClient exportArtifactJobClient;
-    private final ExportArtifactHandoffProperties properties;
+    private final ExportArtifactStorage exportArtifactStorage;
 
     public ExportArtifactHandoffService(
             ExportPreviewService exportPreviewService,
             ProjectExportArtifactJobClient exportArtifactJobClient,
-            ExportArtifactHandoffProperties properties
+            ExportArtifactStorage exportArtifactStorage
     ) {
         this.exportPreviewService = exportPreviewService;
         this.exportArtifactJobClient = exportArtifactJobClient;
-        this.properties = properties;
+        this.exportArtifactStorage = exportArtifactStorage;
     }
 
     @Transactional
@@ -66,10 +67,12 @@ public class ExportArtifactHandoffService {
             );
         }
 
-        ProjectExportArtifactGenerationRequest workerRequest = buildWorkerRequest(approvedPreview);
+        ExportArtifactStorageLocation storageLocation =
+                exportArtifactStorage.prepareExportArtifact(requiredProjectId, requiredExportBatchId);
+        ProjectExportArtifactGenerationRequest workerRequest = buildWorkerRequest(approvedPreview, storageLocation);
         ProjectExportArtifactGenerationResponse workerResponse =
                 exportArtifactJobClient.generateArtifact(workerRequest);
-        verifyWorkerResponse(requiredProjectId, requiredExportBatchId, workerResponse);
+        verifyWorkerResponse(requiredProjectId, requiredExportBatchId, storageLocation, workerResponse);
 
         ExportPreviewDetail generatedPreview = exportPreviewService.markGenerated(
                 requiredProjectId,
@@ -79,14 +82,17 @@ public class ExportArtifactHandoffService {
                         workerResponse.exportFileHash(),
                         requiredRequest.generatedByUserId(),
                         reason(requiredRequest),
-                        generatedMetadata(requiredRequest, workerResponse)
+                        generatedMetadata(requiredRequest, storageLocation, workerResponse)
                 )
         );
 
         return new ExportArtifactGenerationResponse(generatedPreview, workerResponse, GENERATED_MESSAGE);
     }
 
-    ProjectExportArtifactGenerationRequest buildWorkerRequest(ExportPreviewDetail preview) {
+    ProjectExportArtifactGenerationRequest buildWorkerRequest(
+            ExportPreviewDetail preview,
+            ExportArtifactStorageLocation storageLocation
+    ) {
         List<ExportPreviewLineRecord> eligibleLines = preview.lines().stream()
                 .filter(ExportPreviewLineRecord::exportEligible)
                 .toList();
@@ -118,7 +124,7 @@ public class ExportArtifactHandoffService {
         return new ProjectExportArtifactGenerationRequest(
                 preview.batch().id(),
                 preview.batch().projectId(),
-                outputPath(preview.batch().projectId(), preview.batch().id()),
+                storageLocation.outputPath().toString(),
                 new ProjectExportArtifactRequest(
                         WORKER_PROJECT_NAME_PREFIX + preview.batch().id(),
                         taskBuilders.values().stream()
@@ -128,17 +134,10 @@ public class ExportArtifactHandoffService {
         );
     }
 
-    private String outputPath(UUID projectId, UUID exportBatchId) {
-        return Path.of(
-                properties.outputRoot(),
-                projectId.toString(),
-                exportBatchId + ".mspdi.xml"
-        ).toAbsolutePath().normalize().toString();
-    }
-
     private void verifyWorkerResponse(
             UUID projectId,
             UUID exportBatchId,
+            ExportArtifactStorageLocation storageLocation,
             ProjectExportArtifactGenerationResponse workerResponse
     ) {
         if (!exportBatchId.equals(workerResponse.exportBatchId())) {
@@ -146,6 +145,9 @@ public class ExportArtifactHandoffService {
         }
         if (!projectId.equals(workerResponse.projectId())) {
             throw new IllegalStateException("Worker export artifact response referenced a different project.");
+        }
+        if (!storageLocation.storageUri().equals(workerResponse.exportFileUri())) {
+            throw new IllegalStateException("Worker export artifact response did not match the reserved storage URI.");
         }
     }
 
@@ -158,11 +160,16 @@ public class ExportArtifactHandoffService {
 
     private Map<String, Object> generatedMetadata(
             ExportArtifactGenerationRequest request,
+            ExportArtifactStorageLocation storageLocation,
             ProjectExportArtifactGenerationResponse workerResponse
     ) {
         Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
         metadata.put("workerArtifactGenerated", true);
         metadata.put("projectWriteBack", false);
+        metadata.put("artifactStorageManagedByApi", true);
+        metadata.put("artifactStorageKind", storageLocation.storageKind());
+        metadata.put("artifactStorageUri", storageLocation.storageUri());
+        metadata.put("artifactFilename", storageLocation.artifactFilename());
         metadata.put("artifactFormat", workerResponse.artifactSummary().artifactFormat());
         metadata.put("artifactTaskCount", workerResponse.artifactSummary().taskCount());
         metadata.put("artifactExportedFieldCount", workerResponse.artifactSummary().exportedFieldCount());

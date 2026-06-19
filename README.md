@@ -28,6 +28,7 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
 - `services/api` also contains `POST /api/source-files/validate`, a validation-only multipart placeholder that stores nothing and parses nothing.
 - `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for upload workflows.
+- `services/api` contains an internal export-artifact storage abstraction with a local filesystem implementation for worker-generated MSPDI/XML artifacts.
 - `services/api` contains a local-profile source-file upload orchestration endpoint that validates, stores accepted bytes, creates `source_files` metadata, creates a pending import batch, and records an audit event.
 - `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence.
 - `services/api` contains local-profile JDBC services for import batch creation, status updates, and parse summary persistence using the existing `import_batches` table and `import_batch_status` enum.
@@ -38,7 +39,7 @@ The backend scaffold is placeholder-only:
 - `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - `services/api` contains local-profile export batch approval/rejection endpoints and a generated-artifact metadata endpoint using existing export batch status values.
 - `services/api` contains local-profile Project reopen/verification metadata endpoints that use existing export batch status values and do not automate Microsoft Project.
-- `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It calls an explicitly configured project-worker endpoint, records returned artifact URI/hash metadata, and does not generate files in the API.
+- `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It prepares an export-artifact storage target, calls an explicitly configured project-worker endpoint, verifies the returned URI matches the reserved target, records returned artifact URI/hash metadata, and does not generate files in the API.
 - `services/api` contains a local-profile import-batch parse-summary handoff endpoint. It can call an explicitly configured project-worker endpoint, record summary-only parser metadata on the import batch, and still does not parse Project files in the API.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, a synthetic MSPDI/XML export artifact spike, and a shared-contract export artifact generation endpoint.
@@ -103,6 +104,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add generated export artifact storage/object-store strategy.
-2. Add live console data fetching for import/export review once a review environment is seeded.
-3. Add worker queue/background job strategy for import/export handoffs.
+1. Add live console data fetching for import/export review once a review environment is seeded.
+2. Add worker queue/background job strategy for import/export handoffs.
+3. Expand export artifact expected-output tests.

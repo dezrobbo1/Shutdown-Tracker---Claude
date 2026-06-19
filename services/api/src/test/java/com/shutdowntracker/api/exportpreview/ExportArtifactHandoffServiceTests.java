@@ -7,9 +7,10 @@ import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
 import com.shutdowntracker.api.exportpreview.handoff.DisconnectedProjectExportArtifactJobClient;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationRequest;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationResponse;
-import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffProperties;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffService;
 import com.shutdowntracker.api.exportpreview.handoff.ProjectExportArtifactJobClient;
+import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorage;
+import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorageLocation;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
@@ -17,6 +18,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGeneratio
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,8 @@ class ExportArtifactHandoffServiceTests {
     void generatesWorkerArtifactForApprovedEligibleLeafLinesAndRecordsMetadata() {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
         CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
-        ExportArtifactHandoffService service = service(repository, client);
+        CapturingExportArtifactStorage storage = new CapturingExportArtifactStorage();
+        ExportArtifactHandoffService service = service(repository, client, storage);
         UUID generatedByUserId = UUID.randomUUID();
 
         ExportArtifactGenerationResponse response = service.generateArtifact(
@@ -47,6 +50,9 @@ class ExportArtifactHandoffServiceTests {
 
         assertThat(client.request.exportBatchId()).isEqualTo(repository.exportBatchId);
         assertThat(client.request.projectId()).isEqualTo(repository.projectId);
+        assertThat(storage.location.projectId()).isEqualTo(repository.projectId);
+        assertThat(storage.location.exportBatchId()).isEqualTo(repository.exportBatchId);
+        assertThat(storage.location.storageKind()).isEqualTo("local_filesystem");
         assertThat(client.request.outputPath()).contains(repository.projectId.toString());
         assertThat(client.request.outputPath()).endsWith(repository.exportBatchId + ".mspdi.xml");
         assertThat(client.request.artifactRequest().projectName())
@@ -57,7 +63,7 @@ class ExportArtifactHandoffServiceTests {
         assertThat(client.request.artifactRequest().tasks().getFirst().fieldValues()).hasSize(2);
         assertThat(response.exportPreview().batch().status()).isEqualTo(ExportBatchState.GENERATED);
         assertThat(response.exportPreview().batch().generatedByUserId()).isEqualTo(generatedByUserId);
-        assertThat(response.exportPreview().batch().exportFileUri()).isEqualTo(client.response.exportFileUri());
+        assertThat(response.exportPreview().batch().exportFileUri()).isEqualTo(storage.location.storageUri());
         assertThat(response.exportPreview().batch().exportFileHash()).isEqualTo(client.response.exportFileHash());
         assertThat(response.message()).contains("No Microsoft Project write-back");
     }
@@ -91,6 +97,19 @@ class ExportArtifactHandoffServiceTests {
     }
 
     @Test
+    void rejectsWorkerArtifactUriOutsideReservedStorageLocation() {
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
+        CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
+        client.mismatchedUri = true;
+        ExportArtifactHandoffService service = service(repository, client);
+
+        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Worker export artifact response did not match the reserved storage URI.");
+        assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
+    }
+
+    @Test
     void defaultClientKeepsApiDisconnectedFromExportGeneration() {
         DisconnectedProjectExportArtifactJobClient client = new DisconnectedProjectExportArtifactJobClient();
         ProjectExportArtifactGenerationRequest request = new FakeExportPreviewRepository().workerRequest();
@@ -106,10 +125,18 @@ class ExportArtifactHandoffServiceTests {
             FakeExportPreviewRepository repository,
             ProjectExportArtifactJobClient client
     ) {
+        return service(repository, client, new CapturingExportArtifactStorage());
+    }
+
+    private ExportArtifactHandoffService service(
+            FakeExportPreviewRepository repository,
+            ProjectExportArtifactJobClient client,
+            ExportArtifactStorage storage
+    ) {
         return new ExportArtifactHandoffService(
                 new ExportPreviewService(repository, new CapturingAuditEventRecorder()),
                 client,
-                new ExportArtifactHandoffProperties(".shutdown-tracker/export-artifacts")
+                storage
         );
     }
 
@@ -117,14 +144,18 @@ class ExportArtifactHandoffServiceTests {
 
         private ProjectExportArtifactGenerationRequest request;
         private ProjectExportArtifactGenerationResponse response;
+        private boolean mismatchedUri;
 
         @Override
         public ProjectExportArtifactGenerationResponse generateArtifact(ProjectExportArtifactGenerationRequest request) {
             this.request = request;
+            String exportFileUri = mismatchedUri
+                    ? "file:///unexpected/export-artifacts/" + request.exportBatchId() + ".mspdi.xml"
+                    : Path.of(request.outputPath()).toUri().toString();
             this.response = new ProjectExportArtifactGenerationResponse(
                     request.exportBatchId(),
                     request.projectId(),
-                    "file:///synthetic/export-artifacts/" + request.exportBatchId() + ".mspdi.xml",
+                    exportFileUri,
                     "synthetic-sha256",
                     new ProjectExportArtifactSummary(
                             request.exportBatchId() + ".mspdi.xml",
@@ -140,6 +171,30 @@ class ExportArtifactHandoffServiceTests {
                     "MSPDI/XML artifact generated by project worker. No Microsoft Project write-back was run."
             );
             return response;
+        }
+    }
+
+    private static class CapturingExportArtifactStorage implements ExportArtifactStorage {
+
+        private ExportArtifactStorageLocation location;
+
+        @Override
+        public ExportArtifactStorageLocation prepareExportArtifact(UUID projectId, UUID exportBatchId) {
+            Path outputPath = Path.of(
+                    ".shutdown-tracker",
+                    "export-artifacts",
+                    projectId.toString(),
+                    exportBatchId + ".mspdi.xml"
+            ).toAbsolutePath().normalize();
+            location = new ExportArtifactStorageLocation(
+                    projectId,
+                    exportBatchId,
+                    exportBatchId + ".mspdi.xml",
+                    outputPath,
+                    outputPath.toUri().toString(),
+                    "local_filesystem"
+            );
+            return location;
         }
     }
 
