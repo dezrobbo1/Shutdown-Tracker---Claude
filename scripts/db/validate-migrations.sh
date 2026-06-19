@@ -47,14 +47,22 @@ compose up -d
 
 echo "Waiting for PostgreSQL to become ready..."
 attempt=0
-until compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; do
+stable=0
+until [ "$stable" -ge 3 ]; do
   attempt=$((attempt + 1))
-  if [ "$attempt" -ge 60 ]; then
+  if compose exec -T postgres psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+    stable=$((stable + 1))
+  else
+    stable=0
+  fi
+  if [ "$attempt" -ge 90 ]; then
     echo "PostgreSQL did not become ready in time." >&2
     compose logs postgres >&2 || true
     exit 1
   fi
-  sleep 1
+  if [ "$stable" -lt 3 ]; then
+    sleep 1
+  fi
 done
 
 echo "Applying migrations..."

@@ -12,6 +12,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
+- Export artifact storage has an internal abstraction and local filesystem implementation for worker-generated MSPDI/XML artifacts.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
@@ -60,6 +61,18 @@ The API includes a source-file storage boundary for future upload workflows:
 This is not production object storage. The local implementation exists so source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected.
 
 `POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing. When persistence is enabled, `POST /api/projects/{projectId}/source-files` is the first endpoint that calls the storage abstraction.
+
+## Export Artifact Storage Abstraction
+
+The API includes an export-artifact storage boundary for worker-generated MSPDI/XML artifacts:
+
+- `ExportArtifactStorage` prepares a storage-owned output location for an export batch.
+- `LocalExportArtifactStorage` reserves a path under a configured local filesystem root and returns a `file:` URI for the generated artifact.
+- `shutdown-tracker.export-artifact-storage.local-root` defaults to `.shutdown-tracker/export-artifacts` and can be overridden with `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT`.
+
+This is not production object storage. The local implementation exists so export-artifact handoff code depends on a stable storage interface before S3/Azure Blob or another object store is selected.
+
+The storage abstraction prepares the target path only. It does not generate MSPDI/XML, store artifact bytes in PostgreSQL, parse artifacts, open Microsoft Project, verify artifact contents, or write back to Microsoft Project.
 
 ## Review Project Bootstrap
 
@@ -237,14 +250,14 @@ When persistence is enabled, the API exposes an opt-in worker handoff endpoint f
 
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact`
 
-The endpoint reads eligible export-preview lines, groups them by imported task, includes the original Microsoft Project task UID and task ID from the imported snapshot, and sends a shared `ProjectExportArtifactGenerationRequest` to the project worker. The worker returns a generated artifact URI/hash and summary. The API then reuses the existing generated lifecycle path to store `export_file_uri`, `export_file_hash`, generated metadata, and the `export_file_generated` audit event.
+The endpoint reads eligible export-preview lines, groups them by imported task, includes the original Microsoft Project task UID and task ID from the imported snapshot, prepares an export-artifact storage target, and sends a shared `ProjectExportArtifactGenerationRequest` to the project worker. The worker returns a generated artifact URI/hash and summary. The API verifies the worker URI matches the storage-reserved URI, then reuses the existing generated lifecycle path to store `export_file_uri`, `export_file_hash`, generated metadata, and the `export_file_generated` audit event.
 
 The default `ProjectExportArtifactJobClient` is intentionally disconnected and throws if called. Set these variables to enable local HTTP handoff:
 
 - `SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_ENABLED=true`
 - `SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_BASE_URL`, default `http://localhost:8081`
 - `SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH`, default `/worker/project-export/generate-artifact`
-- `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_OUTPUT_ROOT`, default `.shutdown-tracker/export-artifacts`
+- `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT`, default `.shutdown-tracker/export-artifacts`
 
 The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, automate Microsoft Project reopen, verify artifact contents automatically, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
 
