@@ -30,10 +30,12 @@ The backend scaffold is placeholder-only:
 - `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for future upload workflows; no endpoint calls it yet.
 - `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence; no public endpoint calls them yet.
 - `services/api` contains local-profile JDBC services for import batch creation and status updates using the existing `import_batch_status` enum; no public endpoint calls them yet.
+- `services/api` contains a disconnected Project parse handoff client and request builder for future worker integration; no public endpoint calls it yet and the API still does not parse Project files.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
-- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike.
+- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike and a shared-contract parse summary handoff service.
+- `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No domain logic, scheduler logic, task execution endpoints, upload/storage endpoint, parser handoff, import summary persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- No domain logic, scheduler logic, task execution endpoints, upload/storage endpoint, queue integration, import summary persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -68,6 +70,7 @@ services/
   api/
   project-worker/
 packages/
+  project-import-contract/
   shared-types/
   validation/
   api-client/
@@ -85,8 +88,7 @@ fixtures/
 
 ## Next Steps
 
-1. Add worker parse handoff while keeping MPXJ parsing in `services/project-worker`.
-2. Persist import summary.
-3. Add parser expected-output expansion.
-4. Add export preview model.
-5. Scaffold the console and mobile PWA in a follow-up PR.
+1. Persist import summary.
+2. Add parser expected-output expansion.
+3. Add export preview model.
+4. Scaffold the console and mobile PWA in a follow-up PR.

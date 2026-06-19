@@ -20,6 +20,7 @@
     <description>Shutdown Tracker backend services</description>
 
     <modules>
+        <module>packages/project-import-contract</module>
         <module>services/api</module>
         <module>services/project-worker</module>
     </modules>

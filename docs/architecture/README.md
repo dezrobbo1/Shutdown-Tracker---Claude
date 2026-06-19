@@ -12,13 +12,13 @@ The first backend should be a modular monolith rather than a distributed service
 
 The API service will own request/response workflows, authentication, authorization, task events, problems, actions, evidence metadata, handover, audit events, reporting policies, and export approvals.
 
-The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, and import batch persistence services exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, or authorization behavior exists yet.
+The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, import batch persistence services, and a disconnected Project parse handoff boundary exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, parser execution in the API, or authorization behavior exists yet.
 
 ## Project Worker
 
 The project worker will process stored Microsoft Project source files for import batches, run MPXJ parsing, capture warnings, help persist snapshots, and later generate MSPDI/XML export artifacts.
 
-The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). The worker has a local-only MPXJ import summary spike and the `local` profile wires PostgreSQL and Flyway. It reads an explicit local path only when configured, reports summary counts only, and does not persist, export, run background jobs, integrate queues, expose endpoints, calculate schedules, or write back to Microsoft Project.
+The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). The worker has a local-only MPXJ import summary spike, a shared-contract parse summary handoff service, and the `local` profile wires PostgreSQL and Flyway. It reads an explicit local path only when configured or handed one through the local handoff contract, reports summary counts only, and does not persist, export, run background jobs, integrate queues, expose endpoints, calculate schedules, or write back to Microsoft Project.
 
 ## PostgreSQL
 
@@ -40,7 +40,7 @@ Object storage should hold uploaded source files, evidence files, and generated 
 
 The API now has an internal source-file storage abstraction with a local filesystem implementation for development and review wiring. It is not production object storage, and no current endpoint writes source files through it. Future metadata persistence should store the returned storage URI and content hash rather than raw file bytes.
 
-The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, and `import_batches` creation/status updates. These services use existing baseline tables and do not request parsing, persist parser summaries, create project snapshots, persist imported tasks, or create demo execution data.
+The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, and `import_batches` creation/status updates. It can build a shared parse summary request for future worker handoff, but the default API client is disconnected. These services use existing baseline tables and do not parse Project files, persist parser summaries, create project snapshots, persist imported tasks, enqueue worker jobs, or create demo execution data.
 
 ## PWA and Offline Model
 
@@ -53,10 +53,11 @@ The Mobile Field App should eventually use IndexedDB for queued local state, ser
 3. Ensure a project exists for the source file.
 4. Persist source-file metadata.
 5. Create an import batch.
-6. Parse with MPXJ and capture warnings.
-7. Persist snapshot data for tasks, resources, and assignments.
-8. Track live execution state in Shutdown Tracker.
-9. Preview export-eligible approved updates.
-10. Approve export batch.
-11. Generate MSPDI/XML artifact.
-12. Manually reopen and verify in Microsoft Project.
+6. Hand off the stored source file to the project worker.
+7. Parse with MPXJ in the worker and capture warnings.
+8. Persist snapshot data for tasks, resources, and assignments.
+9. Track live execution state in Shutdown Tracker.
+10. Preview export-eligible approved updates.
+11. Approve export batch.
+12. Generate MSPDI/XML artifact.
+13. Manually reopen and verify in Microsoft Project.

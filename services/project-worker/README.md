@@ -6,6 +6,7 @@ Purpose: Spring Boot worker service shell for future Microsoft Project import/ex
 
 - Placeholder Spring Boot application in package `com.shutdowntracker.projectworker`.
 - Worker-only MPXJ import summary spike in package `com.shutdowntracker.projectworker.importer`.
+- Shared-contract parse summary handoff service in package `com.shutdowntracker.projectworker.handoff`.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The import spike reads one explicit local file path only when `shutdown-tracker.import-spike.path` is set.
 - No persistence, upload endpoint, export generation, Project write-back, background jobs, queue integration, scheduler logic, secrets, binaries, seed data, or real Project files are included.
@@ -24,6 +25,14 @@ The worker includes `net.sf.mpxj:mpxj` version `16.4.0` for local import summary
 The spike does not calculate CPM, critical path, float, resource levelling, recovery dates, or any schedule movement. It does not persist imported data or produce exports.
 
 Local files are for local testing only. Do not commit real customer/project files, MPP/XML/MSPDI/XER/ZIP/PDF/DOCX files, screenshots, generated exports, or any file containing real work orders, contractors, vendors, people, locations, assets, costs, or commercial data.
+
+## Project Parse Handoff Boundary
+
+`WorkerProjectParseHandoffService` accepts the shared `ProjectParseSummaryRequest`, resolves an explicit local file URI/path, calls the existing MPXJ summary service, and returns a shared `ProjectParseSummaryResponse`.
+
+The response is summary-only: parser name/version, source filename, detected format, project name, task/resource/assignment/calendar/custom-field counts, warning/error counts, and notes. It does not persist import output, create snapshots, create imported tasks, run jobs, integrate a queue, generate exports, write back to Microsoft Project, or calculate schedules.
+
+Only local file storage URIs are accepted for this early handoff. Non-local object-storage URIs should wait for the future storage/queue contract.
 
 ## Database Runtime Config
 
