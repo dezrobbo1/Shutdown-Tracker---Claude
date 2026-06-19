@@ -9,6 +9,7 @@ public record ExportPreviewTaskContext(
         UUID projectId,
         UUID projectSnapshotId,
         String externalUid,
+        String externalId,
         String name,
         boolean summary,
         BigDecimal percentComplete,

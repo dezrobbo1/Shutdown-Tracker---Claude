@@ -10,6 +10,7 @@ public record ExportPreviewLineRecord(
         UUID projectSnapshotId,
         UUID importedTaskId,
         String importedTaskExternalUid,
+        String importedTaskExternalId,
         String importedTaskName,
         String sourceEntityType,
         UUID sourceEntityId,

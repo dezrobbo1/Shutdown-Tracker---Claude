@@ -50,10 +50,14 @@ describe("shutdown tracker api client", () => {
       exportFileUri: "object://synthetic/export.mspdi.xml",
       exportFileHash: "sha256:synthetic"
     });
+    await client.exportPreview.generateArtifact("project-a", "batch-a", {
+      reason: "Synthetic worker generation"
+    });
 
     expect(calls.map((call) => call.input)).toEqual([
       "/api/projects/project-a/export-preview/batch-a/approve",
-      "/api/projects/project-a/export-preview/batch-a/mark-generated"
+      "/api/projects/project-a/export-preview/batch-a/mark-generated",
+      "/api/projects/project-a/export-preview/batch-a/generate-artifact"
     ]);
     expect(calls[0].body).toBe(JSON.stringify({ reason: "Synthetic approval" }));
     expect(calls[1].body).toBe(
@@ -62,6 +66,7 @@ describe("shutdown tracker api client", () => {
         exportFileHash: "sha256:synthetic"
       })
     );
+    expect(calls[2].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
   });
 
   it("uploads source files as multipart form data", async () => {
@@ -126,7 +131,8 @@ describe("shutdown tracker api client", () => {
         "Create lineage link",
         "Create export preview",
         "Approve export batch",
-        "Record generated artifact"
+        "Record generated artifact",
+        "Generate export artifact"
       ])
     );
   });

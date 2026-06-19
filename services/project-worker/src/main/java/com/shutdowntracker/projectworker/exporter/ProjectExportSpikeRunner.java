@@ -1,5 +1,10 @@
 package com.shutdowntracker.projectworker.exporter;
 
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.nio.file.Path;
 import java.util.List;
 import org.slf4j.Logger;

@@ -200,6 +200,7 @@ class ExportPreviewControllerTests {
                 snapshotId,
                 UUID.randomUUID(),
                 "SYN-TASK-1",
+                "1",
                 "Synthetic Task A1",
                 "task_update",
                 UUID.randomUUID(),

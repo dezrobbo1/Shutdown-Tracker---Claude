@@ -1,4 +1,4 @@
-package com.shutdowntracker.projectworker.exporter;
+package com.shutdowntracker.projectexport.contract;
 
 import java.util.Objects;
 

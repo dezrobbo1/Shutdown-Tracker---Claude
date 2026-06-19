@@ -21,6 +21,7 @@
 
     <modules>
         <module>packages/project-import-contract</module>
+        <module>packages/project-export-contract</module>
         <module>services/api</module>
         <module>services/project-worker</module>
     </modules>

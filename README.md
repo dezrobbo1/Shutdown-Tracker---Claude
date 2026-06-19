@@ -37,11 +37,13 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a local-profile export preview API for creating draft preview batches from explicit candidate lines and marking line eligibility for approved leaf-task progress/actual fields.
 - `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - `services/api` contains local-profile export batch approval/rejection endpoints and a generated-artifact metadata endpoint using existing export batch status values.
+- `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It calls an explicitly configured project-worker endpoint, records returned artifact URI/hash metadata, and does not generate files in the API.
 - `services/api` contains a local-profile import-batch parse-summary handoff endpoint. It can call an explicitly configured project-worker endpoint, record summary-only parser metadata on the import batch, and still does not parse Project files in the API.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
-- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, and a synthetic MSPDI/XML export artifact spike.
+- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, a synthetic MSPDI/XML export artifact spike, and a shared-contract export artifact generation endpoint.
 - `packages/api-client` contains a TypeScript API client for source-file upload and the current import/export review surfaces.
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
+- `packages/project-export-contract` contains shared Java request/response records for API-to-worker MSPDI/XML export artifact handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface while still rendering synthetic UI state by default.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
@@ -82,6 +84,7 @@ services/
   project-worker/
 packages/
   project-import-contract/
+  project-export-contract/
   shared-types/
   validation/
   api-client/
@@ -99,6 +102,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add worker-backed export artifact generation handoff.
+1. Add Project reopen/verification metadata endpoint.
 2. Add live console data fetching for import/export review once a review environment is seeded.
-3. Add Project reopen/verification metadata endpoint.
+3. Add generated export artifact storage/object-store strategy.
