@@ -2,7 +2,13 @@ package com.shutdowntracker.api.exportpreview;
 
 import static com.shutdowntracker.api.exportpreview.ExportPreviewRecordValidation.requireNonNull;
 
+import com.shutdowntracker.api.audit.AuditEventCategory;
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventRecorder;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -20,9 +26,11 @@ public class ExportPreviewService {
             + "No MSPDI/XML artifact was generated and no Microsoft Project write-back was run.";
 
     private final ExportPreviewRepository repository;
+    private final AuditEventRecorder auditEventRecorder;
 
-    public ExportPreviewService(ExportPreviewRepository repository) {
+    public ExportPreviewService(ExportPreviewRepository repository, AuditEventRecorder auditEventRecorder) {
         this.repository = repository;
+        this.auditEventRecorder = auditEventRecorder;
     }
 
     @Transactional
@@ -50,7 +58,23 @@ public class ExportPreviewService {
             );
         }
 
-        return getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
+        ExportPreviewDetail detail = getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
+        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+                requiredProjectId,
+                AuditEventCategory.EXPORT,
+                AuditEventTypes.EXPORT_PREVIEW_CREATED,
+                "export_batch",
+                detail.batch().id(),
+                "Draft export preview",
+                Map.of("status", "none"),
+                Map.of("status", detail.batch().status().databaseValue()),
+                CREATED_MESSAGE,
+                detail.batch().projectSnapshotId(),
+                detail.batch().id(),
+                previewMetadata(detail)
+        ));
+
+        return detail;
     }
 
     @Transactional(readOnly = true)
@@ -100,5 +124,15 @@ public class ExportPreviewService {
                 exportEligible,
                 line.metadata()
         );
+    }
+
+    private Map<String, Object> previewMetadata(ExportPreviewDetail detail) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("lineCount", detail.batch().lineCount());
+        metadata.put("eligibleLineCount", detail.batch().eligibleLineCount());
+        metadata.put("ineligibleLineCount", detail.batch().ineligibleLineCount());
+        metadata.put("artifactGenerated", false);
+        metadata.put("projectWriteBack", false);
+        return metadata;
     }
 }

@@ -1,7 +1,13 @@
 package com.shutdowntracker.api.importreview;
 
+import com.shutdowntracker.api.audit.AuditEventCategory;
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventRecorder;
+import com.shutdowntracker.api.audit.AuditEventTypes;
 import com.shutdowntracker.api.importedproject.ProjectSnapshotStatus;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,9 +26,11 @@ public class ImportReviewService {
             + "No Microsoft Project file was written back.";
 
     private final ImportReviewRepository repository;
+    private final AuditEventRecorder auditEventRecorder;
 
-    public ImportReviewService(ImportReviewRepository repository) {
+    public ImportReviewService(ImportReviewRepository repository, AuditEventRecorder auditEventRecorder) {
         this.repository = repository;
+        this.auditEventRecorder = auditEventRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -79,7 +87,54 @@ public class ImportReviewService {
                         "Snapshot decision could not be recorded because the snapshot is no longer parsed."
                 ));
 
+        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+                requiredProjectId,
+                AuditEventCategory.IMPORT,
+                auditEventType(targetStatus),
+                "project_snapshot",
+                updated.id(),
+                targetDisplayName(updated),
+                Map.of("status", existing.status().databaseValue()),
+                Map.of("status", updated.status().databaseValue()),
+                message,
+                updated.id(),
+                null,
+                snapshotMetadata(updated)
+        ));
+
         return new ImportReviewDecisionResponse(updated, message);
+    }
+
+    private String auditEventType(ProjectSnapshotStatus status) {
+        return switch (status) {
+            case ACCEPTED -> AuditEventTypes.IMPORT_SNAPSHOT_ACCEPTED;
+            case REJECTED -> AuditEventTypes.IMPORT_SNAPSHOT_REJECTED;
+            default -> throw new IllegalArgumentException("Unsupported import review audit status: " + status);
+        };
+    }
+
+    private String targetDisplayName(ImportReviewSnapshotSummary snapshot) {
+        if (snapshot.externalProjectName() != null && !snapshot.externalProjectName().isBlank()) {
+            return snapshot.externalProjectName();
+        }
+        return "Project snapshot " + snapshot.snapshotVersion();
+    }
+
+    private Map<String, Object> snapshotMetadata(ImportReviewSnapshotSummary snapshot) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("importBatchId", snapshot.importBatchId().toString());
+        metadata.put("snapshotVersion", snapshot.snapshotVersion());
+        metadata.put("taskCount", snapshot.taskCount());
+        metadata.put("summaryTaskCount", snapshot.summaryTaskCount());
+        metadata.put("leafTaskCount", snapshot.leafTaskCount());
+        metadata.put("resourceCount", snapshot.resourceCount());
+        metadata.put("assignmentCount", snapshot.assignmentCount());
+        metadata.put("extendedAttributeCount", snapshot.extendedAttributeCount());
+        metadata.put("projectWriteBack", false);
+        if (snapshot.externalProjectUid() != null) {
+            metadata.put("externalProjectUid", snapshot.externalProjectUid());
+        }
+        return metadata;
     }
 
     private ImportReviewSnapshotSummary findSnapshot(UUID projectId, UUID snapshotId) {

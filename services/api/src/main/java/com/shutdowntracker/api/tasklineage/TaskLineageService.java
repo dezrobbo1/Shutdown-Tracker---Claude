@@ -2,7 +2,13 @@ package com.shutdowntracker.api.tasklineage;
 
 import static com.shutdowntracker.api.tasklineage.TaskLineageRecordValidation.requireNonNull;
 
+import com.shutdowntracker.api.audit.AuditEventCategory;
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventRecorder;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -20,17 +26,35 @@ public class TaskLineageService {
             + "No schedule calculation or Microsoft Project write-back was run.";
 
     private final TaskLineageRepository repository;
+    private final AuditEventRecorder auditEventRecorder;
 
-    public TaskLineageService(TaskLineageRepository repository) {
+    public TaskLineageService(TaskLineageRepository repository, AuditEventRecorder auditEventRecorder) {
         this.repository = repository;
+        this.auditEventRecorder = auditEventRecorder;
     }
 
     @Transactional
     public TaskLineageRecord createSuggested(UUID projectId, TaskLineageCreateRequest request) {
-        return repository.create(
-                requireNonNull(projectId, "projectId is required."),
-                requireNonNull(request, "request is required.")
-        );
+        UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        TaskLineageCreateRequest requiredRequest = requireNonNull(request, "request is required.");
+        TaskLineageRecord record = repository.create(requiredProjectId, requiredRequest);
+
+        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+                requiredProjectId,
+                AuditEventCategory.REIMPORT,
+                AuditEventTypes.REIMPORT_LINEAGE_LINK_CREATED,
+                "task_lineage_link",
+                record.id(),
+                targetDisplayName(record),
+                Map.of("reviewState", "none"),
+                Map.of("reviewState", record.reviewState().databaseValue()),
+                "Task lineage link suggested for import review only. No schedule calculation or Project write-back was run.",
+                record.currentSnapshotId(),
+                null,
+                lineageMetadata(record)
+        ));
+
+        return record;
     }
 
     @Transactional(readOnly = true)
@@ -80,7 +104,51 @@ public class TaskLineageService {
                         "Task lineage review decision could not be recorded because the link is no longer suggested."
                 ));
 
+        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+                requiredProjectId,
+                AuditEventCategory.REIMPORT,
+                auditEventType(targetState),
+                "task_lineage_link",
+                updated.id(),
+                targetDisplayName(updated),
+                Map.of("reviewState", existing.reviewState().databaseValue()),
+                Map.of("reviewState", updated.reviewState().databaseValue()),
+                message,
+                updated.currentSnapshotId(),
+                null,
+                lineageMetadata(updated)
+        ));
+
         return new TaskLineageDecisionResponse(updated, message);
+    }
+
+    private String auditEventType(TaskLineageReviewState reviewState) {
+        return switch (reviewState) {
+            case ACCEPTED -> AuditEventTypes.REIMPORT_LINEAGE_LINK_ACCEPTED;
+            case REJECTED -> AuditEventTypes.REIMPORT_LINEAGE_LINK_REJECTED;
+            default -> throw new IllegalArgumentException("Unsupported task lineage audit state: " + reviewState);
+        };
+    }
+
+    private String targetDisplayName(TaskLineageRecord record) {
+        String previousName = record.previousTaskName() == null ? "previous task" : record.previousTaskName();
+        String currentName = record.currentTaskName() == null ? "current task" : record.currentTaskName();
+        return previousName + " -> " + currentName;
+    }
+
+    private Map<String, Object> lineageMetadata(TaskLineageRecord record) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("previousSnapshotId", record.previousSnapshotId().toString());
+        metadata.put("currentSnapshotId", record.currentSnapshotId().toString());
+        metadata.put("previousImportedTaskId", record.previousImportedTaskId().toString());
+        metadata.put("currentImportedTaskId", record.currentImportedTaskId().toString());
+        metadata.put("matchMethod", record.matchMethod());
+        if (record.matchConfidence() != null) {
+            metadata.put("matchConfidence", record.matchConfidence());
+        }
+        metadata.put("scheduleCalculationRun", false);
+        metadata.put("projectWriteBack", false);
+        return metadata;
     }
 
     private TaskLineageRecord find(UUID projectId, UUID lineageLinkId) {

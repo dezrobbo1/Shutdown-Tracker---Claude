@@ -3,6 +3,9 @@ package com.shutdowntracker.api.exportpreview;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -21,13 +24,15 @@ class ExportPreviewServiceTests {
     void createsDraftPreviewWithEligibleApprovedLeafTaskLine() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 Map.of("source", "synthetic-export-preview")
         ));
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.createBatchProjectId).isEqualTo(projectId);
         assertThat(repository.createBatchProjectSnapshotId).isEqualTo(repository.projectSnapshotId);
@@ -41,13 +46,25 @@ class ExportPreviewServiceTests {
         assertThat(detail.lines().getFirst().leafTask()).isTrue();
         assertThat(detail.lines().getFirst().exportEligible()).isTrue();
         assertThat(detail.message()).contains("No MSPDI/XML artifact was generated");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_PREVIEW_CREATED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.projectSnapshotId()).isEqualTo(repository.projectSnapshotId);
+        assertThat(event.exportBatchId()).isEqualTo(detail.batch().id());
+        assertThat(event.oldValueSummary()).containsEntry("status", "none");
+        assertThat(event.newValueSummary()).containsEntry("status", "draft_preview");
+        assertThat(event.metadata())
+                .containsEntry("lineCount", 1)
+                .containsEntry("eligibleLineCount", 1)
+                .containsEntry("ineligibleLineCount", 0)
+                .containsEntry("artifactGenerated", false)
+                .containsEntry("projectWriteBack", false);
     }
 
     @Test
     void keepsApprovedSummaryTaskLineIneligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -65,7 +82,7 @@ class ExportPreviewServiceTests {
     void keepsUnapprovedSourceLineIneligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -82,7 +99,8 @@ class ExportPreviewServiceTests {
     void returnsStoredPreviewById() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
@@ -94,13 +112,15 @@ class ExportPreviewServiceTests {
         assertThat(detail.batch().id()).isEqualTo(created.batch().id());
         assertThat(detail.lines()).hasSize(1);
         assertThat(detail.message()).contains("Export preview only.");
+        assertThat(audit.events()).hasSize(1);
     }
 
     @Test
     void rejectsUnknownImportedTaskForPreviewLine() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -110,6 +130,7 @@ class ExportPreviewServiceTests {
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND))
                 .hasMessageContaining("Imported task not found for export preview.");
+        assertThat(audit.events()).isEmpty();
     }
 
     @Test
@@ -117,7 +138,8 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.acceptedSnapshot = false;
-        ExportPreviewService service = new ExportPreviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -127,6 +149,7 @@ class ExportPreviewServiceTests {
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Export preview requires an accepted project snapshot.");
+        assertThat(audit.events()).isEmpty();
     }
 
     private ExportPreviewLineCreateRequest line(

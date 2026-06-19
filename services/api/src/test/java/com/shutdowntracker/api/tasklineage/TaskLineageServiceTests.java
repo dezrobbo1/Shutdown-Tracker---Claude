@@ -3,6 +3,9 @@ package com.shutdowntracker.api.tasklineage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -17,23 +20,34 @@ class TaskLineageServiceTests {
     void createsSuggestedLineageLinkWithoutMatchingEngine() {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
-        TaskLineageService service = new TaskLineageService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        TaskLineageService service = new TaskLineageService(repository, audit);
         TaskLineageCreateRequest request = createRequest();
 
         TaskLineageRecord record = service.createSuggested(projectId, request);
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.createProjectId).isEqualTo(projectId);
         assertThat(repository.createRequest).isEqualTo(request);
         assertThat(record.reviewState()).isEqualTo(TaskLineageReviewState.SUGGESTED);
         assertThat(record.matchMethod()).isEqualTo("external_uid");
         assertThat(record.matchConfidence()).isEqualByComparingTo("95");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.REIMPORT_LINEAGE_LINK_CREATED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.targetEntityId()).isEqualTo(record.id());
+        assertThat(event.projectSnapshotId()).isEqualTo(record.currentSnapshotId());
+        assertThat(event.oldValueSummary()).containsEntry("reviewState", "none");
+        assertThat(event.newValueSummary()).containsEntry("reviewState", "suggested");
+        assertThat(event.metadata())
+                .containsEntry("scheduleCalculationRun", false)
+                .containsEntry("projectWriteBack", false);
     }
 
     @Test
     void listsLineageLinksForSnapshotPair() {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
-        TaskLineageService service = new TaskLineageService(repository);
+        TaskLineageService service = new TaskLineageService(repository, new CapturingAuditEventRecorder());
 
         List<TaskLineageRecord> records = service.listBySnapshotPair(
                 projectId,
@@ -51,26 +65,46 @@ class TaskLineageServiceTests {
     void acceptsSuggestedLineageLinkOnly() {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
-        TaskLineageService service = new TaskLineageService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        TaskLineageService service = new TaskLineageService(repository, audit);
 
         TaskLineageDecisionResponse response = service.accept(projectId, repository.lineageLinkId);
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.updatedState).isEqualTo(TaskLineageReviewState.ACCEPTED);
         assertThat(response.lineageLink().reviewState()).isEqualTo(TaskLineageReviewState.ACCEPTED);
         assertThat(response.message()).contains("No schedule calculation or Microsoft Project write-back was run.");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.REIMPORT_LINEAGE_LINK_ACCEPTED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.targetEntityId()).isEqualTo(repository.lineageLinkId);
+        assertThat(event.oldValueSummary()).containsEntry("reviewState", "suggested");
+        assertThat(event.newValueSummary()).containsEntry("reviewState", "accepted");
+        assertThat(event.metadata())
+                .containsEntry("scheduleCalculationRun", false)
+                .containsEntry("projectWriteBack", false);
     }
 
     @Test
     void rejectsSuggestedLineageLinkOnly() {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
-        TaskLineageService service = new TaskLineageService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        TaskLineageService service = new TaskLineageService(repository, audit);
 
         TaskLineageDecisionResponse response = service.reject(projectId, repository.lineageLinkId);
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.updatedState).isEqualTo(TaskLineageReviewState.REJECTED);
         assertThat(response.lineageLink().reviewState()).isEqualTo(TaskLineageReviewState.REJECTED);
         assertThat(response.message()).contains("No schedule calculation or Microsoft Project write-back was run.");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.REIMPORT_LINEAGE_LINK_REJECTED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.targetEntityId()).isEqualTo(repository.lineageLinkId);
+        assertThat(event.oldValueSummary()).containsEntry("reviewState", "suggested");
+        assertThat(event.newValueSummary()).containsEntry("reviewState", "rejected");
+        assertThat(event.metadata())
+                .containsEntry("scheduleCalculationRun", false)
+                .containsEntry("projectWriteBack", false);
     }
 
     @Test
@@ -78,12 +112,14 @@ class TaskLineageServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
         repository.currentState = TaskLineageReviewState.ACCEPTED;
-        TaskLineageService service = new TaskLineageService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        TaskLineageService service = new TaskLineageService(repository, audit);
 
         assertThatThrownBy(() -> service.reject(projectId, repository.lineageLinkId))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only suggested task lineage links can be accepted or rejected.");
+        assertThat(audit.events()).isEmpty();
     }
 
     @Test
@@ -91,7 +127,7 @@ class TaskLineageServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeTaskLineageRepository repository = new FakeTaskLineageRepository(projectId);
         repository.linkExists = false;
-        TaskLineageService service = new TaskLineageService(repository);
+        TaskLineageService service = new TaskLineageService(repository, new CapturingAuditEventRecorder());
 
         assertThatThrownBy(() -> service.accept(projectId, repository.lineageLinkId))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->

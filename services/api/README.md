@@ -17,6 +17,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Import review has local-profile API endpoints for reviewing parsed snapshots and accepting or rejecting them with existing status values.
 - Task lineage review has local-profile API endpoints for creating concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
 - Export preview has local-profile API endpoints for creating `draft_preview` batches and previewing eligibility for approved leaf-task progress/actual fields.
+- Audit event writes are wired for import snapshot review decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, export approval, export generation, evidence, scheduler, parser execution, automatic lineage matching, or write-back endpoints exist yet.
@@ -141,6 +142,13 @@ The review responses include snapshot metadata, parser/warning counts, imported 
 
 The snapshot review endpoints do not upload or store files, parse files, call MPXJ, create worker jobs, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
 
+Accepting or rejecting a snapshot records an audit event after the status update succeeds:
+
+- `import_snapshot_accepted`
+- `import_snapshot_rejected`
+
+The audit row targets the project snapshot, includes the previous and new snapshot status, references the imported project snapshot, and records metadata confirming no Project write-back occurred.
+
 ## Task Lineage Review Persistence
 
 When persistence is enabled, the API exposes project-scoped lineage review endpoints under the import review surface:
@@ -153,6 +161,14 @@ When persistence is enabled, the API exposes project-scoped lineage review endpo
 Creating a link persists one concrete previous-task to current-task relationship in the existing `task_lineage_links` table with review state `suggested`. The request requires both snapshot IDs, both imported task IDs, a match method such as `external_uid`, `wbs`, `outline_number`, `name`, or `manual_review`, optional confidence, and optional metadata.
 
 Accept and reject use only the existing `review_state` values `accepted` and `rejected`, and only suggested links can be reviewed. This is persistence and review plumbing only; it does not run automatic matching, create unmatched-task review records, calculate dependencies, mutate imported tasks, create live execution records, generate exports, or write back to Microsoft Project.
+
+Creating, accepting, or rejecting a lineage link records an audit event after the link write succeeds:
+
+- `reimport_lineage_link_created`
+- `reimport_lineage_link_accepted`
+- `reimport_lineage_link_rejected`
+
+The audit row targets the lineage link, references the current imported project snapshot, and records metadata confirming no schedule calculation or Project write-back occurred.
 
 ## Export Preview Model
 
@@ -173,6 +189,14 @@ Only these field names are accepted for preview lines:
 The service reads the old value from the immutable imported task row and computes export eligibility. A line is eligible only when its latest approval record is `approved_for_export`, the imported task is a leaf task, and the field is one of the allowed progress/actual fields. Summary-task lines and unapproved source records can be included in the preview, but they are marked ineligible.
 
 This endpoint does not approve export batches, generate MSPDI/XML, write export files, mark approval records exported, mutate imported task rows, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
+
+Creating a draft preview records `export_preview_created` after the preview batch and lines are stored. The audit row targets the export batch, references both `project_snapshot_id` and `export_batch_id`, and records line counts plus metadata confirming no artifact generation or Project write-back occurred.
+
+## Audit Event Writes
+
+When `shutdown-tracker.persistence.enabled=true`, the API writes audit rows through `JdbcAuditEventRecorder` into the existing `audit_events` table. The default profile still uses a no-op audit recorder so context-load tests and review smoke deployments can boot without PostgreSQL.
+
+The current audit writer is infrastructure for the first review mutations only. It does not add task execution events, permission events, export approval events, offline sync events, authentication, OIDC, or public audit-query endpoints.
 
 ## Project Parse Handoff Boundary
 

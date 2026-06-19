@@ -119,8 +119,13 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 - `permission_changed`
 - `source_file_uploaded`
 - `import_snapshot_created`
+- `import_snapshot_accepted`
+- `import_snapshot_rejected`
 - `import_warning_reviewed`
 - `reimport_lineage_matched`
+- `reimport_lineage_link_created`
+- `reimport_lineage_link_accepted`
+- `reimport_lineage_link_rejected`
 
 ### Tasks, Problems, and Actions
 
@@ -173,6 +178,7 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 
 - Audit event storage should be designed before domain tables are implemented.
 - The baseline SQL migration now exists in [infra/migrations/V004__audit_events.sql](../../infra/migrations/V004__audit_events.sql).
+- The API currently records local-profile audit rows for import snapshot accept/reject decisions, task lineage link create/accept/reject decisions, and export preview creation. These writes use the existing `audit_events` table and do not add public audit query APIs yet.
 - Offline events need both local capture time and server received time.
 - Export audit events must identify the export batch and the imported project snapshot.
 - Evidence audit events must identify evidence metadata even if the original file is stored in object storage.
