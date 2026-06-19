@@ -3,6 +3,11 @@ package com.shutdowntracker.projectworker.exporter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;

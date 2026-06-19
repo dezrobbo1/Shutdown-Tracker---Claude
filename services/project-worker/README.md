@@ -8,6 +8,7 @@ Purpose: Spring Boot worker service shell for future Microsoft Project import/ex
 - Worker-only MPXJ import summary spike in package `com.shutdowntracker.projectworker.importer`.
 - Shared-contract parse summary handoff service and worker endpoint in package `com.shutdowntracker.projectworker.handoff`.
 - Worker-only MSPDI/XML export artifact spike in package `com.shutdowntracker.projectworker.exporter`.
+- Shared-contract export artifact generation handoff service and worker endpoint in package `com.shutdowntracker.projectworker.handoff`.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The import spike reads one explicit local file path only when `shutdown-tracker.import-spike.path` is set.
 - The export spike writes one explicit local MSPDI/XML output path only when `shutdown-tracker.export-spike.output-path` is set.
@@ -80,7 +81,13 @@ The worker HTTP endpoint defaults to port `8081`, or `PORT` when set. The import
 
 The service rejects summary-task candidates, non-numeric Microsoft Project task identity, invalid percentage values, and non-XML output paths. Generated files are local-only test artifacts and must not be committed.
 
-The spike does not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. It does not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
+The worker also exposes the same artifact generation through:
+
+- `POST /worker/project-export/generate-artifact`
+
+The endpoint accepts the shared export handoff contract, writes the requested local MSPDI/XML path, and returns artifact URI/hash plus summary counts. The API remains responsible for checking export-batch approval and recording generated metadata.
+
+The spike and endpoint do not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. They do not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
 
 Run a synthetic local generation only when explicitly needed:
 

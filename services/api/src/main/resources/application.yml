@@ -28,6 +28,12 @@ shutdown-tracker:
     enabled: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED:false}
     base-url: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_BASE_URL:http://localhost:8081}
     parse-summary-path: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_PARSE_SUMMARY_PATH:/worker/project-import/parse-summary}
+  project-export-worker:
+    enabled: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_ENABLED:false}
+    base-url: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_BASE_URL:http://localhost:8081}
+    generate-artifact-path: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH:/worker/project-export/generate-artifact}
+  export-artifact-handoff:
+    output-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_OUTPUT_ROOT:.shutdown-tracker/export-artifacts}
   review-project-bootstrap:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
     project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}

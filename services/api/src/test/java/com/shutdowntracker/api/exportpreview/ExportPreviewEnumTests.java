@@ -47,6 +47,7 @@ class ExportPreviewEnumTests {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "SYN-TASK-1",
+                "1",
                 "Synthetic Task A1",
                 false,
                 new BigDecimal("25.50"),

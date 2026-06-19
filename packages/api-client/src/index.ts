@@ -237,6 +237,7 @@ export type ExportPreviewLineRecord = {
   projectSnapshotId: string;
   importedTaskId: string;
   importedTaskExternalUid: string | null;
+  importedTaskExternalId: string | null;
   importedTaskName: string | null;
   sourceEntityType: string;
   sourceEntityId: string;
@@ -271,6 +272,37 @@ export type ExportBatchGeneratedRequest = {
   metadata?: JsonObject | null;
 };
 
+export type ProjectExportArtifactSummary = {
+  outputFilename: string;
+  artifactFormat: string;
+  taskCount: number;
+  exportedFieldCount: number;
+  sizeBytes: number;
+  sha256: string;
+  notes: string[];
+};
+
+export type ProjectExportArtifactGenerationResponse = {
+  exportBatchId: string;
+  projectId: string;
+  exportFileUri: string;
+  exportFileHash: string;
+  artifactSummary: ProjectExportArtifactSummary;
+  message: string;
+};
+
+export type ExportArtifactGenerationRequest = {
+  generatedByUserId?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportArtifactGenerationResponse = {
+  exportPreview: ExportPreviewDetail;
+  workerResponse: ProjectExportArtifactGenerationResponse;
+  message: string;
+};
+
 export type ReviewApiSurface = {
   label: string;
   method: "GET" | "POST";
@@ -294,7 +326,8 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
   { label: "Reject export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/reject" },
-  { label: "Record generated artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated" }
+  { label: "Record generated artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated" },
+  { label: "Generate export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact" }
 ];
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -416,6 +449,13 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           baseUrl,
           exportPreviewPath(projectId, `${exportBatchId}/mark-generated`),
           { method: "POST", body: request }
+        ),
+      generateArtifact: (projectId: string, exportBatchId: string, request?: ExportArtifactGenerationRequest) =>
+        requestJson<ExportArtifactGenerationResponse>(
+          transport,
+          baseUrl,
+          exportPreviewPath(projectId, `${exportBatchId}/generate-artifact`),
+          { method: "POST", body: request ?? {} }
         )
     }
   };
