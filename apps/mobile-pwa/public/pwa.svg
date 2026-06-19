@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Shutdown Tracker">
+  <rect width="192" height="192" rx="28" fill="#1d473d" />
+  <path d="M52 56h88v20H52z" fill="#f7f9f4" />
+  <path d="M52 88h64v20H52z" fill="#f0c07a" />
+  <path d="M52 120h88v20H52z" fill="#8ed0b5" />
+</svg>

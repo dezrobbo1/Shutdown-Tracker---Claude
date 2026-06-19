@@ -27,6 +27,29 @@ jobs:
       - name: Run Maven tests
         run: mvn test
 
+  frontend-test-build:
+    name: Frontend test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend apps
+        run: npm run build
+
   migration-validation:
     name: Migration validation
     runs-on: ubuntu-latest

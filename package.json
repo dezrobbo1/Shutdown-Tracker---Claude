@@ -1,0 +1,17 @@
+{
+  "name": "shutdown-tracker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shutdown Tracker monorepo frontend workspace.",
+  "workspaces": [
+    "apps/console",
+    "apps/mobile-pwa"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

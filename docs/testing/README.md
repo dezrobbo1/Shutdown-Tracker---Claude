@@ -64,12 +64,16 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 The GitHub Actions workflow in [.github/workflows/ci.yml](../../.github/workflows/ci.yml) validates:
 
 - The Maven backend test suite with Java 21.
+- The React/Vite frontend tests and production builds with Node 22.
 - SQL migrations `V001` through `V006` against a clean PostgreSQL database through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh).
 
-The workflow does not add MPXJ processing, frontend builds, secrets, seed data, or real Project files.
+The workflow does not add MPXJ processing, app runtime behavior, secrets, seed data, or real Project files.
 
 ## Frontend Tests
 
+- Run `npm test` from the repository root when Node and npm dependencies are available.
+- The React/Vite console and mobile PWA scaffolds include render tests for planned navigation, status signals, and absence of schedule-authoring language.
+- Run `npm run build` from the repository root to type-check and build both frontend scaffolds.
 - Unit test UI state and validation logic.
 - Component test task lists, problem/action forms, evidence flows, and sync indicators.
 - Keep schedule-authoring UI out of the MVP.
