@@ -1,0 +1,59 @@
+{
+  "fixture_id": "synthetic-basic-wbs",
+  "artifact_id": "synthetic-export-leaf-actuals",
+  "project_name": "Synthetic Export Preview",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "artifact_format": "mspdi_xml",
+  "output_filename": "synthetic-export.mspdi.xml",
+  "generated_artifact_committed": false,
+  "expected_summary": {
+    "task_count": 2,
+    "exported_field_count": 4,
+    "minimum_size_bytes": 1,
+    "sha256_pattern": "^[0-9a-f]{64}$",
+    "expected_notes": [
+      "MSPDI/XML artifact only; no schedule calculations or Microsoft Project write-back were run."
+    ]
+  },
+  "expected_tasks": [
+    {
+      "imported_task_id": "synthetic-task-a1",
+      "microsoft_project_task_uid": 101,
+      "microsoft_project_task_id": 1,
+      "task_name": "Synthetic Task A1",
+      "leaf_task": true,
+      "expected_fields": {
+        "percent_complete": 75,
+        "actual_start": "2026-01-05T07:00:00"
+      }
+    },
+    {
+      "imported_task_id": "synthetic-task-a2",
+      "microsoft_project_task_uid": 102,
+      "microsoft_project_task_id": 2,
+      "task_name": "Synthetic Task A2",
+      "leaf_task": true,
+      "expected_fields": {
+        "physical_percent_complete": 50,
+        "actual_finish": "2026-01-06T15:00:00"
+      }
+    }
+  ],
+  "excluded_scope": [
+    "summary task exports",
+    "native MPP writing",
+    "Microsoft Project automation",
+    "Project write-back",
+    "schedule calculations",
+    "critical path",
+    "float",
+    "resource levelling",
+    "automatic date movement"
+  ],
+  "notes": [
+    "Synthetic expected export artifact summary only.",
+    "Generated MSPDI/XML artifacts remain temporary test output and must not be committed.",
+    "No real names, work orders, sites, assets, vendors, people, locations, costs, or commercial data."
+  ]
+}

@@ -92,6 +92,8 @@ The endpoint accepts the shared export handoff contract, writes the requested lo
 
 The spike and endpoint do not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. They do not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
 
+Worker tests compare a synthetic export request against `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json`, including stable summary fields and MPXJ readback values. Generated MSPDI/XML files are temporary test output only and are not committed.
+
 When a future queue consumer is added, it should reuse this worker-owned artifact generation boundary. The API remains responsible for export approval checks, storage target reservation, URI/hash recording, audit writes, and product lifecycle state.
 
 Run a synthetic local generation only when explicitly needed:
