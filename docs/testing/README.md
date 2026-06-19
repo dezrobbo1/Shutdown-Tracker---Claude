@@ -79,7 +79,8 @@ The workflow does not add MPXJ processing, app runtime behavior, secrets, seed d
 - Run `npm test` from the repository root when Node and npm dependencies are available.
 - The React/Vite console and mobile PWA scaffolds include render tests for planned navigation, status signals, and absence of schedule-authoring language.
 - The shared TypeScript API client has unit tests for source-file upload multipart requests, import review paths, task lineage query parameters, export batch lifecycle, manual Project reopen/verification metadata requests, artifact handoff JSON requests, typed error handling, and the exposed review surface manifest.
-- Console tests verify the shared upload and import/export review API client wiring renders without live backend calls.
+- Console tests verify the shared upload and import/export review API client wiring renders without live backend calls, and separately cover opt-in live review data loading with fake import snapshot/export preview responses.
+- Console live data tests verify read-only import/export review loading uses existing GET endpoints and does not create source-file uploads, import batches, parser calls, export approvals, generated artifacts, Project write-back, or execution-state writes.
 - Run `npm run build` from the repository root to type-check and build both frontend scaffolds.
 - Unit test UI state and validation logic.
 - Component test task lists, problem/action forms, evidence flows, and sync indicators.

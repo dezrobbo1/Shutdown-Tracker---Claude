@@ -47,10 +47,10 @@ The backend scaffold is placeholder-only:
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `packages/project-export-contract` contains shared Java request/response records for API-to-worker MSPDI/XML export artifact handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
-- `apps/console` contains a React/Vite scaffold wired to the shared API client surface while still rendering synthetic UI state by default.
+- `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default and can opt into read-only live import/export review data fetching with explicit Vite environment variables.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend data fetching, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -104,6 +104,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add live console data fetching for import/export review once a review environment is seeded.
-2. Add worker queue/background job strategy for import/export handoffs.
-3. Expand export artifact expected-output tests.
+1. Add worker queue/background job strategy for import/export handoffs.
+2. Expand export artifact expected-output tests.
+3. Add manual Microsoft Project round-trip evidence notes.
