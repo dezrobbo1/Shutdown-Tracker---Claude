@@ -7,9 +7,11 @@ Purpose: Spring Boot worker service shell for future Microsoft Project import/ex
 - Placeholder Spring Boot application in package `com.shutdowntracker.projectworker`.
 - Worker-only MPXJ import summary spike in package `com.shutdowntracker.projectworker.importer`.
 - Shared-contract parse summary handoff service in package `com.shutdowntracker.projectworker.handoff`.
+- Worker-only MSPDI/XML export artifact spike in package `com.shutdowntracker.projectworker.exporter`.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The import spike reads one explicit local file path only when `shutdown-tracker.import-spike.path` is set.
-- No persistence, upload endpoint, export generation, Project write-back, background jobs, queue integration, scheduler logic, secrets, binaries, seed data, or real Project files are included.
+- The export spike writes one explicit local MSPDI/XML output path only when `shutdown-tracker.export-spike.output-path` is set.
+- No persistence, upload endpoint, export approval endpoint, Project write-back, background jobs, queue integration, scheduler logic, secrets, binaries, seed data, or real Project files are included.
 - No domain behavior exists yet.
 
 ## MPXJ Import Summary Spike
@@ -62,3 +64,22 @@ mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.arguments=--sh
 ```
 
 The import spike command uses the default profile so it does not require PostgreSQL. When the path property is absent, the worker starts normally and does not run the import spike. With the path property set, the current non-web worker logs the summary and exits after startup work completes.
+
+## MSPDI/XML Export Artifact Spike
+
+`MpxjMspdiExportArtifactService` builds a minimal MPXJ `ProjectFile` from explicit leaf-task export candidates and writes an MSPDI/XML artifact with MPXJ. It currently supports only:
+
+- `percent_complete`
+- `physical_percent_complete`
+- `actual_start`
+- `actual_finish`
+
+The service rejects summary-task candidates, non-numeric Microsoft Project task identity, invalid percentage values, and non-XML output paths. Generated files are local-only test artifacts and must not be committed.
+
+The spike does not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. It does not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
+
+Run a synthetic local generation only when explicitly needed:
+
+```text
+mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.arguments=--shutdown-tracker.export-spike.output-path=/absolute/path/to/local/synthetic-export.mspdi.xml
+```
