@@ -51,6 +51,7 @@ pnpm-debug.log*
 local-data/
 uploads/
 exports/
+.shutdown-tracker/
 tmp/
 temp/
 

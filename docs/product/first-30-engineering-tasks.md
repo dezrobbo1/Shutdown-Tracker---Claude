@@ -39,12 +39,13 @@
 - Task 8, configure PostgreSQL locally: addressed for local validation and Spring Boot `local` profile runtime wiring. This is not production database setup.
 - Task 9, add migrations: addressed by PR #3 with baseline SQL migrations in `infra/migrations`.
 - Task 10, create source-file, import-batch, snapshot, task, and audit tables: addressed by PR #3 as baseline SQL.
+- Task 11, add object-storage abstraction: partially addressed for source files by an internal API storage abstraction with a local filesystem implementation. This is not production object storage and is not yet called by an upload endpoint.
 - Task 19, implement Project upload endpoint: partially addressed by a validation-only source-file upload placeholder with hardened multipart error responses. It validates multipart metadata and extension only; no storage, MPXJ parsing, import batch, persistence, worker integration, or write-back exists.
 - Task 20, implement MPXJ parse spike for MPP/MSPDI: partially addressed by a worker-only import summary spike. It reads an explicitly configured local path and returns counts only; no real fixtures, persistence, export, upload endpoint, or write-back exists.
 - Import/export fixture strategy: addressed with safe fixture policy, text-only manifest schema, synthetic expected-output examples, and the first approved synthetic MSPDI import fixture.
 - Approval/export batch schema: addressed as baseline SQL.
 - Critical Watchlist reporting schema: addressed as baseline SQL.
 
-This repository now has a minimal Maven/Spring Boot backend scaffold with PostgreSQL JDBC, Flyway runtime wiring, a worker-only MPXJ import summary spike, and an API-only source-file validation placeholder. It still does not add React/Vite, frontend code, domain behavior, seed data, real Project files, Project write-back, file storage, import batch persistence, or a production database setup.
+This repository now has a minimal Maven/Spring Boot backend scaffold with PostgreSQL JDBC, Flyway runtime wiring, a worker-only MPXJ import summary spike, an API-only source-file validation placeholder, and an internal source-file storage abstraction. It still does not add React/Vite, frontend code, domain behavior, seed data, real Project files, Project write-back, source-file metadata persistence, import batch persistence, or a production database setup.
 
 Migrations remain under `infra/migrations`; local migration validation remains under `scripts/db`; Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.

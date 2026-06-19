@@ -20,3 +20,5 @@ management:
 shutdown-tracker:
   source-file-validation:
     max-size-bytes: 52428800
+  source-file-storage:
+    local-root: ${SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT:.shutdown-tracker/source-files}

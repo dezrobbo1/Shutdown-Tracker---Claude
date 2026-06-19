@@ -10,6 +10,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - `POST /api/source-files/validate` validates one multipart `file` upload request and returns metadata plus an accept/reject decision.
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
+- Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -36,6 +37,18 @@ Rejected examples include empty files, missing filenames, unsupported extensions
 The default placeholder validation limit is 50 MB via `shutdown-tracker.source-file-validation.max-size-bytes`. Spring multipart limits are set slightly higher at 60 MB so normal oversized uploads can still receive the validation response shape. Hard multipart failures, missing `file` fields, and multipart parse errors are handled by exception type rather than selected controller, so they return the same validation-style JSON where possible.
 
 Local testing files must stay outside Git. Do not commit real Project files, customer/site files, screenshots, generated exports, binaries, or secrets.
+
+## Source File Storage Abstraction
+
+The API includes a source-file storage boundary for future upload workflows:
+
+- `SourceFileStorage` accepts a stream and returns storage metadata.
+- `LocalSourceFileStorage` writes to a configured local filesystem root and returns a `file:` URI plus SHA-256 content hash.
+- `shutdown-tracker.source-file-storage.local-root` defaults to `.shutdown-tracker/source-files` and can be overridden with `SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT`.
+
+This is not production object storage. The local implementation exists so future source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected.
+
+No API endpoint calls the storage abstraction yet. `POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing.
 
 ## Database Runtime Config
 
