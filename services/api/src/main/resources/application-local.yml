@@ -8,3 +8,7 @@ spring:
     enabled: true
     locations: ${SHUTDOWN_TRACKER_FLYWAY_LOCATIONS:filesystem:infra/migrations}
     baseline-on-migrate: false
+
+shutdown-tracker:
+  persistence:
+    enabled: true

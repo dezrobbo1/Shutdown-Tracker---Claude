@@ -18,7 +18,14 @@ management:
         include: health,info
 
 shutdown-tracker:
+  persistence:
+    enabled: false
   source-file-validation:
     max-size-bytes: 52428800
   source-file-storage:
     local-root: ${SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT:.shutdown-tracker/source-files}
+  review-project-bootstrap:
+    enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
+    project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}
+    description: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_DESCRIPTION:Synthetic review project for local and review-environment setup only.}
+    timezone: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_TIMEZONE:UTC}

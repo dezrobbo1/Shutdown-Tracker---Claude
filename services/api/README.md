@@ -11,6 +11,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - The `local` profile configures PostgreSQL and Flyway runtime wiring.
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
+- Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -50,6 +51,37 @@ This is not production object storage. The local implementation exists so future
 
 No API endpoint calls the storage abstraction yet. `POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing.
 
+## Review Project Bootstrap
+
+The API includes a guarded service for creating or reusing one synthetic review project in the existing `projects` table. This is a local/review setup helper for later import workflow testing, not seed data and not production tenant provisioning.
+
+Persistence services are disabled by default through `shutdown-tracker.persistence.enabled=false` and enabled by `application-local.yml`. To run the bootstrap path against local PostgreSQL, use the `local` profile and explicitly enable:
+
+```text
+SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED=true
+```
+
+Optional bootstrap settings:
+
+- `SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME`, default `Synthetic Review Project`
+- `SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_DESCRIPTION`
+- `SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_TIMEZONE`, default `UTC`
+
+The bootstrap writes metadata marking the project as synthetic and review-bootstrap-only. It does not create source files, import batches, snapshots, tasks, or demo execution records.
+
+## Source File Metadata Persistence
+
+The API includes a service/repository boundary for creating `source_files` metadata rows against an existing project. It records:
+
+- `project_id`
+- original filename
+- file kind: `mpp`, `mspdi_xml`, `xml`, or `other`
+- storage URI
+- SHA-256 content hash
+- file size
+
+The service can consume `StoredSourceFile` values returned by the storage abstraction. It does not store bytes in PostgreSQL, create import batches, parse files, call MPXJ, or expose a public upload endpoint.
+
 ## Database Runtime Config
 
 The `local` profile uses PostgreSQL and Flyway. Run commands from the repository root so Flyway can resolve `filesystem:infra/migrations`.
@@ -60,6 +92,7 @@ Default local values align with `infra/docker/docker-compose.postgres.yml`:
 - `SHUTDOWN_TRACKER_DB_USERNAME`, default `shutdown_tracker`
 - `SHUTDOWN_TRACKER_DB_PASSWORD`, default `shutdown_tracker_dev`
 - `SHUTDOWN_TRACKER_FLYWAY_LOCATIONS`, default `filesystem:infra/migrations`
+- `SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED`, default `false`
 
 The test profile disables datasource and Flyway auto-configuration so context-load tests do not require PostgreSQL.
 
