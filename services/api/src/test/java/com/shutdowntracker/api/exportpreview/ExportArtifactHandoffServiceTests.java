@@ -154,6 +154,8 @@ class ExportArtifactHandoffServiceTests {
         private OffsetDateTime generatedAt;
         private String exportFileUri;
         private String exportFileHash;
+        private OffsetDateTime verifiedAt;
+        private UUID verifiedByUserId;
         private List<ExportPreviewLineRecord> lines = List.of(
                 eligibleLine("101", "1"),
                 new ExportPreviewLineRecord(
@@ -303,6 +305,25 @@ class ExportArtifactHandoffServiceTests {
         }
 
         @Override
+        public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
+                UUID projectId,
+                UUID exportBatchId,
+                Map<String, Object> metadata
+        ) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> markBatchVerified(
+                UUID projectId,
+                UUID exportBatchId,
+                UUID verifiedByUserId,
+                Map<String, Object> metadata
+        ) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
         public Optional<ExportPreviewTaskContext> findTaskContext(
                 UUID projectId,
                 UUID projectSnapshotId,
@@ -347,6 +368,8 @@ class ExportArtifactHandoffServiceTests {
                     null,
                     generatedAt,
                     generatedByUserId,
+                    verifiedAt,
+                    verifiedByUserId,
                     exportFileUri,
                     exportFileHash,
                     null,

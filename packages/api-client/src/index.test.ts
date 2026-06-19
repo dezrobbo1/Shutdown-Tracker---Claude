@@ -50,6 +50,14 @@ describe("shutdown tracker api client", () => {
       exportFileUri: "object://synthetic/export.mspdi.xml",
       exportFileHash: "sha256:synthetic"
     });
+    await client.exportPreview.markOpenedInMicrosoftProject("project-a", "batch-a", {
+      openedByUserId: "user-a",
+      reason: "Synthetic Microsoft Project reopen"
+    });
+    await client.exportPreview.verify("project-a", "batch-a", {
+      verifiedByUserId: "user-b",
+      reason: "Synthetic manual verification complete"
+    });
     await client.exportPreview.generateArtifact("project-a", "batch-a", {
       reason: "Synthetic worker generation"
     });
@@ -57,6 +65,8 @@ describe("shutdown tracker api client", () => {
     expect(calls.map((call) => call.input)).toEqual([
       "/api/projects/project-a/export-preview/batch-a/approve",
       "/api/projects/project-a/export-preview/batch-a/mark-generated",
+      "/api/projects/project-a/export-preview/batch-a/mark-opened-in-microsoft-project",
+      "/api/projects/project-a/export-preview/batch-a/verify",
       "/api/projects/project-a/export-preview/batch-a/generate-artifact"
     ]);
     expect(calls[0].body).toBe(JSON.stringify({ reason: "Synthetic approval" }));
@@ -66,7 +76,19 @@ describe("shutdown tracker api client", () => {
         exportFileHash: "sha256:synthetic"
       })
     );
-    expect(calls[2].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
+    expect(calls[2].body).toBe(
+      JSON.stringify({
+        openedByUserId: "user-a",
+        reason: "Synthetic Microsoft Project reopen"
+      })
+    );
+    expect(calls[3].body).toBe(
+      JSON.stringify({
+        verifiedByUserId: "user-b",
+        reason: "Synthetic manual verification complete"
+      })
+    );
+    expect(calls[4].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
   });
 
   it("uploads source files as multipart form data", async () => {
@@ -132,6 +154,8 @@ describe("shutdown tracker api client", () => {
         "Create export preview",
         "Approve export batch",
         "Record generated artifact",
+        "Record Project reopen",
+        "Verify export artifact",
         "Generate export artifact"
       ])
     );

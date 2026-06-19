@@ -28,6 +28,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    eb.approved_by_user_id,
                    eb.generated_at,
                    eb.generated_by_user_id,
+                   eb.verified_at,
+                   eb.verified_by_user_id,
                    eb.export_file_uri,
                    eb.export_file_hash,
                    eb.failure_reason,
@@ -137,6 +139,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                          eb.approved_by_user_id,
                          eb.generated_at,
                          eb.generated_by_user_id,
+                         eb.verified_at,
+                         eb.verified_by_user_id,
                          eb.export_file_uri,
                          eb.export_file_hash,
                          eb.failure_reason
@@ -241,6 +245,66 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("exportFileHash", exportFileHash)
                         .addValue("generatedByUserId", generatedByUserId)
                         .addValue("status", ExportBatchState.GENERATED.databaseValue())
+                        .addValue("metadata", toJson(metadata)),
+                projectId,
+                exportBatchId
+        );
+    }
+
+    @Override
+    public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
+            UUID projectId,
+            UUID exportBatchId,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'generated'
+                RETURNING id
+                """;
+
+        return updateBatchState(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId)
+                        .addValue("status", ExportBatchState.OPENED_IN_MICROSOFT_PROJECT.databaseValue())
+                        .addValue("metadata", toJson(metadata)),
+                projectId,
+                exportBatchId
+        );
+    }
+
+    @Override
+    public Optional<ExportPreviewBatchRecord> markBatchVerified(
+            UUID projectId,
+            UUID exportBatchId,
+            UUID verifiedByUserId,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    verified_at = now(),
+                    verified_by_user_id = :verifiedByUserId,
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'opened_in_microsoft_project'
+                RETURNING id
+                """;
+
+        return updateBatchState(
+                sql,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId)
+                        .addValue("verifiedByUserId", verifiedByUserId)
+                        .addValue("status", ExportBatchState.VERIFIED.databaseValue())
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -416,6 +480,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getObject("approved_by_user_id", UUID.class),
                 rs.getObject("generated_at", OffsetDateTime.class),
                 rs.getObject("generated_by_user_id", UUID.class),
+                rs.getObject("verified_at", OffsetDateTime.class),
+                rs.getObject("verified_by_user_id", UUID.class),
                 rs.getString("export_file_uri"),
                 rs.getString("export_file_hash"),
                 rs.getString("failure_reason"),

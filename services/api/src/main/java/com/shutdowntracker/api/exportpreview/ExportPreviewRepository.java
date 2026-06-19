@@ -33,6 +33,19 @@ public interface ExportPreviewRepository {
             Map<String, Object> metadata
     );
 
+    Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
+            UUID projectId,
+            UUID exportBatchId,
+            Map<String, Object> metadata
+    );
+
+    Optional<ExportPreviewBatchRecord> markBatchVerified(
+            UUID projectId,
+            UUID exportBatchId,
+            UUID verifiedByUserId,
+            Map<String, Object> metadata
+    );
+
     Optional<ExportPreviewTaskContext> findTaskContext(UUID projectId, UUID projectSnapshotId, UUID importedTaskId);
 
     Optional<ApprovalState> findLatestApprovalState(UUID projectId, String sourceEntityType, UUID sourceEntityId);

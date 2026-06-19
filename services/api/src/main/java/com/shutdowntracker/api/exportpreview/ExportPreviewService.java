@@ -30,6 +30,10 @@ public class ExportPreviewService {
             + "No MSPDI/XML artifact was generated and no Microsoft Project write-back was run.";
     private static final String GENERATED_MESSAGE = "Export batch marked generated from reviewed artifact metadata. "
             + "No Microsoft Project write-back was run.";
+    private static final String OPENED_IN_PROJECT_MESSAGE = "Export artifact marked opened in Microsoft Project "
+            + "for manual verification. No Microsoft Project write-back was run.";
+    private static final String VERIFIED_MESSAGE = "Export artifact manually verified after Microsoft Project reopen. "
+            + "No Microsoft Project write-back was run.";
 
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
@@ -217,6 +221,91 @@ public class ExportPreviewService {
         return detail;
     }
 
+    @Transactional
+    public ExportPreviewDetail markOpenedInMicrosoftProject(
+            UUID projectId,
+            UUID exportBatchId,
+            ExportBatchProjectOpenRequest request
+    ) {
+        UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        ExportBatchProjectOpenRequest requiredRequest = requireNonNull(request, "request is required.");
+        ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
+
+        if (existing.status() != ExportBatchState.GENERATED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Only generated export batches can be marked opened in Microsoft Project."
+            );
+        }
+
+        ExportPreviewBatchRecord updated = repository
+                .markBatchOpenedInMicrosoftProject(
+                        requiredProjectId,
+                        requiredExportBatchId,
+                        openedInMicrosoftProjectMetadata(requiredRequest)
+                )
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Export batch open-in-Project metadata could not be recorded because the batch is no longer generated."
+                ));
+
+        ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), OPENED_IN_PROJECT_MESSAGE);
+        recordExportBatchAudit(
+                requiredProjectId,
+                existing,
+                detail,
+                AuditEventTypes.EXPORT_FILE_OPENED_IN_MICROSOFT_PROJECT,
+                auditReason(requiredRequest.reason(), OPENED_IN_PROJECT_MESSAGE),
+                true,
+                Map.of("openedInMicrosoftProject", true, "artifactVerified", false)
+        );
+        return detail;
+    }
+
+    @Transactional
+    public ExportPreviewDetail verifyBatch(
+            UUID projectId,
+            UUID exportBatchId,
+            ExportBatchVerificationRequest request
+    ) {
+        UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        ExportBatchVerificationRequest requiredRequest = requireNonNull(request, "request is required.");
+        ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
+
+        if (existing.status() != ExportBatchState.OPENED_IN_MICROSOFT_PROJECT) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Only export batches opened in Microsoft Project can be verified."
+            );
+        }
+
+        ExportPreviewBatchRecord updated = repository
+                .markBatchVerified(
+                        requiredProjectId,
+                        requiredExportBatchId,
+                        requiredRequest.verifiedByUserId(),
+                        verificationMetadata(requiredRequest)
+                )
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Export batch verification could not be recorded because the batch is no longer opened in Microsoft Project."
+                ));
+
+        ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), VERIFIED_MESSAGE);
+        recordExportBatchAudit(
+                requiredProjectId,
+                existing,
+                detail,
+                AuditEventTypes.EXPORT_FILE_VERIFIED,
+                auditReason(requiredRequest.reason(), VERIFIED_MESSAGE),
+                true,
+                Map.of("openedInMicrosoftProject", true, "artifactVerified", true)
+        );
+        return detail;
+    }
+
     private ExportPreviewDetail getPreview(UUID projectId, UUID exportBatchId, String message) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
@@ -297,6 +386,32 @@ public class ExportPreviewService {
         return metadata;
     }
 
+    private Map<String, Object> openedInMicrosoftProjectMetadata(ExportBatchProjectOpenRequest request) {
+        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
+        metadata.put("openedByUserId", request.openedByUserId().toString());
+        if (request.reason() != null && !request.reason().isBlank()) {
+            metadata.put("reason", request.reason());
+        }
+        metadata.put("artifactGenerated", true);
+        metadata.put("openedInMicrosoftProject", true);
+        metadata.put("artifactVerified", false);
+        metadata.put("projectWriteBack", false);
+        return metadata;
+    }
+
+    private Map<String, Object> verificationMetadata(ExportBatchVerificationRequest request) {
+        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
+        metadata.put("verifiedByUserId", request.verifiedByUserId().toString());
+        if (request.reason() != null && !request.reason().isBlank()) {
+            metadata.put("reason", request.reason());
+        }
+        metadata.put("artifactGenerated", true);
+        metadata.put("openedInMicrosoftProject", true);
+        metadata.put("artifactVerified", true);
+        metadata.put("projectWriteBack", false);
+        return metadata;
+    }
+
     private String auditReason(String requestedReason, String fallback) {
         if (requestedReason != null && !requestedReason.isBlank()) {
             return requestedReason;
@@ -312,6 +427,18 @@ public class ExportPreviewService {
             String message,
             boolean artifactGenerated
     ) {
+        recordExportBatchAudit(projectId, existing, detail, eventType, message, artifactGenerated, Map.of());
+    }
+
+    private void recordExportBatchAudit(
+            UUID projectId,
+            ExportPreviewBatchRecord existing,
+            ExportPreviewDetail detail,
+            String eventType,
+            String message,
+            boolean artifactGenerated,
+            Map<String, Object> metadataOverrides
+    ) {
         auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
                 projectId,
                 AuditEventCategory.EXPORT,
@@ -324,7 +451,7 @@ public class ExportPreviewService {
                 message,
                 detail.batch().projectSnapshotId(),
                 detail.batch().id(),
-                lifecycleMetadata(detail, artifactGenerated)
+                lifecycleMetadata(detail, artifactGenerated, metadataOverrides)
         ));
     }
 
@@ -337,10 +464,24 @@ public class ExportPreviewService {
         if (batch.exportFileHash() != null) {
             summary.put("exportFileHash", batch.exportFileHash());
         }
+        if (batch.verifiedAt() != null) {
+            summary.put("verifiedAt", batch.verifiedAt().toString());
+        }
+        if (batch.verifiedByUserId() != null) {
+            summary.put("verifiedByUserId", batch.verifiedByUserId().toString());
+        }
         return summary;
     }
 
     private Map<String, Object> lifecycleMetadata(ExportPreviewDetail detail, boolean artifactGenerated) {
+        return lifecycleMetadata(detail, artifactGenerated, Map.of());
+    }
+
+    private Map<String, Object> lifecycleMetadata(
+            ExportPreviewDetail detail,
+            boolean artifactGenerated,
+            Map<String, Object> metadataOverrides
+    ) {
         Map<String, Object> metadata = previewMetadata(detail);
         metadata.put("artifactGenerated", artifactGenerated);
         metadata.put("projectWriteBack", false);
@@ -350,6 +491,13 @@ public class ExportPreviewService {
         if (detail.batch().exportFileHash() != null) {
             metadata.put("exportFileHash", detail.batch().exportFileHash());
         }
+        if (detail.batch().verifiedAt() != null) {
+            metadata.put("verifiedAt", detail.batch().verifiedAt().toString());
+        }
+        if (detail.batch().verifiedByUserId() != null) {
+            metadata.put("verifiedByUserId", detail.batch().verifiedByUserId().toString());
+        }
+        metadata.putAll(metadataOverrides);
         return metadata;
     }
 
