@@ -12,7 +12,7 @@ The first backend should be a modular monolith rather than a distributed service
 
 The API service will own request/response workflows, authentication, authorization, task events, problems, actions, evidence metadata, handover, audit events, reporting policies, and export approvals.
 
-The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, import batch persistence services, parse summary persistence, and a disconnected Project parse handoff boundary exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, parser execution in the API, or authorization behavior exists yet.
+The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, import batch persistence services, parse summary persistence, immutable project snapshot/imported entity persistence, and a disconnected Project parse handoff boundary exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, parser execution in the API, or authorization behavior exists yet.
 
 ## Project Worker
 
@@ -40,7 +40,7 @@ Object storage should hold uploaded source files, evidence files, and generated 
 
 The API now has an internal source-file storage abstraction with a local filesystem implementation for development and review wiring. It is not production object storage, and no current endpoint writes source files through it. Future metadata persistence should store the returned storage URI and content hash rather than raw file bytes.
 
-The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, and `import_batches` creation/status updates. It can build a shared parse summary request for future worker handoff and record returned parse summary metadata into the existing `import_batches.parse_summary` JSONB column, but the default API client is disconnected. These services use existing baseline tables and do not parse Project files, create project snapshots, persist imported tasks, enqueue worker jobs, or create demo execution data.
+The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, `import_batches` creation/status updates, parse summary persistence, immutable `project_snapshots`, and imported Project entity rows. It can build a shared parse summary request for future worker handoff, but the default API client is disconnected. These services use existing baseline tables and do not parse Project files, enqueue worker jobs, create import review endpoints, create task lineage links, create live execution records, or create demo execution data.
 
 ## PWA and Offline Model
 

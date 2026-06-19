@@ -13,6 +13,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
+- Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
 - Project parse handoff has a shared request builder and disconnected job client for future worker integration.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
@@ -108,7 +109,21 @@ The API can also record a worker parse summary response against an existing impo
 - `error_count`
 - `parse_summary` JSONB with source filename, detected format, project name, summary-only flag, count metadata, and notes
 
-This does not call MPXJ, request worker parsing, create project snapshots, persist imported tasks/resources/assignments, or expose a public import-batch endpoint.
+This does not call MPXJ, request worker parsing, persist imported tasks/resources/assignments, or expose a public import-batch endpoint.
+
+## Imported Project Snapshot Persistence
+
+The API includes a transactional service/repository boundary for persisting one parsed immutable Microsoft Project snapshot and its imported entity rows into existing baseline tables:
+
+- `project_snapshots`
+- `imported_tasks`
+- `imported_resources`
+- `imported_assignments`
+- `imported_extended_attributes`
+
+New snapshots are created with the existing `project_snapshot_status` value `parsed`. Snapshot versions are assigned per project by the repository. Imported task rows store schedule values as imported snapshot facts only; they are not live execution state and are not recalculated by Shutdown Tracker.
+
+This does not call MPXJ, parse files, create worker jobs, expose a public import review endpoint, create task lineage links, mutate imported schedule rows, calculate CPM/critical path/float, move dates, perform resource levelling, or write back to Microsoft Project.
 
 ## Project Parse Handoff Boundary
 
@@ -118,7 +133,7 @@ The API includes a contract-only handoff boundary for future worker parsing:
 - The request includes import batch, project, source file, storage URI, and original filename.
 - The default `ProjectParseJobClient` is intentionally disconnected and throws if called.
 
-This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create worker jobs, create project snapshots, persist imported tasks, or expose a parse/import endpoint.
+This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create worker jobs, or expose a parse/import endpoint.
 
 ## Database Runtime Config
 
