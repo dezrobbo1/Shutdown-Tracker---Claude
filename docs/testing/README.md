@@ -47,6 +47,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - The API service has Actuator, `GET /api/version`, and a validation-only `POST /api/source-files/validate` endpoint. Source-file validation tests use synthetic byte arrays only and verify no file is stored or parsed.
 - Source-file validation tests cover missing multipart field handling, uppercase accepted extensions, validation-owned oversized responses, exception-scoped multipart error advice, and validation-style JSON for hard multipart failures where practical.
 - Source-file storage abstraction tests use synthetic byte arrays and temporary directories only. They verify local storage URI creation, filename sanitisation, content hashing, and cleanup on failed writes without committing source files or binaries.
+- Source-file upload orchestration tests use synthetic byte arrays only. They verify accepted uploads call storage, create source-file metadata, create a pending import batch, and record `source_file_uploaded`, while rejected uploads stop before storage, persistence, import-batch creation, and audit writes.
 - Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
 - Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, parse summary update mapping, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
 - Import summary persistence tests use synthetic worker summary responses only. They verify summary-only count metadata and do not create snapshots, imported tasks, parser executions, queue jobs, source files, or real Project fixtures.
@@ -75,8 +76,8 @@ The workflow does not add MPXJ processing, app runtime behavior, secrets, seed d
 
 - Run `npm test` from the repository root when Node and npm dependencies are available.
 - The React/Vite console and mobile PWA scaffolds include render tests for planned navigation, status signals, and absence of schedule-authoring language.
-- The shared TypeScript API client has unit tests for import review paths, task lineage query parameters, export batch lifecycle JSON requests, typed error handling, and the exposed review surface manifest.
-- Console tests verify the shared import/export review API client wiring renders without live backend calls.
+- The shared TypeScript API client has unit tests for source-file upload multipart requests, import review paths, task lineage query parameters, export batch lifecycle JSON requests, typed error handling, and the exposed review surface manifest.
+- Console tests verify the shared upload and import/export review API client wiring renders without live backend calls.
 - Run `npm run build` from the repository root to type-check and build both frontend scaffolds.
 - Unit test UI state and validation logic.
 - Component test task lists, problem/action forms, evidence flows, and sync indicators.
