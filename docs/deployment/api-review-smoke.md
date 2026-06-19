@@ -15,6 +15,7 @@ This is not a production deployment profile and not a product workflow review en
 
 - File storage or disk writes
 - MPXJ parsing in the API
+- Review project bootstrap or source-file metadata persistence
 - Import batch creation or persistence
 - Project worker integration
 - Export generation or Project write-back

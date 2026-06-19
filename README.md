@@ -28,10 +28,11 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
 - `services/api` also contains `POST /api/source-files/validate`, a validation-only multipart placeholder that stores nothing and parses nothing.
 - `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for future upload workflows; no endpoint calls it yet.
+- `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence; no public endpoint calls them yet.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No domain logic, scheduler logic, task execution endpoints, import batch creation, source-file metadata persistence, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
+- No domain logic, scheduler logic, task execution endpoints, upload/storage endpoint, import batch creation, export generation, Project write-back, React app, mobile PWA, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -83,8 +84,8 @@ fixtures/
 
 ## Next Steps
 
-1. Add review project bootstrap and source-file metadata persistence.
-2. Add import batch persistence.
+1. Add import batch persistence.
+2. Add worker parse handoff while keeping MPXJ parsing in `services/project-worker`.
 3. Add parser expected-output expansion.
 4. Add export preview model.
 5. Scaffold the console and mobile PWA in a follow-up PR.

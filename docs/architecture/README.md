@@ -12,7 +12,7 @@ The first backend should be a modular monolith rather than a distributed service
 
 The API service will own request/response workflows, authentication, authorization, task events, problems, actions, evidence metadata, handover, audit events, reporting policies, and export approvals.
 
-The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). It is placeholder-only: Actuator and `GET /api/version` exist, and the `local` profile wires PostgreSQL and Flyway. No domain endpoints, import/export endpoints, scheduler logic, or authorization behavior exists yet.
+The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, and source-file metadata persistence services exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, or authorization behavior exists yet.
 
 ## Project Worker
 
@@ -40,6 +40,8 @@ Object storage should hold uploaded source files, evidence files, and generated 
 
 The API now has an internal source-file storage abstraction with a local filesystem implementation for development and review wiring. It is not production object storage, and no current endpoint writes source files through it. Future metadata persistence should store the returned storage URI and content hash rather than raw file bytes.
 
+The API also has local-profile JDBC services for synthetic review project bootstrap and `source_files` metadata persistence. These services use existing baseline tables and do not create import batches, project snapshots, imported tasks, parser results, or demo execution data.
+
 ## PWA and Offline Model
 
 The Mobile Field App should eventually use IndexedDB for queued local state, service workers and Cache API for offline-capable resources, idempotency keys for replay-safe operations, and visible sync states for user trust. Background Sync is progressive enhancement only.
@@ -48,11 +50,13 @@ The Mobile Field App should eventually use IndexedDB for queued local state, ser
 
 1. Upload Microsoft Project source file.
 2. Store the immutable source file.
-3. Create an import batch.
-4. Parse with MPXJ and capture warnings.
-5. Persist snapshot data for tasks, resources, and assignments.
-6. Track live execution state in Shutdown Tracker.
-7. Preview export-eligible approved updates.
-8. Approve export batch.
-9. Generate MSPDI/XML artifact.
-10. Manually reopen and verify in Microsoft Project.
+3. Ensure a project exists for the source file.
+4. Persist source-file metadata.
+5. Create an import batch.
+6. Parse with MPXJ and capture warnings.
+7. Persist snapshot data for tasks, resources, and assignments.
+8. Track live execution state in Shutdown Tracker.
+9. Preview export-eligible approved updates.
+10. Approve export batch.
+11. Generate MSPDI/XML artifact.
+12. Manually reopen and verify in Microsoft Project.
