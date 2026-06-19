@@ -74,6 +74,36 @@ class ExportPreviewCreateRequestTests {
                 .hasMessage("metadata must not contain null keys.");
     }
 
+    @Test
+    void defaultsExportBatchDecisionMetadataToEmptyObject() {
+        ExportBatchDecisionRequest request = new ExportBatchDecisionRequest(UUID.randomUUID(), "Synthetic reason", null);
+
+        assertThat(request.metadata()).isEmpty();
+    }
+
+    @Test
+    void rejectsGeneratedRequestWithoutArtifactMetadata() {
+        assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
+                "",
+                "sha256:synthetic",
+                UUID.randomUUID(),
+                "Synthetic reason",
+                null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("exportFileUri is required.");
+
+        assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
+                "object://synthetic/export-batches/export-1.mspdi.xml",
+                " ",
+                UUID.randomUUID(),
+                "Synthetic reason",
+                null
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("exportFileHash is required.");
+    }
+
     private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {
         return new ExportPreviewLineCreateRequest(
                 UUID.randomUUID(),

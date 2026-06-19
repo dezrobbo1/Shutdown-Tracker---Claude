@@ -9,6 +9,13 @@ public record ExportPreviewBatchRecord(
         UUID projectSnapshotId,
         ExportBatchState status,
         OffsetDateTime previewCreatedAt,
+        OffsetDateTime approvedAt,
+        UUID approvedByUserId,
+        OffsetDateTime generatedAt,
+        UUID generatedByUserId,
+        String exportFileUri,
+        String exportFileHash,
+        String failureReason,
         int lineCount,
         int eligibleLineCount,
         int ineligibleLineCount

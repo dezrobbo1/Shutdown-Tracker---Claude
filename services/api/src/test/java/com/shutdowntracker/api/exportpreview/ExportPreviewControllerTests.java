@@ -89,14 +89,106 @@ class ExportPreviewControllerTests {
         verify(service).getPreview(projectId, exportBatchId);
     }
 
+    @Test
+    void approvesExportBatch() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.APPROVED);
+        when(service.approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
+                .thenReturn(detail);
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/approve", projectId, exportBatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Synthetic approval"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batch.status").value("APPROVED"))
+                .andExpect(jsonPath("$.message").value(detail.message()));
+
+        verify(service).approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
+    }
+
+    @Test
+    void rejectsExportBatch() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), false, ExportBatchState.REJECTED);
+        when(service.rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
+                .thenReturn(detail);
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/reject", projectId, exportBatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Synthetic rejection"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batch.status").value("REJECTED"))
+                .andExpect(jsonPath("$.message").value(detail.message()));
+
+        verify(service).rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
+    }
+
+    @Test
+    void marksExportBatchGeneratedFromArtifactMetadata() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.GENERATED);
+        when(service.markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class)))
+                .thenReturn(detail);
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated", projectId, exportBatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "exportFileUri": "object://synthetic/export-batches/export-1.mspdi.xml",
+                                  "exportFileHash": "sha256:synthetic",
+                                  "reason": "Synthetic worker artifact recorded"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.batch.status").value("GENERATED"))
+                .andExpect(jsonPath("$.batch.exportFileUri").value("object://synthetic/export-batches/export-1.mspdi.xml"))
+                .andExpect(jsonPath("$.batch.exportFileHash").value("sha256:synthetic"))
+                .andExpect(jsonPath("$.message").value(detail.message()));
+
+        verify(service).markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class));
+    }
+
     private ExportPreviewDetail detail(UUID projectId, UUID snapshotId, boolean eligible) {
+        return detail(projectId, snapshotId, eligible, ExportBatchState.DRAFT_PREVIEW);
+    }
+
+    private ExportPreviewDetail detail(
+            UUID projectId,
+            UUID snapshotId,
+            boolean eligible,
+            ExportBatchState status
+    ) {
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewBatchRecord batch = new ExportPreviewBatchRecord(
                 exportBatchId,
                 projectId,
                 snapshotId,
-                ExportBatchState.DRAFT_PREVIEW,
+                status,
                 OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                status == ExportBatchState.APPROVED || status == ExportBatchState.GENERATED
+                        ? OffsetDateTime.parse("2026-01-01T01:00:00Z")
+                        : null,
+                null,
+                status == ExportBatchState.GENERATED
+                        ? OffsetDateTime.parse("2026-01-01T02:00:00Z")
+                        : null,
+                null,
+                status == ExportBatchState.GENERATED
+                        ? "object://synthetic/export-batches/export-1.mspdi.xml"
+                        : null,
+                status == ExportBatchState.GENERATED ? "sha256:synthetic" : null,
+                null,
                 1,
                 eligible ? 1 : 0,
                 eligible ? 0 : 1
