@@ -1,6 +1,8 @@
 package com.shutdowntracker.api.sourcefile.metadata;
 
 import com.shutdowntracker.api.sourcefile.storage.StoredSourceFile;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,12 @@ public class SourceFileMetadataService {
 
     public SourceFileMetadataService(SourceFileMetadataRepository repository) {
         this.repository = repository;
+    }
+
+    public Optional<SourceFileMetadataRecord> find(UUID projectId, UUID sourceFileId) {
+        Objects.requireNonNull(projectId, "projectId is required.");
+        Objects.requireNonNull(sourceFileId, "sourceFileId is required.");
+        return repository.findByProjectIdAndId(projectId, sourceFileId);
     }
 
     public SourceFileMetadataRecord create(UUID projectId, StoredSourceFile storedSourceFile) {

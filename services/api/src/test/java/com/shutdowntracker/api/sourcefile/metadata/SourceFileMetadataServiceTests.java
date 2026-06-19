@@ -3,6 +3,7 @@ package com.shutdowntracker.api.sourcefile.metadata;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.shutdowntracker.api.sourcefile.storage.StoredSourceFile;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -36,6 +37,11 @@ class SourceFileMetadataServiceTests {
     private static class FakeSourceFileMetadataRepository implements SourceFileMetadataRepository {
 
         private SourceFileMetadataCreateRequest createRequest;
+
+        @Override
+        public Optional<SourceFileMetadataRecord> findByProjectIdAndId(UUID projectId, UUID sourceFileId) {
+            return Optional.empty();
+        }
 
         @Override
         public SourceFileMetadataRecord create(SourceFileMetadataCreateRequest request) {

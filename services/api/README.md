@@ -20,7 +20,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Export preview has local-profile API endpoints for creating `draft_preview` batches and previewing eligibility for approved leaf-task progress/actual fields.
 - Audit event writes are wired for import snapshot review decisions, task lineage review decisions, export preview creation, and export batch lifecycle decisions using the existing `audit_events` table.
 - Export batch approval orchestration has local-profile endpoints for approving or rejecting draft preview batches and recording generated artifact metadata for already-approved batches.
-- Project parse handoff has a shared request builder and disconnected job client for future worker integration.
+- Project parse handoff has a shared request builder, local-profile API trigger endpoint, default disconnected client, and opt-in HTTP worker client.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, evidence, scheduler, parser execution, automatic lineage matching, worker-backed export generation, or write-back endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -106,7 +106,7 @@ Status updates use only the existing database enum values:
 
 The repository stamps `started_at` when a batch first moves to `parsing` and stamps `completed_at` when a batch first moves to `parsed`, `accepted`, `failed`, or `superseded`.
 
-The API can also record a worker parse summary response against an existing import batch. This updates:
+The API can also request and record a worker parse summary response against an existing pending import batch. This updates:
 
 - `status` to `parsed`
 - `parser_name`
@@ -115,7 +115,7 @@ The API can also record a worker parse summary response against an existing impo
 - `error_count`
 - `parse_summary` JSONB with source filename, detected format, project name, summary-only flag, count metadata, and notes
 
-This does not call MPXJ, request worker parsing, persist imported tasks/resources/assignments, or expose a public parser/import execution endpoint.
+This calls MPXJ only through the configured project-worker endpoint. It does not parse in the API, persist imported tasks/resources/assignments, create a project snapshot, run a queue, or create live execution records.
 
 ## Source File Upload Orchestration
 
@@ -232,13 +232,15 @@ The current audit writer is infrastructure for the first review and export lifec
 
 ## Project Parse Handoff Boundary
 
-The API includes a contract-only handoff boundary for future worker parsing:
+The API includes a local-profile handoff boundary for worker-owned parsing:
 
 - `ProjectParseHandoffService` builds a shared `ProjectParseSummaryRequest` from an existing import batch and source-file metadata record.
 - The request includes import batch, project, source file, storage URI, and original filename.
+- `POST /api/projects/{projectId}/import-batches/{importBatchId}/request-parse-summary` resolves a pending import batch, moves it to `parsing`, requests a worker summary, and records that summary on the import batch as `parsed`.
 - The default `ProjectParseJobClient` is intentionally disconnected and throws if called.
+- Set `SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED=true` and `SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_BASE_URL` to enable the HTTP worker client. The default worker base URL is `http://localhost:8081`, and the default path is `/worker/project-import/parse-summary`.
 
-This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create worker jobs, or expose a parse/import endpoint.
+This keeps MPXJ parsing in `services/project-worker`. The API does not parse Project files, create imported snapshots, persist imported task/resource/assignment rows, create live execution records, generate exports, calculate schedule fields, or write back to Microsoft Project.
 
 ## Database Runtime Config
 

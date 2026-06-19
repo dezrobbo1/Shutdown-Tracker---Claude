@@ -3,6 +3,7 @@ package com.shutdowntracker.api.importbatch;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -19,6 +20,22 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
     public JdbcImportBatchRepository(NamedParameterJdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public Optional<ImportBatchRecord> findByProjectIdAndId(UUID projectId, UUID importBatchId) {
+        String sql = """
+                SELECT id, project_id, source_file_id, status, parser_name, parser_version, warning_count, error_count
+                FROM import_batches
+                WHERE project_id = :projectId
+                  AND id = :id
+                """;
+
+        return jdbcTemplate.query(
+                sql,
+                Map.of("projectId", projectId, "id", importBatchId),
+                this::mapRecord
+        ).stream().findFirst();
     }
 
     @Override

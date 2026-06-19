@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -87,9 +88,16 @@ class ImportBatchServiceTests {
     private static class FakeImportBatchRepository implements ImportBatchRepository {
 
         private ImportBatchCreateRequest createRequest;
+        private ImportBatchRecord findRecord;
         private UUID updatedImportBatchId;
         private ImportBatchStatus updatedStatus;
         private ImportBatchParseSummaryUpdate parseSummaryUpdate;
+
+        @Override
+        public Optional<ImportBatchRecord> findByProjectIdAndId(UUID projectId, UUID importBatchId) {
+            return Optional.ofNullable(findRecord)
+                    .filter(record -> record.projectId().equals(projectId) && record.id().equals(importBatchId));
+        }
 
         @Override
         public ImportBatchRecord create(ImportBatchCreateRequest request) {

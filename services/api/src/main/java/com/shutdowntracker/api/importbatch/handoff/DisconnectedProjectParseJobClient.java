@@ -3,9 +3,16 @@ package com.shutdowntracker.api.importbatch.handoff;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnProperty(
+        prefix = "shutdown-tracker.project-parse-worker",
+        name = "enabled",
+        havingValue = "false",
+        matchIfMissing = true
+)
 public class DisconnectedProjectParseJobClient implements ProjectParseJobClient {
 
     @Override

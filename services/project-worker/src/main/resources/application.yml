@@ -4,6 +4,9 @@ spring:
   flyway:
     enabled: false
 
+server:
+  port: ${PORT:8081}
+
 management:
   endpoints:
     web:
