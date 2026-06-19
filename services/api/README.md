@@ -12,6 +12,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
+- Import batch persistence has local-profile JDBC services using the existing `import_batch_status` enum.
 - No file is stored, parsed, persisted, forwarded, or imported by the validation endpoint.
 - No task execution, import batch, export, approval, evidence, domain, or scheduler endpoints exist yet.
 - No Spring Security/OIDC, MPXJ, frontend, secrets, binaries, seed data, or real Project files are included.
@@ -81,6 +82,23 @@ The API includes a service/repository boundary for creating `source_files` metad
 - file size
 
 The service can consume `StoredSourceFile` values returned by the storage abstraction. It does not store bytes in PostgreSQL, create import batches, parse files, call MPXJ, or expose a public upload endpoint.
+
+## Import Batch Persistence
+
+The API includes a service/repository boundary for creating `import_batches` records linked to an existing project and source file. New batches are created with status `pending`.
+
+Status updates use only the existing database enum values:
+
+- `pending`
+- `parsing`
+- `parsed`
+- `accepted`
+- `failed`
+- `superseded`
+
+The repository stamps `started_at` when a batch first moves to `parsing` and stamps `completed_at` when a batch first moves to `parsed`, `accepted`, `failed`, or `superseded`.
+
+This does not call MPXJ, request worker parsing, persist parse summaries, create project snapshots, persist imported tasks, or expose a public import-batch endpoint.
 
 ## Database Runtime Config
 

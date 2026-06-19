@@ -12,11 +12,11 @@ The first backend should be a modular monolith rather than a distributed service
 
 The API service will own request/response workflows, authentication, authorization, task events, problems, actions, evidence metadata, handover, audit events, reporting policies, and export approvals.
 
-The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, and source-file metadata persistence services exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, or authorization behavior exists yet.
+The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, review project bootstrap services, source-file metadata persistence services, and import batch persistence services exist. No task execution endpoints, import batch endpoints, export endpoints, scheduler logic, or authorization behavior exists yet.
 
 ## Project Worker
 
-The project worker will process uploaded Microsoft Project source files, run MPXJ parsing, capture warnings, create import batches, persist snapshots, and generate MSPDI/XML export artifacts.
+The project worker will process stored Microsoft Project source files for import batches, run MPXJ parsing, capture warnings, help persist snapshots, and later generate MSPDI/XML export artifacts.
 
 The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). The worker has a local-only MPXJ import summary spike and the `local` profile wires PostgreSQL and Flyway. It reads an explicit local path only when configured, reports summary counts only, and does not persist, export, run background jobs, integrate queues, expose endpoints, calculate schedules, or write back to Microsoft Project.
 
@@ -40,7 +40,7 @@ Object storage should hold uploaded source files, evidence files, and generated 
 
 The API now has an internal source-file storage abstraction with a local filesystem implementation for development and review wiring. It is not production object storage, and no current endpoint writes source files through it. Future metadata persistence should store the returned storage URI and content hash rather than raw file bytes.
 
-The API also has local-profile JDBC services for synthetic review project bootstrap and `source_files` metadata persistence. These services use existing baseline tables and do not create import batches, project snapshots, imported tasks, parser results, or demo execution data.
+The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, and `import_batches` creation/status updates. These services use existing baseline tables and do not request parsing, persist parser summaries, create project snapshots, persist imported tasks, or create demo execution data.
 
 ## PWA and Offline Model
 
