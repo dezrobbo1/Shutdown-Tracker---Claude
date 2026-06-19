@@ -48,7 +48,8 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Source-file storage abstraction tests use synthetic byte arrays and temporary directories only. They verify local storage URI creation, filename sanitisation, content hashing, and cleanup on failed writes without committing source files or binaries.
 - Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
 - Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
-- The project worker has a worker-only MPXJ import summary spike; no committed Project files, persistence, background jobs, queue integration, export generation, or scheduler logic exists yet.
+- Project parse handoff tests use synthetic IDs and metadata only. API tests verify request construction and the disconnected client; worker tests verify local URI resolution and summary response mapping.
+- The project worker has a worker-only MPXJ import summary spike and shared-contract parse summary handoff; no committed real Project files, persistence, background jobs, queue integration, export generation, or scheduler logic exists yet.
 - Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
 - The migration validation scripts apply SQL directly and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.
 
