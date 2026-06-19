@@ -34,6 +34,7 @@ The backend scaffold is placeholder-only:
 - `services/api` contains a local-profile import review API for listing parsed snapshots, reviewing imported tasks/resources/assignments/extended attributes, and accepting or rejecting parsed snapshots with existing status values.
 - `services/api` contains a local-profile task lineage review API for persisting concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
 - `services/api` contains a local-profile export preview API for creating draft preview batches from explicit candidate lines and marking line eligibility for approved leaf-task progress/actual fields.
+- `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - `services/api` contains a disconnected Project parse handoff client and request builder for future worker integration; no public endpoint calls it yet and the API still does not parse Project files.
 - `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
 - `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service, and a synthetic MSPDI/XML export artifact spike.
@@ -94,6 +95,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add audit-event writes for import/export review decisions once the audit pipeline is wired.
+1. Add export batch approval/generation API orchestration.
 2. Add frontend API client wiring after the backend workflow contracts settle.
-3. Add export batch approval/generation API orchestration.
+3. Add source-file upload orchestration from validation through storage metadata and import batch creation.

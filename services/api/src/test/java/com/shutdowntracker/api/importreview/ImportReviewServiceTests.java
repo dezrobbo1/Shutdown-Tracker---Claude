@@ -3,6 +3,9 @@ package com.shutdowntracker.api.importreview;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.shutdowntracker.api.audit.AuditEventCreateRequest;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
 import com.shutdowntracker.api.importedproject.ImportedExtendedAttributeEntityType;
 import com.shutdowntracker.api.importedproject.ProjectSnapshotStatus;
 import java.math.BigDecimal;
@@ -21,7 +24,7 @@ class ImportReviewServiceTests {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
         FakeImportReviewRepository repository = new FakeImportReviewRepository(projectId, snapshotId);
-        ImportReviewService service = new ImportReviewService(repository);
+        ImportReviewService service = new ImportReviewService(repository, new CapturingAuditEventRecorder());
 
         ImportReviewSnapshotDetail detail = service.getSnapshot(projectId, snapshotId);
 
@@ -41,13 +44,21 @@ class ImportReviewServiceTests {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
         FakeImportReviewRepository repository = new FakeImportReviewRepository(projectId, snapshotId);
-        ImportReviewService service = new ImportReviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ImportReviewService service = new ImportReviewService(repository, audit);
 
         ImportReviewDecisionResponse response = service.acceptSnapshot(projectId, snapshotId);
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.decisionStatus).isEqualTo(ProjectSnapshotStatus.ACCEPTED);
         assertThat(response.snapshot().status()).isEqualTo(ProjectSnapshotStatus.ACCEPTED);
         assertThat(response.message()).contains("No Microsoft Project file was written back.");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.IMPORT_SNAPSHOT_ACCEPTED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.projectSnapshotId()).isEqualTo(snapshotId);
+        assertThat(event.oldValueSummary()).containsEntry("status", "parsed");
+        assertThat(event.newValueSummary()).containsEntry("status", "accepted");
+        assertThat(event.metadata()).containsEntry("projectWriteBack", false);
     }
 
     @Test
@@ -55,13 +66,21 @@ class ImportReviewServiceTests {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
         FakeImportReviewRepository repository = new FakeImportReviewRepository(projectId, snapshotId);
-        ImportReviewService service = new ImportReviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ImportReviewService service = new ImportReviewService(repository, audit);
 
         ImportReviewDecisionResponse response = service.rejectSnapshot(projectId, snapshotId);
+        AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.decisionStatus).isEqualTo(ProjectSnapshotStatus.REJECTED);
         assertThat(response.snapshot().status()).isEqualTo(ProjectSnapshotStatus.REJECTED);
         assertThat(response.message()).contains("No Microsoft Project file was written back.");
+        assertThat(event.eventType()).isEqualTo(AuditEventTypes.IMPORT_SNAPSHOT_REJECTED);
+        assertThat(event.projectId()).isEqualTo(projectId);
+        assertThat(event.projectSnapshotId()).isEqualTo(snapshotId);
+        assertThat(event.oldValueSummary()).containsEntry("status", "parsed");
+        assertThat(event.newValueSummary()).containsEntry("status", "rejected");
+        assertThat(event.metadata()).containsEntry("projectWriteBack", false);
     }
 
     @Test
@@ -70,12 +89,14 @@ class ImportReviewServiceTests {
         UUID snapshotId = UUID.randomUUID();
         FakeImportReviewRepository repository = new FakeImportReviewRepository(projectId, snapshotId);
         repository.currentStatus = ProjectSnapshotStatus.ACCEPTED;
-        ImportReviewService service = new ImportReviewService(repository);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ImportReviewService service = new ImportReviewService(repository, audit);
 
         assertThatThrownBy(() -> service.acceptSnapshot(projectId, snapshotId))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only parsed snapshots can be accepted or rejected.");
+        assertThat(audit.events()).isEmpty();
     }
 
     @Test
@@ -84,7 +105,7 @@ class ImportReviewServiceTests {
         UUID snapshotId = UUID.randomUUID();
         FakeImportReviewRepository repository = new FakeImportReviewRepository(projectId, snapshotId);
         repository.snapshotExists = false;
-        ImportReviewService service = new ImportReviewService(repository);
+        ImportReviewService service = new ImportReviewService(repository, new CapturingAuditEventRecorder());
 
         assertThatThrownBy(() -> service.getSnapshot(projectId, snapshotId))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
