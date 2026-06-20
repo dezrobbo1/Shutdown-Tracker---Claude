@@ -48,6 +48,7 @@ The backend scaffold is placeholder-only:
 - `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
 - `packages/project-export-contract` contains shared Java request/response records for API-to-worker MSPDI/XML export artifact handoff.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
+- `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json` now provides a text-only expected worker export artifact summary for synthetic MSPDI/XML generation tests.
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default and can opt into read-only live import/export review data fetching with explicit Vite environment variables.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
@@ -105,6 +106,6 @@ fixtures/
 
 ## Next Steps
 
-1. Expand export artifact expected-output tests.
-2. Add manual Microsoft Project round-trip evidence notes.
-3. Add production object-store provider selection/config notes.
+1. Add manual Microsoft Project round-trip evidence notes.
+2. Add production object-store provider selection/config notes.
+3. Add seeded review/demo project data strategy.

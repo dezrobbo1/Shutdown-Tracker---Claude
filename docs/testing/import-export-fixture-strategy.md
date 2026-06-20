@@ -11,7 +11,7 @@ Fixtures must protect the product boundary: Shutdown Tracker is live execution a
 - Synthetic Project files created only for testing.
 - Sanitized Project files only after all real names, sites, assets, work orders, vendors, costs, people, locations, and commercial data are removed.
 - Small safe hand-built MSPDI snippets later, after review and explicit approval.
-- Expected parser output JSON generated from safe fixtures.
+- Expected parser/export output JSON generated from safe fixtures.
 - Text-only fixture manifests.
 
 The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. This approval is limited to that reviewed synthetic fixture path and does not permit real Project XML or broad Project-file commits.
@@ -55,10 +55,12 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 
 - Import summaries should include source format, fixture ID, safe project name, count totals, warning counts, error counts, summary-only scope, and notes.
 - Where the worker parse contract is available, expected import summaries should include a `worker_response` block that mirrors stable response fields such as source filename, detected format, project name, counts, warning/error counts, and expected notes.
+- Where the worker export artifact contract is available, expected export artifact summaries should include stable project/task identity, allowed field values, count metadata, notes, and structural size/hash expectations. Generated MSPDI/XML artifacts must remain temporary and must not be committed.
 - Parser expectations should focus on task, summary-task, resource, assignment, custom-field, calendar, lineage, and warning counts.
 - Export preview expectations should describe eligible leaf-task progress/actual updates, excluded summary tasks, approval state, and warning counts.
 - Expected outputs must not include real names, work orders, sites, assets, costs, people, vendors, locations, or commercial data.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` is the first approved expected summary for a synthetic MSPDI import test.
+- `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json` is the first approved expected summary for a synthetic MSPDI/XML export artifact test.
 
 ## Import/Export Test Levels
 
@@ -66,7 +68,7 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 2. Parser summary tests: compare MPXJ parser counts, warnings, errors, and stable worker response fields against expected JSON.
 3. Snapshot persistence tests: verify imported task/resource/assignment lineage after parsing is implemented.
 4. Export preview tests: verify only approved, export-eligible leaf-task actual/progress fields are selected.
-5. Export artifact tests: generate MSPDI/XML from safe data only.
+5. Export artifact tests: generate MSPDI/XML from safe data only and compare stable summary/readback fields against expected-output JSON.
 6. Manual Microsoft Project round-trip tests: reopen generated MSPDI/XML in Microsoft Project and record review notes.
 
 ## Microsoft Project Round-Trip Rules
