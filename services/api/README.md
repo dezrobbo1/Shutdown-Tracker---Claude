@@ -15,6 +15,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Export artifact storage has an internal abstraction and local filesystem implementation for worker-generated MSPDI/XML artifacts.
 - Production object-store provider selection and configuration guidance is documented in [Object Storage Provider Strategy](../../docs/architecture/object-storage-provider-strategy.md); no production provider implementation exists yet.
 - Future seeded review/demo data guidance is documented in [Seeded Review and Demo Data Strategy](../../docs/testing/seeded-review-demo-data-strategy.md); no seeded dataset implementation exists yet.
+- Local source/import/export smoke checks can use [source-import-export-smoke.ps1](../../scripts/review/source-import-export-smoke.ps1); write steps are guarded and opt-in.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
@@ -307,6 +308,8 @@ The migration validation scripts apply SQL directly and do not create Flyway his
 The `review` profile is for backend smoke deployment only. It disables datasource and Flyway auto-configuration, uses `PORT` with a default of `8080`, and keeps Actuator health/info plus source-file validation available without PostgreSQL.
 
 See [API review smoke profile](../../docs/deployment/api-review-smoke.md) for curl checks and Docker usage.
+
+For local source/import/export smoke checks against an already running API, see [Review Smoke Scripts](../../scripts/review/README.md). The default smoke script mode checks health, version, and validation-only source-file handling without storing files or requiring PostgreSQL.
 
 ## Local Commands
 

@@ -130,12 +130,13 @@ The first preferred source fixture for future seeded import/review data is `synt
 ## Implementation Sequence
 
 1. Keep the existing review project bootstrap as project-metadata-only.
-2. Add a text-only review/demo dataset manifest format.
-3. Add a local-only seeded-data command or runner guarded by explicit configuration.
-4. Seed synthetic import metadata and parsed snapshot rows from approved expected-output data.
-5. Seed synthetic import review and lineage scenarios using existing status/review-state values.
-6. Seed synthetic export preview scenarios using existing export batch status values.
-7. Add a source/import/export review smoke script that can run against the seeded dataset.
+2. Add a guarded source/import/export review smoke script that can run validation-only checks now and richer ID-driven checks later.
+3. Add a text-only review/demo dataset manifest format.
+4. Add a local-only seeded-data command or runner guarded by explicit configuration.
+5. Seed synthetic import metadata and parsed snapshot rows from approved expected-output data.
+6. Seed synthetic import review and lineage scenarios using existing status/review-state values.
+7. Seed synthetic export preview scenarios using existing export batch status values.
+8. Run the source/import/export review smoke script against the seeded dataset.
 
 Each implementation step should include tests proving no real data, generated artifacts, scheduler logic, Project write-back, or seed-only product statuses were added.
 

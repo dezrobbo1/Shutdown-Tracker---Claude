@@ -4,6 +4,8 @@
 
 Testing should protect the Microsoft Project boundary, imported snapshot integrity, auditability, permissions, offline safety, and export correctness.
 
+Local source/import/export smoke checks can use [scripts/review/source-import-export-smoke.ps1](../../scripts/review/source-import-export-smoke.ps1). Its default mode checks health, version, and validation-only source-file handling with the approved synthetic MSPDI fixture. Any write step requires explicit switches and must remain local/review-only.
+
 ## Import/Export Fixture Tests
 
 - Keep fixture project files out of Git unless explicitly approved.
@@ -54,6 +56,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Source-file upload orchestration tests use synthetic byte arrays only. They verify accepted uploads call storage, create source-file metadata, create a pending import batch, and record `source_file_uploaded`, while rejected uploads stop before storage, persistence, import-batch creation, and audit writes.
 - Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
 - Future seeded review/demo data tests should prove seeding is disabled by default, dataset-scoped, synthetic-only, idempotent, reset-safe, not migration-driven, and uses existing product status enums only.
+- The source/import/export smoke script should remain synthetic-only, guarded for writes, and should not perform manual Microsoft Project verification or commit generated artifacts.
 - Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, parse summary update mapping, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
 - Import summary persistence tests use synthetic worker summary responses only. They verify summary-only count metadata and do not create snapshots, imported tasks, parser executions, queue jobs, source files, or real Project fixtures.
 - Imported project persistence tests use fake repositories and synthetic entities only. They verify existing project snapshot statuses, entity-type values, snapshot-scoped persistence counts, and validation matching database constraints without parsing files or requiring PostgreSQL.
