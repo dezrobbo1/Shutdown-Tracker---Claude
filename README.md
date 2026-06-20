@@ -52,6 +52,7 @@ The backend scaffold is placeholder-only:
 - `docs/testing/manual-microsoft-project-round-trip-evidence.md` now defines the text-only evidence format for future manual Microsoft Project reopen checks without committing generated artifacts or screenshots.
 - `docs/architecture/object-storage-provider-strategy.md` now defines production object-store provider selection and configuration guidance for source files, generated export artifacts, and future evidence files.
 - `docs/testing/seeded-review-demo-data-strategy.md` now defines future local/review seeded data rules without adding seed data.
+- `scripts/review/source-import-export-smoke.ps1` now provides a guarded local source/import/export smoke script using synthetic fixture input by default.
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default and can opt into read-only live import/export review data fetching with explicit Vite environment variables.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
@@ -101,6 +102,9 @@ infra/
   docker/
   migrations/
   deployment/
+scripts/
+  db/
+  review/
 fixtures/
   project-files/
   import-export/
@@ -109,6 +113,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add source/import/export review script for user smoke testing.
-2. Add review/demo dataset manifest format.
-3. Add provider-neutral object-storage config properties and tests after a provider decision.
+1. Add review/demo dataset manifest format.
+2. Add provider-neutral object-storage config properties and tests after a provider decision.
+3. Add local-only seeded dataset implementation after the manifest format is reviewed.
