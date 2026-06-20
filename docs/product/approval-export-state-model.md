@@ -70,3 +70,4 @@ Every export preview line must show:
 - Generated export artifacts should remain linked to the approval record that produced them.
 - A failed or superseded export batch must remain visible in export history.
 - Manual Microsoft Project verification should be recorded as an audit event.
+- Text-only manual reopen evidence should follow [Manual Microsoft Project Round-Trip Evidence](../testing/manual-microsoft-project-round-trip-evidence.md) and must not include generated artifacts, real Project files, screenshots, or claims of automated Project write-back.

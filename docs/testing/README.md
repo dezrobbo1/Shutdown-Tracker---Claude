@@ -13,7 +13,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - The approved `synthetic-basic-wbs` MSPDI fixture has structured expected-output JSON that is compared against the worker parse summary response.
 - The same fixture now has text-only export artifact expected-output JSON that is compared against worker-generated temporary MSPDI/XML summary and readback fields.
 - Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
-- Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks.
+- Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks. Use the [Manual Microsoft Project Round-Trip Evidence](manual-microsoft-project-round-trip-evidence.md) format for text-only notes.
 
 ## Offline Sync Tests
 
@@ -100,3 +100,4 @@ The workflow does not add MPXJ processing, app runtime behavior, secrets, seed d
 - Reopen artifacts in Microsoft Project.
 - Confirm only approved leaf-task progress/actual fields are eligible for export.
 - Record the reopen and verification metadata in Shutdown Tracker without treating that as automated Project write-back.
+- Do not commit generated artifacts, screenshots, real Project files, or real schedule data.

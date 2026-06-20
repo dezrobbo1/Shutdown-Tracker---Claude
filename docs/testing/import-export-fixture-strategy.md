@@ -69,7 +69,7 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 3. Snapshot persistence tests: verify imported task/resource/assignment lineage after parsing is implemented.
 4. Export preview tests: verify only approved, export-eligible leaf-task actual/progress fields are selected.
 5. Export artifact tests: generate MSPDI/XML from safe data only and compare stable summary/readback fields against expected-output JSON.
-6. Manual Microsoft Project round-trip tests: reopen generated MSPDI/XML in Microsoft Project and record review notes.
+6. Manual Microsoft Project round-trip tests: reopen generated MSPDI/XML in Microsoft Project and record text-only review notes using [Manual Microsoft Project Round-Trip Evidence](manual-microsoft-project-round-trip-evidence.md).
 
 ## Microsoft Project Round-Trip Rules
 
@@ -78,6 +78,7 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 - Export tests must remain controlled, reviewed, approved, batch-oriented, and leaf-task-only for progress/actual fields.
 - Manual reopen notes should be text-only and should not include screenshots of real schedules.
 - Any mismatch should be recorded as expected-output text or issue notes, not by committing generated exports from real schedules.
+- Evidence notes must not claim a pass until a human has opened the generated MSPDI/XML artifact in Microsoft Project.
 
 ## Local-Only Fixture Handling
 
