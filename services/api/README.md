@@ -14,6 +14,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - Export artifact storage has an internal abstraction and local filesystem implementation for worker-generated MSPDI/XML artifacts.
 - Production object-store provider selection and configuration guidance is documented in [Object Storage Provider Strategy](../../docs/architecture/object-storage-provider-strategy.md); no production provider implementation exists yet.
+- Future seeded review/demo data guidance is documented in [Seeded Review and Demo Data Strategy](../../docs/testing/seeded-review-demo-data-strategy.md); no seeded dataset implementation exists yet.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
@@ -93,6 +94,8 @@ Optional bootstrap settings:
 - `SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_TIMEZONE`, default `UTC`
 
 The bootstrap writes metadata marking the project as synthetic and review-bootstrap-only. It does not create source files, import batches, snapshots, tasks, or demo execution records.
+
+Future local/review seeded data should follow [Seeded Review and Demo Data Strategy](../../docs/testing/seeded-review-demo-data-strategy.md). Seeded data must remain disabled by default, synthetic-only, dataset-scoped, and separate from migrations.
 
 ## Source File Metadata Persistence
 

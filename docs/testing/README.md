@@ -9,6 +9,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Keep fixture project files out of Git unless explicitly approved.
 - Store fixture metadata and expected parse outcomes in text form where possible.
 - Follow the [Import/Export Fixture Strategy](import-export-fixture-strategy.md) before adding any fixture metadata or future approved fixture files.
+- Follow the [Seeded Review and Demo Data Strategy](seeded-review-demo-data-strategy.md) before adding local/review seeded data, dataset manifests, or smoke-review datasets.
 - Current MPXJ import spike tests use synthetic in-memory MPXJ objects and do not commit real Project files.
 - The approved `synthetic-basic-wbs` MSPDI fixture has structured expected-output JSON that is compared against the worker parse summary response.
 - The same fixture now has text-only export artifact expected-output JSON that is compared against worker-generated temporary MSPDI/XML summary and readback fields.
@@ -52,6 +53,7 @@ Testing should protect the Microsoft Project boundary, imported snapshot integri
 - Future production object-store provider tests should follow [Object Storage Provider Strategy](../architecture/object-storage-provider-strategy.md) and use synthetic bytes, generated identifiers, isolated test buckets/containers or emulators, and no committed provider credentials, real Project files, or generated artifacts.
 - Source-file upload orchestration tests use synthetic byte arrays only. They verify accepted uploads call storage, create source-file metadata, create a pending import batch, and record `source_file_uploaded`, while rejected uploads stop before storage, persistence, import-batch creation, and audit writes.
 - Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
+- Future seeded review/demo data tests should prove seeding is disabled by default, dataset-scoped, synthetic-only, idempotent, reset-safe, not migration-driven, and uses existing product status enums only.
 - Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, parse summary update mapping, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
 - Import summary persistence tests use synthetic worker summary responses only. They verify summary-only count metadata and do not create snapshots, imported tasks, parser executions, queue jobs, source files, or real Project fixtures.
 - Imported project persistence tests use fake repositories and synthetic entities only. They verify existing project snapshot statuses, entity-type values, snapshot-scoped persistence counts, and validation matching database constraints without parsing files or requiring PostgreSQL.
