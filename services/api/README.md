@@ -13,6 +13,7 @@ Purpose: Spring Boot API service shell for future operational workflows, permiss
 - The `review` profile boots without PostgreSQL for backend smoke checks only.
 - Source-file storage has an internal abstraction and local filesystem implementation for future upload workflows.
 - Export artifact storage has an internal abstraction and local filesystem implementation for worker-generated MSPDI/XML artifacts.
+- Production object-store provider selection and configuration guidance is documented in [Object Storage Provider Strategy](../../docs/architecture/object-storage-provider-strategy.md); no production provider implementation exists yet.
 - Review project bootstrap and source-file metadata persistence have local-profile JDBC services.
 - Import batch persistence has local-profile JDBC services using the existing `import_batches` table and `import_batch_status` enum.
 - Imported project snapshot persistence has local-profile JDBC services using the existing `project_snapshots` and imported Project entity tables.
@@ -59,7 +60,7 @@ The API includes a source-file storage boundary for future upload workflows:
 - `LocalSourceFileStorage` writes to a configured local filesystem root and returns a `file:` URI plus SHA-256 content hash.
 - `shutdown-tracker.source-file-storage.local-root` defaults to `.shutdown-tracker/source-files` and can be overridden with `SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT`.
 
-This is not production object storage. The local implementation exists so source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected.
+This is not production object storage. The local implementation exists so source-file metadata and import-batch work can depend on a stable storage interface before S3/Azure Blob or another object store is selected. Provider selection and configuration guidance lives in [Object Storage Provider Strategy](../../docs/architecture/object-storage-provider-strategy.md).
 
 `POST /api/source-files/validate` remains validation-only and still stores, parses, persists, forwards, and imports nothing. When persistence is enabled, `POST /api/projects/{projectId}/source-files` is the first endpoint that calls the storage abstraction.
 
@@ -71,7 +72,7 @@ The API includes an export-artifact storage boundary for worker-generated MSPDI/
 - `LocalExportArtifactStorage` reserves a path under a configured local filesystem root and returns a `file:` URI for the generated artifact.
 - `shutdown-tracker.export-artifact-storage.local-root` defaults to `.shutdown-tracker/export-artifacts` and can be overridden with `SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT`.
 
-This is not production object storage. The local implementation exists so export-artifact handoff code depends on a stable storage interface before S3/Azure Blob or another object store is selected.
+This is not production object storage. The local implementation exists so export-artifact handoff code depends on a stable storage interface before S3/Azure Blob or another object store is selected. Provider selection and configuration guidance lives in [Object Storage Provider Strategy](../../docs/architecture/object-storage-provider-strategy.md).
 
 The storage abstraction prepares the target path only. It does not generate MSPDI/XML, store artifact bytes in PostgreSQL, parse artifacts, open Microsoft Project, verify artifact contents, or write back to Microsoft Project.
 

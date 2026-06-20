@@ -50,10 +50,11 @@ The backend scaffold is placeholder-only:
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
 - `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json` now provides a text-only expected worker export artifact summary for synthetic MSPDI/XML generation tests.
 - `docs/testing/manual-microsoft-project-round-trip-evidence.md` now defines the text-only evidence format for future manual Microsoft Project reopen checks without committing generated artifacts or screenshots.
+- `docs/architecture/object-storage-provider-strategy.md` now defines production object-store provider selection and configuration guidance for source files, generated export artifacts, and future evidence files.
 - `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default and can opt into read-only live import/export review data fetching with explicit Vite environment variables.
 - `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, secrets, binaries, seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, production object-store provider implementation, secrets, binaries, seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -107,6 +108,6 @@ fixtures/
 
 ## Next Steps
 
-1. Add production object-store provider selection/config notes.
-2. Add seeded review/demo project data strategy.
-3. Add source/import/export review script for user smoke testing.
+1. Add seeded review/demo project data strategy.
+2. Add source/import/export review script for user smoke testing.
+3. Add provider-neutral object-storage config properties and tests after a provider decision.
