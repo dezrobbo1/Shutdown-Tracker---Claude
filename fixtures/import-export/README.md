@@ -44,7 +44,7 @@ Expected export artifact summaries should describe stable worker response and re
 
 ## Round-Trip Notes
 
-Manual Microsoft Project round-trip validation should use synthetic or fully sanitized data only. Record text-only notes for MSPDI/XML reopen checks. Do not commit generated exports from real schedules or screenshots of real schedules.
+Manual Microsoft Project round-trip validation should use synthetic or fully sanitized data only. Record text-only notes for MSPDI/XML reopen checks using [Manual Microsoft Project Round-Trip Evidence](../../docs/testing/manual-microsoft-project-round-trip-evidence.md). Do not commit generated exports from real schedules, generated artifacts, or screenshots.
 
 ## Approved Synthetic Fixtures
 
