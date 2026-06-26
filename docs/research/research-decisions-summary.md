@@ -6,7 +6,7 @@ This summary consolidates the current research direction for Shutdown Tracker. I
 
 Shutdown Tracker should become a reviewed live execution-control system, not a scheduler and not a generic chat app.
 
-The next major product capability should be **Task Progress Review & Export Approval**. This connects field execution truth to the existing Microsoft Project import/export foundation without allowing hidden schedule changes.
+The core next product capability is **Task Progress Review and Export Approval**. This connects field execution truth to the existing Microsoft Project import/export foundation without allowing hidden schedule changes.
 
 Core workflow:
 
@@ -22,6 +22,8 @@ field progress update
 -> Shutdown Tracker records verification metadata and audit
 ```
 
+The Task Progress Review visual shell already exists as static/synthetic frontend review work. The next coding step should be a frontend cleanup/anti-slop pass, not more feature surface.
+
 ## Product boundary decisions
 
 | Area | Decision |
@@ -36,6 +38,8 @@ field progress update
 | Re-import model | New snapshot plus task-lineage review, not in-place mutation |
 | Audit model | Relational records plus append-only audit events for v1 |
 | Offline model | IndexedDB queue and visible sync state; Background Sync as progressive enhancement only |
+| Communications model | Entity-linked Discussion later; no generic chat first |
+| UX model | Operational, narrow, anti-dashboard; no generated card wall |
 
 ## Current repo baseline to preserve
 
@@ -59,6 +63,9 @@ Current implemented/scaffolded areas include:
 - React/Vite mobile PWA scaffold.
 - Shared TypeScript API client.
 - Guarded source/import/export smoke script.
+- Static/synthetic Task Progress Review frontend visual shell.
+- Source-quality and decision-map documents.
+- Product-source docs for task progress review, communications, frontend visual review, UX anti-slop, and status semantics.
 
 Not yet implemented:
 
@@ -66,21 +73,20 @@ Not yet implemented:
 - Task progress capture workflow.
 - Task start/pause/resume/block/complete APIs.
 - Supervisor review workflow.
-- Planner task-progress review queue.
+- Planner task-progress review queue backend/API.
 - Frontend write workflows.
 - Mobile offline queue / IndexedDB sync engine.
 - Evidence upload workflow.
 - Handover workflow.
+- Communications backend.
 - Production object storage.
 - Production queue/background consumers.
 - Real Microsoft Project write-back.
 - Automated Microsoft Project verification.
 
-## Next major product capability
+## Task Progress Review and Export Approval
 
-### Task Progress Review & Export Approval
-
-This is the most important next feature because it provides the missing bridge between field execution and the existing export preview/MSPDI architecture.
+This is the most important product capability because it provides the missing bridge between field execution and the existing export preview/MSPDI architecture.
 
 | User | Shutdown situation | Decision supported | Error prevented |
 | --- | --- | --- | --- |
@@ -119,7 +125,7 @@ Do not collapse all task state into one field. The product needs separate dimens
 
 ## Communications decision
 
-The communications layer should not start as generic chat. The refined decision is:
+The communications layer should not start as generic chat.
 
 - Build structured records first: progress updates, blockers/problems, actions, evidence, handover, export review, Project verification notes.
 - Build entity-linked Discussion later where it supports these records.
@@ -136,20 +142,6 @@ The communications layer should not start as generic chat. The refined decision 
 | Evidence is not a chat attachment | Evidence needs metadata, file controls, chain-of-custody handling, audit |
 | Export review comments do not update Microsoft Project | They support planner decision only |
 | Project verification notes do not save or update the master `.mpp` | They record manual planner verification metadata only |
-
-### Entity-linked Discussion scope
-
-| Entity | Discussion use | Stage |
-| --- | --- | --- |
-| Task | Clarify progress, blocker context, evidence gap | Later / visual shell before backend |
-| Problem / blocker | Discuss ownership, recovery, closure evidence | Later |
-| Action | Status update and close-out clarification | Later |
-| Handover item | Shift-transfer clarification | Later |
-| Evidence item | Review note or rejection reason | Later |
-| Export preview line | Planner clarification | Later |
-| Export batch | Approval/rejection rationale | Later |
-| Project verification step | Manual verification notes | Later |
-| Critical WP / watchlist | Reporting clarification | Later |
 
 ## Critical Watchlist / Critical Work Package decisions
 
@@ -176,6 +168,7 @@ The communications layer should not start as generic chat. The refined decision 
 | Evidence UX | Camera-first, linked to entity, visible upload state |
 | Offline UX | Persistent sync indicators and per-item queue state |
 | Import/export UX | Planner-grade diff preview with old value, new value, source, eligibility, exclusion reason, and verification state |
+| Visual design | Restrained operational language, limited semantic colours, no badge soup |
 | Exclusions | Gantt/scheduling views, dependency maps, dashboard builders, broad chat, AI copilots, hidden sync, direct Project automation |
 
 ## Architecture decisions
@@ -197,9 +190,9 @@ The communications layer should not start as generic chat. The refined decision 
 
 Recommended build order from here:
 
-1. Source consolidation docs.
-2. Docs-only repo alignment for Task Progress Review and Communications Layer.
-3. Task Progress Review frontend visual shell.
+1. Source consolidation docs. Complete.
+2. Docs-only repo alignment for Task Progress Review, Communications Layer, visual review, and UX anti-slop. Complete through product-source docs.
+3. Frontend visual shell cleanup / anti-slop pass.
 4. Product/user review with planner, supervisor, field user, shutdown control.
 5. Backend/API brief for progress submission, supervisor review, planner review, export candidates.
 6. Backend/API implementation.
@@ -208,24 +201,18 @@ Recommended build order from here:
 
 ## What to build next
 
-The next coding PR should be a frontend-only visual shell for Task Progress Review & Export Approval, using synthetic/static data where needed.
+The next coding PR should be a frontend cleanup, not a new feature.
 
-Screens/components:
+Scope:
 
-- Today Progress Review widget.
-- Task Detail Progress panel.
-- Supervisor Review Queue.
-- Planner Progress Review Queue.
-- Export Preview progress-candidates section.
-- Project Verification visual.
-- Problems/blockers link examples.
-- Handover Summary progress section.
-- Mobile My Work progress states.
-- Mobile Task Progress flow.
-- Mobile Sync Queue progress items.
-- Audit mini-list.
-
-It must not add production APIs, migrations, production write workflows, production offline sync, production messaging, or Project write-back.
+- Restore console top-level nav to Today, Tasks, Problems, Evidence, Exports.
+- Move Supervisor Review and Planner Review into Today/Tasks/Exports sections or saved views.
+- Move Project Verification under Exports.
+- Replace visible synthetic labels with sanitized realistic examples.
+- Compact the mobile sync status area.
+- Reduce mobile task-card chip density.
+- Keep visual-only controls disabled.
+- Preserve Project-boundary warnings.
 
 ## What to defer
 
@@ -247,7 +234,7 @@ It must not add production APIs, migrations, production write workflows, product
 - CPM, float, critical path, recovery scheduling, or automatic date movement.
 - Summary-task actual write-back.
 - Resource levelling or assignment-rate write-back.
-- “Complete by comment” workflow.
+- Complete-by-comment workflow.
 - WhatsApp-style chat as operational source of truth.
 - Evidence as arbitrary chat attachment.
 - Background Sync as the only sync correctness mechanism.
@@ -271,7 +258,7 @@ Use these source classes for hard repo decisions:
 
 - Microsoft Project documentation.
 - MPXJ documentation.
-- HSE communications, handover, permit-to-work, workload, alarm-management guidance.
+- HSE communications, handover, permit-to-work, workload, and alarm-management guidance.
 - MDN browser/PWA documentation.
 - WCAG / WAI accessibility guidance.
 - OWASP logging and file-upload guidance.
