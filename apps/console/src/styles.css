@@ -390,6 +390,365 @@ button {
   font-size: 0.88rem;
 }
 
+.review-question-grid,
+.state-key,
+.supervisor-grid,
+.candidate-grid,
+.handover-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.review-question-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.review-question,
+.queue-card,
+.candidate-card,
+.handover-card,
+.problem-card,
+.sequence-step {
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #f8faf5;
+}
+
+.review-question {
+  display: grid;
+  min-height: 142px;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+}
+
+.review-question div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-question span,
+.handover-card span,
+.sequence-step span,
+.problem-card span,
+.queue-card span {
+  color: #66756a;
+}
+
+.review-question strong {
+  color: #17201a;
+  font-size: 1.65rem;
+}
+
+.review-question p,
+.queue-card p,
+.handover-card p,
+.problem-card p,
+.boundary-copy,
+.task-warning {
+  margin: 0;
+  color: #526259;
+  line-height: 1.45;
+}
+
+.review-question.green {
+  border-left: 5px solid #2d876d;
+}
+
+.review-question.blue {
+  border-left: 5px solid #4361a3;
+}
+
+.review-question.amber {
+  border-left: 5px solid #b26b24;
+}
+
+.review-question.red {
+  border-left: 5px solid #b54a40;
+}
+
+.compact-panel {
+  padding: 14px;
+}
+
+.state-key {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.chip-list,
+.review-state-strip,
+.visual-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.task-progress-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.task-warning {
+  border: 1px solid #dbe1d6;
+  border-radius: 8px;
+  background: #f2f6ee;
+  color: #1d473d;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.task-warning.red {
+  border-color: #efd2cd;
+  background: #fff3f1;
+  color: #8a3028;
+}
+
+.boundary-copy {
+  border-left: 4px solid #4361a3;
+  background: #f3f6fb;
+  padding: 11px 12px;
+}
+
+.detail-list,
+.comparison-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.detail-list.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-list div,
+.comparison-list div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.detail-list dt,
+.comparison-list dt {
+  color: #66756a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detail-list dd,
+.comparison-list dd {
+  margin: 0;
+  color: #17201a;
+  overflow-wrap: anywhere;
+}
+
+.comparison-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.comparison-columns article {
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.comparison-columns h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.route-panel,
+.priority-panel {
+  scroll-margin-top: 18px;
+}
+
+.supervisor-grid,
+.candidate-grid,
+.handover-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.queue-card,
+.candidate-card,
+.handover-card,
+.problem-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.queue-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queue-card-heading div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.visual-controls button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #cfd8ce;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #24322b;
+}
+
+.visual-controls button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.visual-controls.compact button {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 0.76rem;
+}
+
+.planner-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+}
+
+.planner-row {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.15fr)
+    minmax(120px, 0.7fr)
+    minmax(150px, 0.85fr)
+    minmax(160px, 0.9fr)
+    minmax(170px, 0.9fr)
+    minmax(180px, 1fr)
+    minmax(170px, 0.9fr);
+  gap: 12px;
+  min-height: 92px;
+  align-items: start;
+  padding: 14px;
+  border-bottom: 1px solid #e8ece4;
+}
+
+.planner-row:last-child {
+  border-bottom: 0;
+}
+
+.planner-row > span {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.planner-row em,
+.planner-row small {
+  color: #66756a;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.planner-head {
+  min-height: 42px;
+  align-items: center;
+  background: #f2f5ef;
+  color: #66756a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sequence-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sequence-step {
+  display: flex;
+  min-height: 82px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.sequence-step svg {
+  flex: 0 0 auto;
+  color: #4361a3;
+}
+
+.old-new-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.old-new-grid div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.old-new-grid span {
+  color: #66756a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.old-new-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.problem-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.problem-card {
+  gap: 8px;
+  background: #ffffff;
+}
+
+.problem-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.problem-card small {
+  color: #66756a;
+}
+
+.handover-card {
+  min-height: 132px;
+}
+
+.handover-card strong {
+  color: #1d473d;
+}
+
 @media (max-width: 1040px) {
   .console-shell {
     grid-template-columns: 1fr;
@@ -413,7 +772,12 @@ button {
 
   .metric-grid,
   .api-surface,
-  .content-grid {
+  .content-grid,
+  .review-question-grid,
+  .state-key,
+  .supervisor-grid,
+  .candidate-grid,
+  .handover-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -447,11 +811,25 @@ button {
     overflow-x: auto;
   }
 
-  .review-row {
+  .review-row,
+  .planner-row {
     min-width: 680px;
   }
 
-  .preview-signals {
+  .preview-signals,
+  .detail-list.two-column,
+  .comparison-columns,
+  .review-question-grid,
+  .state-key,
+  .supervisor-grid,
+  .candidate-grid,
+  .handover-grid,
+  .sequence-strip,
+  .old-new-grid {
     grid-template-columns: 1fr;
+  }
+
+  .planner-table {
+    overflow-x: auto;
   }
 }

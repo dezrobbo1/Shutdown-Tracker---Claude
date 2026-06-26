@@ -119,10 +119,10 @@ button {
 
 .work-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
   gap: 12px;
   align-items: start;
-  min-height: 112px;
+  min-height: 142px;
   padding: 14px;
 }
 
@@ -132,7 +132,6 @@ button {
 }
 
 .work-state {
-  align-self: start;
   border-radius: 999px;
   background: #e4ebf7;
   color: #35568f;
@@ -140,6 +139,193 @@ button {
   padding: 6px 9px;
   text-align: center;
   white-space: nowrap;
+}
+
+.work-card-side {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.work-card-side button,
+.mobile-action-row button,
+.shortcut-grid button {
+  border: 1px solid #cbd6ca;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #24322b;
+  font-weight: 800;
+}
+
+.work-card-side button {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.work-card-side button:disabled,
+.mobile-action-row button:disabled,
+.shortcut-grid button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.percent-pill {
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d8dfd3;
+  border-radius: 8px;
+  background: #f2f5ef;
+  color: #1d473d;
+  font-weight: 900;
+}
+
+.mobile-chip-row,
+.mobile-state-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.mobile-chip {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  border-radius: 999px;
+  background: #e4ebf7;
+  color: #35568f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 5px 8px;
+}
+
+.mobile-chip.green {
+  background: #dff0e8;
+  color: #1f705a;
+}
+
+.mobile-chip.amber {
+  background: #faeddd;
+  color: #7b481d;
+}
+
+.mobile-chip.red {
+  background: #f8e2df;
+  color: #8a3028;
+}
+
+.progress-flow,
+.sync-queue {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d8dfd3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 1.12rem;
+}
+
+.boundary-copy {
+  margin: 0;
+  border-left: 4px solid #4361a3;
+  background: #f3f6fb;
+  color: #526259;
+  line-height: 1.42;
+  padding: 10px;
+}
+
+.progress-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.progress-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.progress-form span {
+  color: #657568;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.progress-form input,
+.progress-form textarea {
+  width: 100%;
+  border: 1px solid #cbd6ca;
+  border-radius: 8px;
+  background: #f8faf5;
+  color: #17201a;
+  font: inherit;
+  padding: 10px;
+}
+
+.progress-form textarea {
+  resize: none;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.shortcut-grid,
+.mobile-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shortcut-grid button,
+.mobile-action-row button {
+  min-height: 44px;
+}
+
+.mobile-action-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sync-queue-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #e2e6de;
+  border-radius: 8px;
+  background: #f8faf5;
+  padding: 12px;
+}
+
+.sync-queue-card div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.sync-queue-card span,
+.sync-queue-card p {
+  color: #657568;
+  font-size: 0.78rem;
+}
+
+.sync-queue-card p {
+  margin: 0;
+}
+
+.sync-queue-card strong {
+  overflow-wrap: anywhere;
 }
 
 .action-band {
@@ -204,7 +390,15 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .work-state {
+  .work-card-side {
     justify-self: start;
+    justify-items: start;
+  }
+
+  .progress-form,
+  .shortcut-grid,
+  .mobile-action-row,
+  .sync-queue-card {
+    grid-template-columns: 1fr;
   }
 }
