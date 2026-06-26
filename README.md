@@ -6,14 +6,30 @@ Shutdown Tracker is a shutdown, turnaround, and construction live execution trac
 
 The platform has two main applications:
 
-- Master Console: a desktop-oriented operations console for imported Microsoft Project work packages, summary tasks, child tasks, problems, delays, actions, evidence, handover notes, reporting state, and export approval state.
-- Mobile Field App: a mobile-first PWA for field supervisors, leading hands, contractors, inspectors, and execution crews to view assigned work, submit updates, start, pause, resume, block, and complete work, log problems, manage actions, attach evidence, and submit handover notes.
+- Master Console: a desktop-oriented operations console for imported Microsoft Project work packages, summary tasks, child tasks, task progress review, problems, delays, actions, evidence, handover notes, reporting state, export approval state, and manual Project verification metadata.
+- Mobile Field App: a mobile-first PWA for field supervisors, leading hands, contractors, inspectors, and execution crews to view assigned work, submit progress updates, start, pause, resume, block, and complete work, log problems, manage actions, attach evidence, and submit handover notes.
 
 ## Product Boundary
 
 Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution and reporting authority.
 
 Shutdown Tracker imports Microsoft Project schedule snapshots and may export reviewed, approved batches back to Microsoft Project. It does not live-feed Microsoft Project and does not silently modify the schedule.
+
+Task progress review follows this boundary:
+
+```text
+field progress update
+-> supervisor review
+-> planner review
+-> export eligibility
+-> export preview
+-> MSPDI/XML artifact generated
+-> planner manually opens/checks in Microsoft Project
+-> planner controls whether master .mpp is saved
+-> Shutdown Tracker records verification metadata and audit
+```
+
+Comments, discussion, mentions, announcements, review decisions, export approval, artifact generation, and Project verification notes do not update or save the master `.mpp`.
 
 ## Do Not Build Scheduler
 
@@ -53,10 +69,12 @@ The backend scaffold is placeholder-only:
 - `docs/architecture/object-storage-provider-strategy.md` now defines production object-store provider selection and configuration guidance for source files, generated export artifacts, and future evidence files.
 - `docs/testing/seeded-review-demo-data-strategy.md` now defines future local/review seeded data rules without adding seed data.
 - `scripts/review/source-import-export-smoke.ps1` now provides a guarded local source/import/export smoke script using synthetic fixture input by default.
-- `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default and can opt into read-only live import/export review data fetching with explicit Vite environment variables.
-- `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic UI state only.
+- `docs/research/source-quality-register.md`, `docs/research/source-map.md`, `docs/research/research-decisions-summary.md`, and `docs/research/research-index.md` consolidate source quality and research decisions.
+- `docs/product/task-progress-review-export-approval.md`, `docs/product/communications-layer.md`, `docs/product/frontend-visual-review-scope.md`, `docs/product/ux-anti-slop-rules.md`, and `docs/product/design-language-and-status-semantics.md` define the current product-source direction for task progress review, communications, and frontend guardrails.
+- `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default, can opt into read-only live import/export review data fetching with explicit Vite environment variables, and contains a static Task Progress Review visual shell.
+- `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic Task Progress Review UI state only.
 - Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, production object-store provider implementation, secrets, binaries, actual seed data, or real Project files have been added yet.
+- No scheduler logic, task execution endpoints, task progress write APIs, supervisor review APIs, planner review APIs, communications APIs, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, production object-store provider implementation, secrets, binaries, actual seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
 - CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
@@ -66,12 +84,13 @@ The backend scaffold is placeholder-only:
 - Monorepo.
 - Frontend: React and Vite.
 - Mobile: mobile-first PWA.
-- Backend: Kotlin or Java Spring Boot.
+- Backend: Kotlin or Java Spring Boot; current repo implementation is Java.
 - Database: PostgreSQL.
 - Microsoft Project import/export: MPXJ.
 - Export format: MSPDI/XML, not native MPP writing.
 - Storage: object storage for uploaded evidence, source files, and generated export files.
 - Offline mobile workflow: IndexedDB, service workers, Cache API, idempotency keys, visible sync state, and Background Sync as progressive enhancement only.
+- Communications: entity-linked Discussion later, not generic chat.
 
 ## Repo Structure
 
@@ -113,6 +132,8 @@ fixtures/
 
 ## Next Steps
 
-1. Add review/demo dataset manifest format.
-2. Add provider-neutral object-storage config properties and tests after a provider decision.
-3. Add local-only seeded dataset implementation after the manifest format is reviewed.
+1. Tighten the current frontend visual shell to reduce UX bloat and restore approved top-level IA.
+2. Add review/demo dataset manifest format.
+3. Add provider-neutral object-storage config properties and tests after a provider decision.
+4. Add local-only seeded dataset implementation after the manifest format is reviewed.
+5. Draft backend/API brief for Task Progress Review only after visual review feedback is collected.
