@@ -1,13 +1,15 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ClipboardCheck,
+  ClipboardList,
   Database,
   FileCheck2,
   FileSearch,
   ListChecks,
   Radio,
   Send,
-  ShieldCheck
+  ShieldCheck,
+  UserCheck
 } from "lucide-react";
 import type { ConsoleReviewData, ConsoleReviewLoadState } from "./apiReviewClient";
 
@@ -41,9 +43,12 @@ export type ExportPreviewRow = {
 export const consoleNavItems: ConsoleNavItem[] = [
   { label: "Today", icon: Radio, active: true },
   { label: "Tasks", icon: ListChecks },
+  { label: "Supervisor Review", icon: UserCheck },
+  { label: "Planner Review", icon: ClipboardList },
   { label: "Problems", icon: FileSearch },
   { label: "Evidence", icon: FileCheck2 },
-  { label: "Exports", icon: Send }
+  { label: "Exports", icon: Send },
+  { label: "Verification", icon: ShieldCheck }
 ];
 
 export const consoleMetrics: ConsoleMetric[] = [

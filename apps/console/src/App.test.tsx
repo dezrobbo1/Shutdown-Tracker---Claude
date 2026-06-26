@@ -14,6 +14,14 @@ import {
   consoleNavItems,
   exportPreviewSignals
 } from "./consoleData";
+import {
+  exportPreviewSequence,
+  plannerReviewQueue,
+  progressCandidates,
+  progressReviewStateGroups,
+  supervisorReviewQueue,
+  todayProgressReviewItems
+} from "./progressReviewData";
 
 describe("console scaffold", () => {
   it("renders the planned console navigation", () => {
@@ -43,11 +51,67 @@ describe("console scaffold", () => {
     expect(html).toContain("Wired operations");
   });
 
+  it("renders the task progress review and export approval shell", () => {
+    const html = renderToString(<App />);
+
+    expect(html).toContain("Progress review");
+    expect(html).toContain("Supervisor Review Queue");
+    expect(html).toContain("Planner Progress Review Queue");
+    expect(html).toContain("Progress candidates in this batch");
+    expect(html).toContain("Project verification");
+    expect(html).toContain("Handover Summary");
+
+    for (const item of todayProgressReviewItems) {
+      expect(html).toContain(item.label);
+      expect(html).toContain(item.chip);
+    }
+
+    for (const group of progressReviewStateGroups) {
+      expect(html).toContain(group.label);
+      for (const state of group.states) {
+        expect(html).toContain(state);
+      }
+    }
+
+    for (const item of supervisorReviewQueue) {
+      expect(html).toContain(item.state);
+    }
+
+    for (const item of plannerReviewQueue) {
+      expect(html).toContain(item.task);
+      expect(html).toContain(item.exportEligibility);
+    }
+
+    for (const candidate of progressCandidates) {
+      expect(html).toContain(candidate.task);
+      expect(html).toContain(candidate.exclusionReason);
+    }
+  });
+
+  it("renders Microsoft Project boundary copy for progress review", () => {
+    const html = renderToString(<App />);
+
+    expect(html).toContain("Discussion and progress review only. This does not update Microsoft Project.");
+    expect(html).toContain("Supervisor review confirms operational validity. It does not approve Microsoft Project export.");
+    expect(html).toContain(
+      "Planner approval marks this progress as eligible for export preview. The master .mpp is not updated."
+    );
+    expect(html).toContain("Summary task. Not eligible for direct progress export.");
+    expect(html).toContain("Leaf task. Eligible fields may be reviewed for export.");
+    expect(html).toContain("Shutdown Tracker records verification metadata only.");
+
+    for (const step of exportPreviewSequence) {
+      expect(html).toContain(step);
+    }
+  });
+
   it("does not surface schedule-authoring language", () => {
     const html = renderToString(<App />);
     const forbidden = [
       /critical path/i,
       /\bfloat\b/i,
+      /\bCPM\b/i,
+      /\bGantt\b/i,
       /resource levell?ing/i,
       /recovery scheduling/i,
       /automatic date movement/i,
