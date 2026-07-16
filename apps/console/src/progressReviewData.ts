@@ -251,9 +251,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-a1",
     taskCode: "ST-A1",
-    taskName: "Synthetic Task A1",
-    workPackage: "Synthetic Summary A",
-    area: "Area Alpha",
+    taskName: "C2 cyclone — remove access cover",
+    workPackage: "Calciner C2 refractory outage",
+    area: "Calciner C2",
     importedProjectIdentity: "Snapshot v3 / UID 1001 / WBS 1.1",
     taskKind: "Leaf task",
     executionState: "In progress",
@@ -277,9 +277,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-20",
       actualFinish: "-",
       source: "Mobile progress update",
-      submittedBy: "Field user A",
+      submittedBy: "Field supervisor",
       submittedAt: "2026-06-26 08:30",
-      supervisorReviewedBy: "Supervisor A",
+      supervisorReviewedBy: "Supervisor / C2",
       plannerDecision: "Pending"
     },
     linkedBlockers: [],
@@ -290,9 +290,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-a2",
     taskCode: "ST-A2",
-    taskName: "Synthetic Task A2",
-    workPackage: "Synthetic Summary A",
-    area: "Area Alpha",
+    taskName: "C2 cyclone — inspect refractory lining",
+    workPackage: "Calciner C2 refractory outage",
+    area: "Calciner C2",
     importedProjectIdentity: "Snapshot v3 / UID 1002 / WBS 1.2",
     taskKind: "Leaf task",
     executionState: "Completed",
@@ -316,7 +316,7 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-19",
       actualFinish: "2026-06-26",
       source: "Mobile completion update",
-      submittedBy: "Field user B",
+      submittedBy: "Shift supervisor",
       submittedAt: "2026-06-26 09:05",
       supervisorReviewedBy: "Not reviewed",
       plannerDecision: "Not ready"
@@ -329,9 +329,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-summary-a",
     taskCode: "ST-SUM-A",
-    taskName: "Synthetic Summary A",
-    workPackage: "Synthetic Basic WBS",
-    area: "Area Alpha",
+    taskName: "Calciner C2 refractory outage",
+    workPackage: "Calciner C2 outage plan",
+    area: "Calciner C2",
     importedProjectIdentity: "Snapshot v3 / UID 1000 / WBS 1",
     taskKind: "Summary task",
     executionState: "In progress",
@@ -355,9 +355,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-18",
       actualFinish: "-",
       source: "Review comment",
-      submittedBy: "Field user C",
+      submittedBy: "Control room coordinator",
       submittedAt: "2026-06-26 09:20",
-      supervisorReviewedBy: "Supervisor B",
+      supervisorReviewedBy: "Supervisor / access workfront",
       plannerDecision: "Summary task blocked"
     },
     linkedBlockers: [],
@@ -368,9 +368,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-b1",
     taskCode: "ST-B1",
-    taskName: "Synthetic Task B1",
-    workPackage: "Synthetic Summary B",
-    area: "Area Beta",
+    taskName: "Kiln feed chute — awaiting scaffold",
+    workPackage: "Calciner C2 access workfront",
+    area: "Access workfront",
     importedProjectIdentity: "Snapshot v3 / UID 2001 / WBS 2.1",
     taskKind: "Leaf task",
     executionState: "Blocked",
@@ -394,7 +394,7 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-22",
       actualFinish: "-",
       source: "Supervisor field check",
-      submittedBy: "Field user D",
+      submittedBy: "Package supervisor",
       submittedAt: "2026-06-26 10:10",
       supervisorReviewedBy: "Not reviewed",
       plannerDecision: "Blocked"
@@ -407,9 +407,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-c1",
     taskCode: "ST-C1",
-    taskName: "Synthetic Task C1",
-    workPackage: "Synthetic Summary C",
-    area: "Area Gamma",
+    taskName: "Permit isolation — confirm revised line",
+    workPackage: "Calciner C2 permit workfront",
+    area: "Permit / isolation",
     importedProjectIdentity: "Snapshot v2 / UID 3001 / WBS changed in v3",
     taskKind: "Leaf task",
     executionState: "In progress",
@@ -433,9 +433,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-21",
       actualFinish: "-",
       source: "Previous snapshot progress update",
-      submittedBy: "Field user E",
+      submittedBy: "Area coordinator",
       submittedAt: "2026-06-26 10:45",
-      supervisorReviewedBy: "Supervisor C",
+      supervisorReviewedBy: "Supervisor / permit workfront",
       plannerDecision: "Lineage review required"
     },
     linkedBlockers: [],
@@ -446,9 +446,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-d1",
     taskCode: "ST-D1",
-    taskName: "Synthetic Task D1",
-    workPackage: "Synthetic Summary D",
-    area: "Area Delta",
+    taskName: "Furnace bottom — install blanking plate",
+    workPackage: "Furnace bottom workfront",
+    area: "Furnace bottom",
     importedProjectIdentity: "Snapshot v3 / UID 4001 / WBS 4.1",
     taskKind: "Leaf task",
     executionState: "In progress",
@@ -472,9 +472,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-24",
       actualFinish: "-",
       source: "Planner reviewed field update",
-      submittedBy: "Field user F",
+      submittedBy: "Workfront supervisor",
       submittedAt: "2026-06-26 11:15",
-      supervisorReviewedBy: "Supervisor D",
+      supervisorReviewedBy: "Supervisor / furnace workfront",
       plannerDecision: "Approved for export"
     },
     linkedBlockers: [],
@@ -485,9 +485,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-e1-superseded",
     taskCode: "ST-E1",
-    taskName: "Synthetic Task E1",
-    workPackage: "Synthetic Summary E",
-    area: "Area Epsilon",
+    taskName: "Heat exchanger — inspect tube bundle",
+    workPackage: "Cooling water workfront",
+    area: "Cooling water",
     importedProjectIdentity: "Snapshot v3 / UID 5001 / WBS 5.1",
     taskKind: "Leaf task",
     executionState: "Paused",
@@ -511,9 +511,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-21",
       actualFinish: "-",
       source: "Older mobile update",
-      submittedBy: "Field user G",
+      submittedBy: "Night shift supervisor",
       submittedAt: "2026-06-26 07:30",
-      supervisorReviewedBy: "Supervisor E",
+      supervisorReviewedBy: "Supervisor / cooling-water workfront",
       plannerDecision: "Superseded"
     },
     linkedBlockers: [],
@@ -524,9 +524,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-mobile-queued",
     taskCode: "ST-M1",
-    taskName: "Synthetic Mobile Queued Update",
-    workPackage: "Synthetic Summary Mobile",
-    area: "Area Mobile",
+    taskName: "Valve isolation — field update draft",
+    workPackage: "Calciner C2 field updates",
+    area: "Field updates",
     importedProjectIdentity: "Snapshot v3 / UID 6001 / WBS 6.1",
     taskKind: "Leaf task",
     executionState: "In progress",
@@ -550,7 +550,7 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-26",
       actualFinish: "-",
       source: "Local mobile draft",
-      submittedBy: "Field user H",
+      submittedBy: "Field supervisor",
       submittedAt: "Saved locally",
       supervisorReviewedBy: "Not sent",
       plannerDecision: "Not available"
@@ -563,9 +563,9 @@ export const progressReviewTasks: ProgressReviewTask[] = [
   {
     id: "progress-mobile-failed",
     taskCode: "ST-M2",
-    taskName: "Synthetic Mobile Failed Update",
-    workPackage: "Synthetic Summary Mobile",
-    area: "Area Mobile",
+    taskName: "Crane lift — evidence upload retry",
+    workPackage: "Calciner C2 field updates",
+    area: "Field updates",
     importedProjectIdentity: "Snapshot v3 / UID 6002 / WBS 6.2",
     taskKind: "Leaf task",
     executionState: "Blocked",
@@ -589,7 +589,7 @@ export const progressReviewTasks: ProgressReviewTask[] = [
       actualStart: "2026-06-25",
       actualFinish: "-",
       source: "Failed mobile send",
-      submittedBy: "Field user I",
+      submittedBy: "Package owner",
       submittedAt: "Saved locally",
       supervisorReviewedBy: "Not sent",
       plannerDecision: "Not available"
@@ -606,9 +606,9 @@ export const summaryTaskDetailReview = progressReviewTasks[2];
 
 export const supervisorReviewQueue: SupervisorReviewItem[] = [
   {
-    task: "ST-A1 Synthetic Task A1",
+    task: "ST-A1 C2 cyclone — remove access cover",
     submittedProgress: "40% -> 75%",
-    submittedBy: "Field user A",
+    submittedBy: "Field supervisor",
     submittedTime: "2026-06-26 08:30",
     executionState: "In progress",
     evidenceStatus: "Evidence complete",
@@ -618,9 +618,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "New submission"
   },
   {
-    task: "ST-A2 Synthetic Task A2",
+    task: "ST-A2 C2 cyclone — inspect refractory lining",
     submittedProgress: "80% -> 100%",
-    submittedBy: "Field user B",
+    submittedBy: "Shift supervisor",
     submittedTime: "2026-06-26 09:05",
     executionState: "Completed",
     evidenceStatus: "Evidence missing.",
@@ -630,9 +630,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "Evidence missing"
   },
   {
-    task: "ST-B1 Synthetic Task B1",
+    task: "ST-B1 Kiln feed chute — awaiting scaffold",
     submittedProgress: "10% -> 25%",
-    submittedBy: "Field user D",
+    submittedBy: "Package supervisor",
     submittedTime: "2026-06-26 10:10",
     executionState: "Blocked",
     evidenceStatus: "Evidence not required yet",
@@ -642,9 +642,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "Blocker open"
   },
   {
-    task: "ST-SUM-A Synthetic Summary A",
+    task: "ST-SUM-A Calciner C2 refractory outage",
     submittedProgress: "52% -> 70%",
-    submittedBy: "Field user C",
+    submittedBy: "Control room coordinator",
     submittedTime: "2026-06-26 09:20",
     executionState: "In progress",
     evidenceStatus: "Context only",
@@ -654,9 +654,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "Correction requested"
   },
   {
-    task: "ST-D1 Synthetic Task D1",
+    task: "ST-D1 Furnace bottom — install blanking plate",
     submittedProgress: "20% -> 50%",
-    submittedBy: "Field user F",
+    submittedBy: "Workfront supervisor",
     submittedTime: "2026-06-26 11:15",
     executionState: "In progress",
     evidenceStatus: "Evidence complete",
@@ -666,9 +666,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "Supervisor accepted"
   },
   {
-    task: "ST-X1 Synthetic Task X1",
+    task: "ST-X1 Quality hold — resolve inspection finding",
     submittedProgress: "30% -> 90%",
-    submittedBy: "Field user J",
+    submittedBy: "Inspection lead",
     submittedTime: "2026-06-26 11:40",
     executionState: "In progress",
     evidenceStatus: "Evidence mismatch",
@@ -678,9 +678,9 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
     state: "Rejected"
   },
   {
-    task: "ST-E1 Synthetic Task E1",
+    task: "ST-E1 Heat exchanger — inspect tube bundle",
     submittedProgress: "55% -> 65%",
-    submittedBy: "Field user G",
+    submittedBy: "Night shift supervisor",
     submittedTime: "2026-06-26 07:30",
     executionState: "Paused",
     evidenceStatus: "Older evidence superseded",
@@ -693,7 +693,7 @@ export const supervisorReviewQueue: SupervisorReviewItem[] = [
 
 export const plannerReviewQueue: PlannerReviewItem[] = [
   {
-    task: "ST-A1 Synthetic Task A1",
+    task: "ST-A1 C2 cyclone — remove access cover",
     taskKind: "Leaf task",
     currentProjectPercent: "40%",
     proposedPercent: "75%",
@@ -709,7 +709,7 @@ export const plannerReviewQueue: PlannerReviewItem[] = [
     reimportConflictState: "No conflict"
   },
   {
-    task: "ST-D1 Synthetic Task D1",
+    task: "ST-D1 Furnace bottom — install blanking plate",
     taskKind: "Leaf task",
     currentProjectPercent: "20%",
     proposedPercent: "50%",
@@ -725,7 +725,7 @@ export const plannerReviewQueue: PlannerReviewItem[] = [
     reimportConflictState: "No conflict"
   },
   {
-    task: "ST-A2 Synthetic Task A2",
+    task: "ST-A2 C2 cyclone — inspect refractory lining",
     taskKind: "Leaf task",
     currentProjectPercent: "80%",
     proposedPercent: "100%",
@@ -741,7 +741,7 @@ export const plannerReviewQueue: PlannerReviewItem[] = [
     reimportConflictState: "No conflict"
   },
   {
-    task: "ST-SUM-A Synthetic Summary A",
+    task: "ST-SUM-A Calciner C2 refractory outage",
     taskKind: "Summary task",
     currentProjectPercent: "52%",
     proposedPercent: "70%",
@@ -757,7 +757,7 @@ export const plannerReviewQueue: PlannerReviewItem[] = [
     reimportConflictState: "No conflict"
   },
   {
-    task: "ST-C1 Synthetic Task C1",
+    task: "ST-C1 Permit isolation — confirm revised line",
     taskKind: "Leaf task",
     currentProjectPercent: "35%",
     proposedPercent: "60%",
@@ -776,7 +776,7 @@ export const plannerReviewQueue: PlannerReviewItem[] = [
 
 export const progressCandidates: ProgressCandidate[] = [
   {
-    task: "ST-D1 Synthetic Task D1",
+    task: "ST-D1 Furnace bottom — install blanking plate",
     field: "percent_complete",
     oldValue: "20%",
     newValue: "50%",
@@ -788,7 +788,7 @@ export const progressCandidates: ProgressCandidate[] = [
     exclusionReason: "None"
   },
   {
-    task: "ST-D1 Synthetic Task D1",
+    task: "ST-D1 Furnace bottom — install blanking plate",
     field: "actual_start",
     oldValue: "-",
     newValue: "2026-06-24",
@@ -800,7 +800,7 @@ export const progressCandidates: ProgressCandidate[] = [
     exclusionReason: "None"
   },
   {
-    task: "ST-SUM-A Synthetic Summary A",
+    task: "ST-SUM-A Calciner C2 refractory outage",
     field: "percent_complete",
     oldValue: "52%",
     newValue: "70%",
@@ -812,7 +812,7 @@ export const progressCandidates: ProgressCandidate[] = [
     exclusionReason: "Leaf-task-only rule; summary-task direct progress export blocked"
   },
   {
-    task: "ST-A2 Synthetic Task A2",
+    task: "ST-A2 C2 cyclone — inspect refractory lining",
     field: "actual_finish",
     oldValue: "-",
     newValue: "2026-06-26",
@@ -824,7 +824,7 @@ export const progressCandidates: ProgressCandidate[] = [
     exclusionReason: "Evidence missing."
   },
   {
-    task: "ST-C1 Synthetic Task C1",
+    task: "ST-C1 Permit isolation — confirm revised line",
     field: "percent_complete",
     oldValue: "35%",
     newValue: "60%",
@@ -848,11 +848,11 @@ export const exportPreviewSequence = [
 export const projectVerification = {
   artifactId: "artifact-progress-preview-001",
   generatedAt: "2026-06-26 12:10",
-  generatedBy: "Planner A",
+  generatedBy: "Shutdown planner",
   openedState: "Opened in Microsoft Project",
-  openedBy: "Planner A",
+  openedBy: "Shutdown planner",
   openedAt: "2026-06-26 12:25",
-  verifiedBy: "Planner A",
+  verifiedBy: "Shutdown planner",
   verifiedAt: "2026-06-26 12:40",
   verificationOutcome: "Verified",
   rejectedSupersededState: "No rejection or supersession recorded",
@@ -865,7 +865,7 @@ export const structuredProblems: StructuredProblem[] = [
     type: "Blocker",
     status: "Open",
     owner: "Supervisor",
-    linkedTask: "ST-B1 Synthetic Task B1",
+    linkedTask: "ST-B1 Kiln feed chute — awaiting scaffold",
     handoverImpact: "Progress blocked from export review"
   },
   {
@@ -873,7 +873,7 @@ export const structuredProblems: StructuredProblem[] = [
     type: "Problem",
     status: "Open",
     owner: "Planner",
-    linkedTask: "ST-P1 Synthetic Permit Task",
+    linkedTask: "ST-P1 Permit release — confirm isolations",
     handoverImpact: "Ready state cannot be confirmed"
   },
   {
@@ -881,7 +881,7 @@ export const structuredProblems: StructuredProblem[] = [
     type: "Blocker",
     status: "Action required",
     owner: "Field supervisor",
-    linkedTask: "ST-I1 Synthetic Isolation Task",
+    linkedTask: "ST-I1 Isolation — complete verification",
     handoverImpact: "Supervisor review held"
   },
   {
@@ -889,7 +889,7 @@ export const structuredProblems: StructuredProblem[] = [
     type: "Blocker",
     status: "Open",
     owner: "Package owner",
-    linkedTask: "ST-M2 Synthetic Mobile Failed Update",
+    linkedTask: "ST-M2 Crane lift — evidence upload retry",
     handoverImpact: "Mobile failed update retained"
   },
   {
@@ -897,15 +897,15 @@ export const structuredProblems: StructuredProblem[] = [
     type: "Hold point",
     status: "Rejected progress",
     owner: "Inspector",
-    linkedTask: "ST-X1 Synthetic Task X1",
+    linkedTask: "ST-X1 Quality hold — resolve inspection finding",
     handoverImpact: "Progress rejected until hold clears"
   },
   {
     title: "Evidence missing",
     type: "Evidence gap",
     status: "Request open",
-    owner: "Field user",
-    linkedTask: "ST-A2 Synthetic Task A2",
+    owner: "Field supervisor",
+    linkedTask: "ST-A2 C2 cyclone — inspect refractory lining",
     handoverImpact: "Planner review not ready"
   }
 ];

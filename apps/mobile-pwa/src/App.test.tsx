@@ -15,6 +15,9 @@ describe("mobile PWA scaffold", () => {
   it("renders sync status signals", () => {
     const html = renderToString(<App />);
 
+    expect(html).toContain('class="sync-banner"');
+    expect(html).not.toContain('class="sync-strip"');
+
     for (const signal of syncSignals) {
       expect(html).toContain(signal.label);
       expect(html).toContain(signal.detail);
@@ -23,6 +26,9 @@ describe("mobile PWA scaffold", () => {
 
   it("renders mobile task progress states and sync queue examples", () => {
     const html = renderToString(<App />);
+
+    expect(html).not.toContain("Synthetic Task A1");
+    expect(html).not.toContain("Synthetic Summary A");
 
     for (const item of mobileWorkItems) {
       expect(html).toContain(item.title);

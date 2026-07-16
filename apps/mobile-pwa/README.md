@@ -2,7 +2,7 @@
 
 Purpose: mobile-first PWA for field supervisors, leading hands, contractors, inspectors, and execution crews.
 
-Current status: scaffolded React/Vite mobile shell with static Task Progress Review states for product review.
+Current status: scaffolded React/Vite mobile shell with static Task Progress Review states for product review. The initial visual cleanup pass keeps My Work focused on assigned work, uses sanitised operational examples, and presents sync state in a compact banner.
 
 The app includes a web app manifest and static synthetic field-work state for mobile layout review. It shows progress cards, a short submit-progress visual flow, and sync queue examples for queued, failed, server-received, and conflict states.
 
@@ -10,17 +10,17 @@ The mobile progress surfaces are visual-only. They do not implement IndexedDB, p
 
 ## Visual shell limitations
 
-The current mobile Task Progress Review surfaces are static/synthetic visual review surfaces. They are not production offline sync, not production task progress submission, and not final mobile IA.
+The current mobile Task Progress Review surfaces are static/synthetic visual review surfaces. They are not production offline sync or production task progress submission.
 
-Before the next UI PR:
+The initial cleanup pass now:
 
-- keep mobile top-level navigation to My Work, Today, Problems, Evidence, Sync;
-- keep My Work focused on assigned work before diagnostics;
-- replace the three large sync/status tiles with a compact sync banner;
-- reduce each task card to task name, area/work package, state, percent where relevant, one blocker/evidence indicator, one sync indicator, and one primary action;
-- replace visible `Synthetic Task A1` style labels with sanitized realistic examples;
-- keep all write-like controls disabled until APIs exist;
-- keep queued/failed/server-received copy explicit.
+- keeps mobile top-level navigation to My Work, Today, Problems, Evidence, Sync;
+- keeps My Work focused on assigned work before diagnostics;
+- replaces the three large sync/status tiles with a compact sync banner;
+- reduces task cards to the minimum operational fields and two status indicators;
+- uses sanitised operational examples;
+- keeps all write-like controls disabled until APIs exist;
+- keeps queued/failed/server-received copy explicit.
 
 Required offline copy:
 

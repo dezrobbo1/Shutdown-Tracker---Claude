@@ -2,7 +2,7 @@
 
 Purpose: React and Vite application for shutdown control, planners, coordinators, supervisors, package owners, and managers.
 
-Current status: scaffolded React/Vite shell with shared API client wiring, opt-in live import/export review data fetching, and a static Task Progress Review visual shell.
+Current status: scaffolded React/Vite shell with shared API client wiring, opt-in live import/export review data fetching, and a static Task Progress Review visual shell. The initial visual cleanup pass locks the approved top-level IA and uses sanitised operational examples.
 
 The console renders synthetic review state by default for:
 
@@ -35,18 +35,18 @@ The console imports `@shutdown-tracker/api-client` and can be configured with `V
 
 ## Visual shell limitations
 
-The current Task Progress Review surfaces are static/synthetic visual review surfaces. They are not final information architecture and should not be treated as production route structure or backend API contracts.
+The current Task Progress Review surfaces are static/synthetic visual review surfaces. They should not be treated as production route structure or backend API contracts.
 
-Before the next UI PR:
+The initial cleanup pass now:
 
-- restore the console top-level IA to Today, Tasks, Problems, Evidence, Exports;
-- treat Supervisor Review and Planner Review as saved views or sections, not permanent top-level navigation;
-- treat Project Verification as part of Exports;
-- reduce card/chip density;
-- replace visible `Synthetic Task A1` style labels with sanitized realistic examples;
-- keep write-like controls disabled until APIs exist;
-- keep Project-boundary warnings visible;
-- avoid adding more panels to the single overview page.
+- locks the console top-level IA to Today, Tasks, Problems, Evidence, Exports;
+- treats Supervisor Review and Planner Review as Today/Exports sections rather than permanent navigation;
+- treats Project Verification as part of Exports;
+- reduces card/chip density and uses sanitised operational examples;
+- keeps write-like controls disabled until APIs exist;
+- keeps Project-boundary warnings visible.
+
+Remaining visual-only scope includes Critical Watch, Critical Updates, and entity-linked Discussion surfaces. These must remain clearly labelled and non-functional until their product/API contracts are approved.
 
 Relevant product source docs:
 

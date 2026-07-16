@@ -61,8 +61,8 @@ export const mobileNavItems: MobileNavItem[] = [
 
 export const mobileWorkItems: MobileWorkItem[] = [
   {
-    title: "Synthetic Task A1",
-    workPackage: "Synthetic Summary A",
+    title: "C2 cyclone — remove access cover",
+    workPackage: "Calciner C2 refractory outage",
     state: "In progress",
     detail: "Imported Project 40%; proposed progress ready for review",
     percentComplete: "75%",
@@ -73,8 +73,8 @@ export const mobileWorkItems: MobileWorkItem[] = [
     syncBadge: "Server received"
   },
   {
-    title: "Synthetic Task A2",
-    workPackage: "Synthetic Summary A",
+    title: "C2 cyclone — inspect refractory lining",
+    workPackage: "Calciner C2 refractory outage",
     state: "Completed",
     detail: "Completion update needs evidence before supervisor acceptance",
     percentComplete: "100%",
@@ -85,8 +85,8 @@ export const mobileWorkItems: MobileWorkItem[] = [
     syncBadge: "Server received"
   },
   {
-    title: "Synthetic Task B1",
-    workPackage: "Synthetic Summary B",
+    title: "Kiln feed chute — awaiting scaffold",
+    workPackage: "Calciner C2 access workfront",
     state: "Blocked",
     detail: "Scaffold not available; progress held from export",
     percentComplete: "25%",
@@ -97,8 +97,8 @@ export const mobileWorkItems: MobileWorkItem[] = [
     syncBadge: "Server received"
   },
   {
-    title: "Synthetic Mobile Queued Update",
-    workPackage: "Synthetic Summary Mobile",
+    title: "Valve isolation — field update draft",
+    workPackage: "Calciner C2 isolation workfront",
     state: "In progress",
     detail: "Saved locally for later send",
     percentComplete: "15%",
@@ -109,8 +109,8 @@ export const mobileWorkItems: MobileWorkItem[] = [
     syncBadge: "Queued on this device"
   },
   {
-    title: "Synthetic Mobile Failed Update",
-    workPackage: "Synthetic Summary Mobile",
+    title: "Crane lift — evidence upload retry",
+    workPackage: "Calciner C2 lifting workfront",
     state: "Blocked",
     detail: "Could not send but remains saved",
     percentComplete: "30%",
@@ -138,7 +138,7 @@ export const syncSignals: SyncSignal[] = [
 ];
 
 export const mobileProgressFlow: MobileProgressFlow = {
-  taskName: "Synthetic Task A1",
+  taskName: "C2 cyclone — remove access cover",
   currentState: "In progress",
   percentComplete: "75",
   actualStart: "2026-06-20",
@@ -155,31 +155,31 @@ export const mobileProgressFlow: MobileProgressFlow = {
 export const mobileSyncQueueItems: MobileSyncQueueItem[] = [
   {
     label: "Queued progress update",
-    task: "Synthetic Mobile Queued Update",
+    task: "Valve isolation — field update draft",
     detail: "Queued on this device. Not yet sent.",
     state: "Queued on device"
   },
   {
     label: "Failed progress update",
-    task: "Synthetic Mobile Failed Update",
+    task: "Crane lift — evidence upload retry",
     detail: "Could not send. Still saved on this device.",
     state: "Failed"
   },
   {
     label: "Queued evidence item",
-    task: "Synthetic Task A2",
+    task: "C2 cyclone — inspect refractory lining",
     detail: "Completion photo metadata saved locally.",
     state: "Local draft"
   },
   {
     label: "Server received item",
-    task: "Synthetic Task A1",
+    task: "C2 cyclone — remove access cover",
     detail: "Server received.",
     state: "Server received"
   },
   {
     label: "Conflict item",
-    task: "Synthetic Task C1",
+    task: "Permit isolation — re-import review",
     detail: "Thread may be out of date. Last synced at [time].",
     state: "Conflict"
   }

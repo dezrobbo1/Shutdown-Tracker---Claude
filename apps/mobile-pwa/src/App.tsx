@@ -21,13 +21,21 @@ export function App() {
       </header>
 
       <main className="mobile-content">
-        <section className="sync-strip" aria-label="Sync status">
-          {syncSignals.map((signal) => (
-            <article className="sync-card" key={signal.label}>
-              <span>{signal.label}</span>
-              <strong>{signal.detail}</strong>
-            </article>
-          ))}
+        <section className="sync-banner" aria-label="Sync status">
+          <div className="sync-banner-main">
+            <span className="sync-status-dot" aria-hidden="true" />
+            <div>
+              <span>{syncSignals[0].label}</span>
+              <strong>{syncSignals[0].detail}</strong>
+            </div>
+          </div>
+          <div className="sync-banner-details">
+            {syncSignals.slice(1).map((signal) => (
+              <span key={signal.label}>
+                <strong>{signal.label}:</strong> {signal.detail}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="work-list" aria-label="Assigned work">
@@ -37,10 +45,11 @@ export function App() {
                 <p>{item.workPackage}</p>
                 <h2>{item.title}</h2>
                 <span>{item.detail}</span>
-                <div className="mobile-chip-row" aria-label={`${item.title} review badges`}>
-                  <MobileChip label={item.reviewBadge} />
-                  <MobileChip label={item.blockerBadge} />
-                  <MobileChip label={item.evidenceBadge} />
+                <div
+                  className="mobile-chip-row"
+                  aria-label={`${item.title}: ${item.reviewBadge}; ${item.blockerBadge}; ${item.evidenceBadge}; ${item.syncBadge}`}
+                >
+                  <MobileChip label={item.blockerBadge !== "No blocker" ? item.blockerBadge : item.evidenceBadge} />
                   <MobileChip label={item.syncBadge} />
                 </div>
               </div>

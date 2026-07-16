@@ -97,9 +97,9 @@ button {
 
 .workspace {
   display: grid;
-  gap: 22px;
+  gap: 18px;
   align-content: start;
-  padding: 28px;
+  padding: 24px;
 }
 
 .workspace-header {
@@ -158,18 +158,18 @@ button {
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .metric-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  min-height: 128px;
+  gap: 10px;
+  min-height: 104px;
   border: 1px solid #dbe1d6;
   border-radius: 8px;
   background: #ffffff;
-  padding: 16px;
+  padding: 12px;
 }
 
 .metric-card p,
@@ -268,15 +268,15 @@ button {
   border: 1px solid #dbe1d6;
   border-radius: 8px;
   background: #ffffff;
-  padding: 18px;
+  padding: 14px;
 }
 
 .panel-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .status-chip {
@@ -639,10 +639,10 @@ button {
     minmax(170px, 0.9fr)
     minmax(180px, 1fr)
     minmax(170px, 0.9fr);
-  gap: 12px;
-  min-height: 92px;
+  gap: 10px;
+  min-height: 82px;
   align-items: start;
-  padding: 14px;
+  padding: 12px;
   border-bottom: 1px solid #e8ece4;
 }
 

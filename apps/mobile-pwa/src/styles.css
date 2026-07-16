@@ -74,42 +74,69 @@ button {
   padding-bottom: 28px;
 }
 
-.sync-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.sync-card,
+.sync-banner,
 .work-card {
   border: 1px solid #d8dfd3;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.sync-card {
-  display: grid;
-  min-height: 74px;
-  align-content: center;
-  gap: 5px;
-  padding: 10px;
+.sync-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
 }
 
-.sync-card span,
+.sync-banner-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.sync-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #b7792a;
+}
+
+.sync-banner-main > div {
+  display: grid;
+  gap: 2px;
+}
+
+.sync-banner span,
 .work-card p,
 .work-card span {
   color: #657568;
   font-size: 0.78rem;
 }
 
-.sync-card span,
+.sync-banner-main span,
 .work-card p {
   margin: 0;
 }
 
-.sync-card strong {
+.sync-banner-main strong {
   color: #1d473d;
   font-size: 0.92rem;
+}
+
+.sync-banner-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  color: #657568;
+  text-align: right;
+}
+
+.sync-banner-details strong {
+  color: #1d473d;
 }
 
 .work-list {
@@ -122,13 +149,13 @@ button {
   grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
   gap: 12px;
   align-items: start;
-  min-height: 142px;
-  padding: 14px;
+  min-height: 126px;
+  padding: 12px;
 }
 
 .work-card h2 {
-  margin: 6px 0;
-  font-size: 1.15rem;
+  margin: 4px 0;
+  font-size: 1.05rem;
 }
 
 .work-state {
@@ -144,7 +171,7 @@ button {
 .work-card-side {
   display: grid;
   justify-items: end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .work-card-side button,
@@ -186,20 +213,20 @@ button {
 .mobile-state-stack {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 12px;
+  gap: 5px;
+  margin-top: 8px;
 }
 
 .mobile-chip {
   display: inline-flex;
-  min-height: 27px;
+  min-height: 25px;
   align-items: center;
   border-radius: 999px;
   background: #e4ebf7;
   color: #35568f;
   font-size: 0.72rem;
   font-weight: 800;
-  padding: 5px 8px;
+  padding: 4px 7px;
 }
 
 .mobile-chip.green {
@@ -382,8 +409,14 @@ button {
     box-shadow: none;
   }
 
-  .sync-strip {
-    grid-template-columns: 1fr;
+  .sync-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sync-banner-details {
+    justify-content: flex-start;
+    text-align: left;
   }
 
   .work-card {
