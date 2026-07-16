@@ -1,56 +1,54 @@
 # Database Migrations
 
-This folder contains PostgreSQL SQL migrations for Shutdown Tracker.
+This directory contains the PostgreSQL schema migrations used by Shutdown Tracker. The files follow Flyway version naming and must be applied once in ascending version order.
 
-The migration foundation establishes the first system-of-record schema for project imports, immutable snapshots, imported Microsoft Project entities, audit events, controlled approvals/exports, and Critical Watchlist reporting.
+## Current baseline
 
-## Target
+The baseline is `V001` through `V006` and creates 20 application tables:
 
-- Database: PostgreSQL.
-- Migration style: SQL files compatible with a future Flyway-style runner.
-- Application stack: not scaffolded in this PR.
-- Seed data: not allowed in baseline migrations.
+- `V001__baseline_extensions_and_enums.sql`: enables `pgcrypto` and defines the initial enum types; creates no tables.
+- `V002__projects_snapshots_and_imports.sql`: creates `projects`, `source_files`, `import_batches`, and `project_snapshots`.
+- `V003__imported_project_entities.sql`: creates `imported_tasks`, `imported_resources`, `imported_assignments`, `imported_extended_attributes`, and `task_lineage_links`.
+- `V004__audit_events.sql`: creates the append-only-by-application-rule `audit_events` table.
+- `V005__approval_and_export_batches.sql`: creates `approval_records`, `export_batches`, and `export_batch_lines`.
+- `V006__critical_watchlists_reporting.sql`: creates `critical_watchlists`, `critical_work_packages`, `critical_work_package_sources`, `reporting_policy_versions`, `reporting_periods`, `critical_updates`, and `critical_update_lines`.
 
-## Naming Convention
+Critical Watchlists and Critical Work Packages are reporting constructs. They do not calculate critical path, float, or recovery schedules.
 
-Use Flyway-compatible versioned migration names:
+## Runtime use
+
+The API and project worker `local` profiles enable Flyway with:
 
 ```text
-V001__short_description.sql
-V002__next_description.sql
+filesystem:infra/migrations
 ```
 
-Version numbers must be monotonically increasing. Do not rename or rewrite applied migrations after they have been shared.
+Start those services from the repository root so the relative location resolves correctly. The local datasource defaults match [`../docker/docker-compose.postgres.yml`](../docker/docker-compose.postgres.yml).
 
-## Review Rules
+The validation scripts do not run Flyway or create Flyway schema-history records. They apply the SQL files directly with containerized `psql` against a clean database, fail on SQL errors, and verify all 20 expected tables.
 
-- Keep migrations small, clear, and reviewable.
-- Prefer explicit primary keys, foreign keys, indexes, and comments.
-- Avoid destructive changes unless there is explicit review and approval.
-- Do not commit secrets, `.env` files, real Microsoft Project files, generated exports, local database files, PDFs, DOCX files, ZIPs, screenshots, or other binary artifacts.
-- Migrations are not expected to be idempotent when run manually; migration tooling should apply each version exactly once.
+## Validate locally
 
-## Baseline Migration List
+Prerequisite: Docker with Docker Compose support. A host `psql` installation is not required.
 
-- `V001__baseline_extensions_and_enums.sql`: UUID extension and conservative enum types.
-- `V002__projects_snapshots_and_imports.sql`: projects, immutable source files, import batches, and project snapshots.
-- `V003__imported_project_entities.sql`: imported tasks, resources, assignments, extended attributes, and task lineage links.
-- `V004__audit_events.sql`: append-only audit event table by application rule.
-- `V005__approval_and_export_batches.sql`: approval records, export batches, and export batch lines.
-- `V006__critical_watchlists_reporting.sql`: Critical Watchlists, Critical Work Packages, reporting policies, reporting periods, and Critical Updates.
+Unix-like systems, from the repository root:
 
-## Local Validation
+```sh
+./scripts/db/validate-migrations.sh
+```
 
-See [Database Validation Scripts](../../scripts/db/README.md) for the local Docker-based migration validation runner.
+Windows PowerShell, from the repository root:
 
-Migrations should be validated against a clean PostgreSQL database before merge where possible. The validation scripts apply `infra/migrations/V*.sql` files in sorted version order and verify expected baseline tables.
+```powershell
+.\scripts\db\validate-migrations.ps1
+```
 
-Raw SQL files are not manually idempotent. Migration tooling should apply each version once.
+Both scripts reset the named validation volume before applying `infra/migrations/V*.sql` in sorted order.
 
-## Product Boundary
+## Migration rules
 
-Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution and reporting authority.
-
-The schema must not introduce scheduler ownership. Do not add critical-path, CPM, float calculation, resource-levelling, recovery-scheduling, automatic-date-movement, hidden-recalculation, live-feed, or uncontrolled Microsoft Project write-back structures.
-
-Project exports must remain controlled, reviewed, approved, and batch-oriented. Only approved leaf-task progress/actual fields may be eligible for Microsoft Project export.
+- Add the next monotonically increasing `V###__description.sql` file; never rename or rewrite an applied migration.
+- Keep migrations reviewable and use explicit keys, constraints, indexes, and comments.
+- Do not place seed data, secrets, real Project files, generated export artifacts, or other operational data in schema migrations.
+- Treat imported Microsoft Project rows as immutable snapshot facts. Microsoft Project remains the schedule authority.
+- Preserve reviewed, approved, batch-oriented export handling; do not introduce scheduler ownership or uncontrolled Project write-back.
