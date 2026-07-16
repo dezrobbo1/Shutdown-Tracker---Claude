@@ -264,10 +264,15 @@ export function App() {
           <TaskProgressPanel task={summaryTaskDetailReview} />
         </section>
 
-        <section className="work-panel route-panel" aria-label="Supervisor Review Queue" data-route="/progress-review/supervisor">
+        <section
+          className="work-panel route-panel"
+          aria-label="Today supervisor review queue"
+          data-zone="Today"
+          data-route="/progress-review/supervisor"
+        >
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">/progress-review/supervisor</p>
+              <p className="eyebrow">Today / review queue</p>
               <h2>Supervisor Review Queue</h2>
             </div>
             <span className="status-chip blue">Visual-only controls</span>
@@ -318,10 +323,15 @@ export function App() {
           </div>
         </section>
 
-        <section className="work-panel route-panel priority-panel" aria-label="Planner Progress Review Queue" data-route="/progress-review/planner">
+        <section
+          className="work-panel route-panel priority-panel"
+          aria-label="Exports planner progress review queue"
+          data-zone="Exports"
+          data-route="/progress-review/planner"
+        >
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">/progress-review/planner</p>
+              <p className="eyebrow">Exports / planner review</p>
               <h2>Planner Progress Review Queue</h2>
             </div>
             <span className="status-chip amber">Planner export decision</span>
@@ -383,10 +393,10 @@ export function App() {
           </div>
         </section>
 
-        <section className="work-panel" aria-label="Progress candidates in Export Preview">
+        <section className="work-panel" aria-label="Exports progress candidates in export preview" data-zone="Exports">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Export preview</p>
+              <p className="eyebrow">Exports / preview</p>
               <h2>Progress candidates in this batch</h2>
             </div>
             <span className="status-chip red">Leaf-task-only rule</span>
@@ -447,10 +457,10 @@ export function App() {
         </section>
 
         <section className="content-grid" aria-label="Project verification and blocker examples">
-          <article className="work-panel">
+          <article className="work-panel" data-zone="Exports">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">Project verification</p>
+                <p className="eyebrow">Exports / Project verification</p>
                 <h2>Manual Microsoft Project check</h2>
               </div>
               <StatusChip label={projectVerification.openedState} />

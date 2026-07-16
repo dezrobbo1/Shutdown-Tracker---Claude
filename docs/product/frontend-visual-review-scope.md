@@ -112,20 +112,19 @@ Recommended placement:
 | Needs Response | Today/top chrome/user menu; not top-level Chat |
 | Announcements | Controlled banner, not open channel |
 
-## Anti-slop cleanup debt from current shell
+## Initial anti-slop cleanup pass
 
-Before the next feature UI PR, address these visual-shell debts:
+The initial frontend cleanup pass addresses the visual-shell debt without adding production behaviour:
 
-- Do not add more sections to the single console `App` page.
-- Treat Supervisor Review, Planner Review, and Verification as review surfaces, not permanent top-level navigation.
-- Replace visible `Synthetic Task A1` style labels with sanitized realistic shutdown examples.
-- Replace the mobile three-card sync strip with a compact sync/status banner.
-- Reduce mobile task cards to the minimum action fields.
-- Reduce card/chip density on console Today.
-- Keep all write-like controls disabled until APIs exist.
-- Keep Project-boundary warnings on export/review/verification surfaces.
-- Standardize offline wording.
-- Use route-level or component-level briefs for future UI changes.
+- Supervisor Review, Planner Review, and Verification are review sections within the approved zones, not permanent top-level navigation.
+- Reviewer-facing examples use sanitised operational shutdown language rather than `Synthetic Task A1` labels.
+- The mobile three-card sync strip is a compact sync/status banner.
+- Mobile task cards show only the minimum operational fields and status indicators.
+- Console card/chip density is reduced.
+- All write-like controls remain disabled until APIs exist.
+- Project-boundary warnings and explicit offline wording remain visible.
+
+Remaining visual review scope includes Critical Watch, Critical Updates, and entity-linked Discussion. These remain static visual-only surfaces until the related product/API contracts are approved.
 
 ## Visual review copy
 
@@ -269,14 +268,6 @@ A future frontend PR should be rejected or revised if:
 
 ## Next coding implication
 
-Before more feature UI, do a small frontend cleanup PR:
-
-- restore console top-level nav to Today, Tasks, Problems, Evidence, Exports;
-- move Supervisor Review, Planner Review, and Verification into sections/saved views;
-- replace visible synthetic labels;
-- compact mobile sync status;
-- reduce chip/card density;
-- keep visual-only controls disabled;
-- keep boundary warnings visible.
+After the cleanup pass, the next visual PR should add the static Critical Watch, Critical Update, and entity-linked Discussion review surfaces without creating a generic dashboard, chat inbox, or production write workflow.
 
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.

@@ -27,6 +27,14 @@ describe("console scaffold", () => {
   it("renders the planned console navigation", () => {
     const html = renderToString(<App />);
 
+    expect(consoleNavItems.map((item) => item.label)).toEqual([
+      "Today",
+      "Tasks",
+      "Problems",
+      "Evidence",
+      "Exports"
+    ]);
+
     for (const item of consoleNavItems) {
       expect(html).toContain(item.label);
     }
@@ -54,6 +62,8 @@ describe("console scaffold", () => {
   it("renders the task progress review and export approval shell", () => {
     const html = renderToString(<App />);
 
+    expect(html).not.toContain("Synthetic Task A1");
+    expect(html).not.toContain("Synthetic Summary A");
     expect(html).toContain("Progress review");
     expect(html).toContain("Supervisor Review Queue");
     expect(html).toContain("Planner Progress Review Queue");

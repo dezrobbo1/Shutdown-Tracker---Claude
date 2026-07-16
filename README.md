@@ -132,7 +132,7 @@ fixtures/
 
 ## Next Steps
 
-1. Tighten the current frontend visual shell to reduce UX bloat and restore approved top-level IA.
+1. Review the frontend cleanup pass, then add static Critical Watch, Critical Update, and entity-linked Discussion surfaces.
 2. Add review/demo dataset manifest format.
 3. Add provider-neutral object-storage config properties and tests after a provider decision.
 4. Add local-only seeded dataset implementation after the manifest format is reviewed.
