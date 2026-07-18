@@ -32,11 +32,11 @@ From the repository root:
 - Start a local PostgreSQL container using `infra/docker/docker-compose.postgres.yml`.
 - Reset the validation database volume before applying migrations.
 - Wait for PostgreSQL readiness.
-- Apply all `infra/migrations/V*.sql` files in sorted version order.
-- Fail fast on SQL errors.
+- Apply each `infra/migrations/V*.sql` file in sorted version order as its own PostgreSQL transaction.
+- Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
 - Verify the expected baseline tables exist after migration.
 
-The scripts do not insert seed data and do not run application code.
+The scripts validate a clean install only. They do not insert seed data, exercise populated upgrades, or run application code.
 
 ## Reset
 

@@ -209,16 +209,18 @@ When persistence is enabled, the API exposes a preview-only export surface:
 - `POST /api/projects/{projectId}/export-preview`
 - `GET /api/projects/{projectId}/export-preview/{exportBatchId}`
 
-Creating a preview writes one `export_batches` row with status `draft_preview` against an accepted project snapshot, then writes requested `export_batch_lines`. The request supplies explicit candidate lines because live task update/event tables do not exist yet. Each line includes an imported task, source entity type/id, field name, new value, optional source actor/timestamp/reason, and optional metadata.
+Creating a preview writes one current-policy `export_batches` row with status `draft_preview` against an accepted project snapshot, then writes requested `export_batch_lines`. The request supplies explicit candidate lines because live task update/event tables do not exist yet. Each line includes an imported task, source entity type/id, field name, new value, optional source actor/timestamp/reason, and optional metadata.
 
-Only these field names are accepted for preview lines:
+Preview lines can represent these imported/internal values:
 
 - `percent_complete`
 - `physical_percent_complete`
 - `actual_start`
 - `actual_finish`
 
-The service reads the old value from the immutable imported task row and computes export eligibility. A line is eligible only when its latest approval record is `approved_for_export`, the imported task is a leaf task, and the field is one of the allowed progress/actual fields. Summary-task lines and unapproved source records can be included in the preview, but they are marked ineligible.
+The MVP export whitelist is limited to `percent_complete`, `actual_start`, and `actual_finish`. `physical_percent_complete` remains readable for imported and historical preview compatibility but is outside export authority and cannot reach a generated artifact. A legacy stored eligibility value remains historical and non-actionable; current-policy physical-percent lines are always ineligible. The service reads the old value from the immutable imported task row and computes export eligibility. A line is eligible only when its resolved approval record is `approved_for_export`, the imported task is a leaf task, and the field is on the MVP whitelist. Summary-task lines and source records with a resolved non-approved state can be included in the preview, but they are marked ineligible. A request cannot contain more than one line for the same imported task and field.
+
+Each current-policy preview line captures the exact approval-record identity and state used when it is materialized and is append-only after creation. Preview creation seals the complete line set before returning, so no later line can join that batch. Approval records created after V007 have a database-assigned event order, so records created within one transaction still resolve deterministically. Legacy approval rows remain unsequenced; if their latest timestamp is tied, the authority is ambiguous and preview creation fails closed until a new approval event is recorded.
 
 The preview creation endpoint does not approve export batches, generate MSPDI/XML, write export files, mark approval records exported, mutate imported task rows, calculate schedule fields, or write back to Microsoft Project. The `review` profile still boots without PostgreSQL and does not expose these persistence-backed endpoints.
 
@@ -234,7 +236,9 @@ When persistence is enabled, the API exposes additive lifecycle endpoints on the
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/mark-opened-in-microsoft-project`
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/verify`
 
-Approve and reject operate only on `draft_preview` batches. Approval requires at least one eligible line and moves the batch to `approved`, stamping `approved_at` and optional `approved_by_user_id`. Rejection moves the batch to `rejected`; rejection details are carried in request/audit metadata because the baseline schema has no dedicated rejected timestamp column.
+Lifecycle writes operate only on current-policy batches. Pre-V007 batches and lines remain readable history, including generated, opened, verified, rejected, and superseded records, but they are frozen; a legacy draft or approved batch cannot progress and requires a fresh preview.
+
+Approve and reject operate only on current-policy `draft_preview` batches. Approval revalidates every line's captured approval identity and state, current task leaf status, field authority, eligibility, and candidate uniqueness. Any source approval change blocks the whole batch, including a change that leaves an already-ineligible physical-percent or summary-task line ineligible. Approval requires at least one currently eligible line and moves the batch to `approved`, stamping `approved_at` and optional `approved_by_user_id`. Rejection moves the batch to `rejected`; rejection details are carried in request/audit metadata because the baseline schema has no dedicated rejected timestamp column.
 
 `mark-generated` operates only on `approved` batches and records an existing generated artifact URI/hash into `export_file_uri` and `export_file_hash`, stamps `generated_at`, and moves the batch to `generated`. It does not call the worker, write files, generate MSPDI/XML, open Microsoft Project, verify the artifact, mutate imported task rows, or write back to Microsoft Project.
 
@@ -256,7 +260,7 @@ When persistence is enabled, the API exposes an opt-in worker handoff endpoint f
 
 - `POST /api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact`
 
-The endpoint reads eligible export-preview lines, groups them by imported task, includes the original Microsoft Project task UID and task ID from the imported snapshot, prepares an export-artifact storage target, and sends a shared `ProjectExportArtifactGenerationRequest` to the project worker. The worker returns a generated artifact URI/hash and summary. The API verifies the worker URI matches the storage-reserved URI, then reuses the existing generated lifecycle path to store `export_file_uri`, `export_file_hash`, generated metadata, and the `export_file_generated` audit event.
+The endpoint locks the sealed batch and revalidates every preview line's captured approval identity/state, current task leaf status, field authority, eligibility, and candidate uniqueness immediately before worker handoff. Any stale candidate blocks the batch rather than being silently exported or dropped. The lock remains held while artifact bytes are generated; approval-event inserts for any captured source must wait, so source authority cannot change between final validation and the worker output. The API groups eligible lines by imported task, includes the original Microsoft Project task UID and task ID from the imported snapshot, prepares an export-artifact storage target, and sends a shared `ProjectExportArtifactGenerationRequest` to the project worker. The worker returns a generated artifact URI/hash and summary. The API verifies the worker URI matches the storage-reserved URI, revalidates once more while recording generated metadata, then stores `export_file_uri`, `export_file_hash`, generated metadata, and the `export_file_generated` audit event.
 
 The default `ProjectExportArtifactJobClient` is intentionally disconnected and throws if called. Set these variables to enable local HTTP handoff:
 

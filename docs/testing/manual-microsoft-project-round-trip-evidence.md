@@ -66,7 +66,6 @@ opened_in_microsoft_project: yes/no
 open_result: pass/fail
 fields_checked:
   - percent_complete
-  - physical_percent_complete
   - actual_start
   - actual_finish
 leaf_task_only_check: pass/fail

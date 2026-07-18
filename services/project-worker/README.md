@@ -75,14 +75,13 @@ The worker HTTP endpoint defaults to port `8081`, or `PORT` when set. The import
 
 ## MSPDI/XML Export Artifact Spike
 
-`MpxjMspdiExportArtifactService` builds a minimal MPXJ `ProjectFile` from explicit leaf-task export candidates and writes an MSPDI/XML artifact with MPXJ. It currently supports only:
+`MpxjMspdiExportArtifactService` builds an MPXJ `ProjectFile` from explicit leaf-task export candidates, renders it in memory, validates the generated task identity and requested values, then writes a securely parsed request-specific MSPDI/XML allowlist. The artifact retains project/task identity (`Name`, task `UID`, `ID`, and `Name`) for traceability and only the requested progress/actual elements below; MPXJ defaults such as calendars, WBS, durations, planned dates, resources, assignments, predecessors, constraints, and baselines are removed before bytes reach disk. It currently supports only:
 
 - `percent_complete`
-- `physical_percent_complete`
 - `actual_start`
 - `actual_finish`
 
-The service rejects summary-task candidates, non-numeric Microsoft Project task identity, invalid percentage values, and non-XML output paths. Generated files are local-only test artifacts and must not be committed.
+The shared contract and worker reject `physical_percent_complete`, duplicate imported-task/field candidates, summary-task candidates, non-numeric Microsoft Project task identity, non-whole-number or out-of-range percentages, unknown or numeric field aliases, unknown JSON properties, duplicate JSON properties, and non-XML output paths. `percent_complete` must be a whole number from 0 through 100; fractional values are rejected rather than rounded. Physical percent complete may remain imported/internal read data, but it is not within the worker's MVP export authority. Generated files are local-only test artifacts and must not be committed.
 
 The worker also exposes the same artifact generation through:
 

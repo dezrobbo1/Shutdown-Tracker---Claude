@@ -5,8 +5,8 @@ This directory contains the local PostgreSQL migration-validation configuration 
 ## Contents
 
 - [`docker/docker-compose.postgres.yml`](docker/docker-compose.postgres.yml): PostgreSQL 16 Compose service for clean local migration validation.
-- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V006`.
-- [`../scripts/db`](../scripts/db): Bash and PowerShell runners that reset the validation database, apply every migration in order, and verify the 20-table baseline.
+- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V007`.
+- [`../scripts/db`](../scripts/db): Bash and PowerShell runners that reset the validation database, apply every migration file in its own transaction, and verify the 20-table baseline.
 
 ## Local validation
 
@@ -24,7 +24,9 @@ Windows PowerShell:
 .\scripts\db\validate-migrations.ps1
 ```
 
-Both scripts use Docker Compose and run `psql` inside the PostgreSQL container; a host `psql` installation is not required. They remove the named validation volume before applying the migrations.
+Both scripts use Docker Compose and run `psql` inside the PostgreSQL container; a host `psql` installation is not required. They remove the named validation volume before applying the migrations. A SQL error rolls back the complete migration file rather than leaving partial objects.
+
+V007 preserves pre-policy export batches and lines as unversioned, read-only history. New current-policy previews seal their complete line membership before approval; scoped duplicate and export-field authority constraints apply only to those new lines. Legacy physical-percent and duplicate candidates remain readable without becoming newly exportable.
 
 ## Application infrastructure
 
