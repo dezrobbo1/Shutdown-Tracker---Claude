@@ -9,6 +9,10 @@ public interface ExportPreviewRepository {
 
     ExportPreviewBatchRecord createDraftPreview(UUID projectId, UUID projectSnapshotId, Map<String, Object> metadata);
 
+    boolean sealDraftPreviewLineSet(UUID projectId, UUID exportBatchId);
+
+    boolean lockBatchForIntegrityValidation(UUID projectId, UUID exportBatchId);
+
     Optional<ExportPreviewBatchRecord> findBatch(UUID projectId, UUID exportBatchId);
 
     Optional<ExportPreviewBatchRecord> approveBatch(
@@ -48,7 +52,11 @@ public interface ExportPreviewRepository {
 
     Optional<ExportPreviewTaskContext> findTaskContext(UUID projectId, UUID projectSnapshotId, UUID importedTaskId);
 
-    Optional<ApprovalState> findLatestApprovalState(UUID projectId, String sourceEntityType, UUID sourceEntityId);
+    List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
+            UUID projectId,
+            String sourceEntityType,
+            UUID sourceEntityId
+    );
 
     ExportPreviewLineRecord createLine(
             UUID projectId,

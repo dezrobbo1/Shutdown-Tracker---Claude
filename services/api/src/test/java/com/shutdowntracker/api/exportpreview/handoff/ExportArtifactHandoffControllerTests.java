@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.shutdowntracker.api.exportpreview.ApprovalState;
 import com.shutdowntracker.api.exportpreview.ExportBatchState;
+import com.shutdowntracker.api.exportpreview.ExportIntegrityPolicy;
 import com.shutdowntracker.api.exportpreview.ExportPreviewBatchRecord;
 import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
 import com.shutdowntracker.api.exportpreview.ExportPreviewLineRecord;
@@ -81,7 +82,9 @@ class ExportArtifactHandoffControllerTests {
                 null,
                 1,
                 1,
-                0
+                0,
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                true
         );
         ExportPreviewLineRecord line = new ExportPreviewLineRecord(
                 UUID.randomUUID(),
@@ -95,6 +98,7 @@ class ExportArtifactHandoffControllerTests {
                 "task_update",
                 UUID.randomUUID(),
                 ApprovalState.APPROVED_FOR_EXPORT,
+                UUID.randomUUID(),
                 "percent_complete",
                 "25",
                 "75",
@@ -102,7 +106,8 @@ class ExportArtifactHandoffControllerTests {
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                 "Synthetic reason",
                 true,
-                true
+                true,
+                ExportIntegrityPolicy.CURRENT_VERSION
         );
         ProjectExportArtifactGenerationResponse workerResponse = new ProjectExportArtifactGenerationResponse(
                 exportBatchId,

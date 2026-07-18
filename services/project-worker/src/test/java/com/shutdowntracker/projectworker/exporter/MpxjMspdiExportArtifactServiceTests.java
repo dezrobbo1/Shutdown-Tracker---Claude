@@ -11,12 +11,16 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mpxj.ProjectFile;
 import org.mpxj.Task;
 import org.mpxj.reader.UniversalProjectReader;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 class MpxjMspdiExportArtifactServiceTests {
 
@@ -38,30 +42,75 @@ class MpxjMspdiExportArtifactServiceTests {
         assertThat(summary.outputFilename()).isEqualTo("synthetic-export.mspdi.xml");
         assertThat(summary.artifactFormat()).isEqualTo("mspdi_xml");
         assertThat(summary.taskCount()).isEqualTo(2);
-        assertThat(summary.exportedFieldCount()).isEqualTo(4);
+        assertThat(summary.exportedFieldCount()).isEqualTo(3);
         assertThat(summary.sizeBytes()).isGreaterThan(0);
         assertThat(summary.sha256()).hasSize(64);
         assertThat(summary.notes()).containsExactly(NO_SCHEDULE_NOTE);
+        assertArtifactAuthority(outputPath);
 
         ProjectFile exportedProject = readProject(outputPath);
         assertThat(exportedProject.getProjectProperties().getName()).isEqualTo("Synthetic Export Preview");
 
-        Task taskA1 = taskNamed(exportedProject, "Synthetic Task A1");
+        Task taskA1 = taskWithUid(exportedProject, 101);
         assertThat(taskA1.getUniqueID()).isEqualTo(101);
         assertThat(taskA1.getID()).isEqualTo(1);
         assertThat(taskA1.getPercentageComplete().intValue()).isEqualTo(75);
         assertThat(taskA1.getActualStart()).isEqualTo(LocalDateTime.of(2026, 1, 5, 7, 0));
 
-        Task taskA2 = taskNamed(exportedProject, "Synthetic Task A2");
+        Task taskA2 = taskWithUid(exportedProject, 102);
         assertThat(taskA2.getUniqueID()).isEqualTo(102);
         assertThat(taskA2.getID()).isEqualTo(2);
-        assertThat(taskA2.getPhysicalPercentComplete().intValue()).isEqualTo(50);
         assertThat(taskA2.getActualFinish()).isEqualTo(LocalDateTime.of(2026, 1, 6, 15, 0));
     }
 
     @Test
+    void rejectsPhysicalPercentCompleteAtTheSharedContractBoundary() {
+        assertThatThrownBy(() -> ProjectExportArtifactField.fromFieldName("physical_percent_complete"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported export artifact field: physical_percent_complete");
+    }
+
+    @Test
+    void rejectsDuplicateTaskFieldCandidatesAtTheSharedContractBoundary() {
+        ProjectExportArtifactTask first = new ProjectExportArtifactTask(
+                "synthetic-task-a1",
+                "101",
+                "1",
+                "Synthetic Task A1",
+                true,
+                List.of(new ProjectExportArtifactFieldValue(
+                        ProjectExportArtifactField.PERCENT_COMPLETE,
+                        "75"
+                ))
+        );
+        ProjectExportArtifactTask duplicate = new ProjectExportArtifactTask(
+                "synthetic-task-a1",
+                "101",
+                "1",
+                "Synthetic Task A1",
+                true,
+                List.of(new ProjectExportArtifactFieldValue(
+                        ProjectExportArtifactField.PERCENT_COMPLETE,
+                        "75"
+                ))
+        );
+
+        assertThatThrownBy(() -> new ProjectExportArtifactRequest(
+                "Synthetic Duplicate Rejection",
+                List.of(first, duplicate)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Duplicate export artifact candidate for importedTaskId 'synthetic-task-a1' "
+                                + "and field 'percent_complete'."
+                );
+    }
+
+    @Test
     void rejectsSummaryTaskExportCandidates() {
-        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
+        Path outputPath = tempDir.resolve("summary-rejected.mspdi.xml");
+
+        assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Summary Rejection",
                 List.of(new ProjectExportArtifactTask(
                         "synthetic-summary-a",
@@ -73,10 +122,7 @@ class MpxjMspdiExportArtifactServiceTests {
                                 ProjectExportArtifactField.ACTUAL_FINISH,
                                 "2026-01-06T15:00:00Z"))
                 ))
-        );
-        Path outputPath = tempDir.resolve("summary-rejected.mspdi.xml");
-
-        assertThatThrownBy(() -> service.generate(request, outputPath))
+        ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Only leaf-task export candidates");
         assertThat(outputPath).doesNotExist();
@@ -101,6 +147,34 @@ class MpxjMspdiExportArtifactServiceTests {
         assertThatThrownBy(() -> service.generate(request, tempDir.resolve("invalid-percent.mspdi.xml")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("percent_complete must be between 0 and 100");
+    }
+
+    @Test
+    void rejectsFractionalProgressInsteadOfRoundingIt() {
+        ProjectExportArtifactRequest request = requestWithPercent("75.5", "fractional");
+        Path outputPath = tempDir.resolve("fractional-percent.mspdi.xml");
+
+        assertThatThrownBy(() -> service.generate(request, outputPath))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be a whole-number percentage");
+        assertThat(outputPath).doesNotExist();
+    }
+
+    @Test
+    void acceptsWholeNumberProgressBoundariesWithoutRounding() throws Exception {
+        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
+                "Synthetic Percent Boundaries",
+                List.of(
+                        percentTask("synthetic-zero", "301", "31", "Synthetic Zero", "0"),
+                        percentTask("synthetic-hundred", "302", "32", "Synthetic Hundred", "100.0")
+                )
+        );
+        Path outputPath = tempDir.resolve("whole-number-percent.mspdi.xml");
+
+        service.generate(request, outputPath);
+
+        assertThat(taskWithUid(readProject(outputPath), 301).getPercentageComplete().intValue()).isZero();
+        assertThat(taskWithUid(readProject(outputPath), 302).getPercentageComplete().intValue()).isEqualTo(100);
     }
 
     @Test
@@ -158,15 +232,93 @@ class MpxjMspdiExportArtifactServiceTests {
                                 true,
                                 List.of(
                                         new ProjectExportArtifactFieldValue(
-                                                ProjectExportArtifactField.PHYSICAL_PERCENT_COMPLETE,
-                                                "50"),
-                                        new ProjectExportArtifactFieldValue(
                                                 ProjectExportArtifactField.ACTUAL_FINISH,
                                                 "2026-01-06T15:00:00Z")
                                 )
                         )
                 )
         );
+    }
+
+    private ProjectExportArtifactRequest requestWithPercent(String value, String suffix) {
+        return new ProjectExportArtifactRequest(
+                "Synthetic Percent " + suffix,
+                List.of(percentTask(
+                        "synthetic-task-" + suffix,
+                        "301",
+                        "31",
+                        "Synthetic Task " + suffix,
+                        value
+                ))
+        );
+    }
+
+    private ProjectExportArtifactTask percentTask(
+            String importedTaskId,
+            String microsoftProjectTaskUid,
+            String microsoftProjectTaskId,
+            String taskName,
+            String value
+    ) {
+        return new ProjectExportArtifactTask(
+                importedTaskId,
+                microsoftProjectTaskUid,
+                microsoftProjectTaskId,
+                taskName,
+                true,
+                List.of(new ProjectExportArtifactFieldValue(ProjectExportArtifactField.PERCENT_COMPLETE, value))
+        );
+    }
+
+    private void assertArtifactAuthority(Path outputPath) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        Element project = factory.newDocumentBuilder().parse(outputPath.toFile()).getDocumentElement();
+
+        assertThat(directElementNames(project))
+                .containsExactlyInAnyOrder("SaveVersion", "Name", "Tasks");
+        Element tasks = directChild(project, "Tasks");
+        assertThat(directElementNames(tasks)).containsOnly("Task").hasSize(2);
+        assertThat(directElementNames(taskElement(tasks, "101")))
+                .containsExactlyInAnyOrder("UID", "ID", "Name", "PercentComplete", "ActualStart");
+        assertThat(directElementNames(taskElement(tasks, "102")))
+                .containsExactlyInAnyOrder("UID", "ID", "Name", "ActualFinish");
+    }
+
+    private Element taskElement(Element tasks, String taskUid) {
+        Node child = tasks.getFirstChild();
+        while (child != null) {
+            if (child instanceof Element element
+                    && "Task".equals(element.getLocalName())
+                    && taskUid.equals(directChild(element, "UID").getTextContent())) {
+                return element;
+            }
+            child = child.getNextSibling();
+        }
+        throw new AssertionError("Expected XML task UID was not found: " + taskUid);
+    }
+
+    private Element directChild(Element parent, String localName) {
+        Node child = parent.getFirstChild();
+        while (child != null) {
+            if (child instanceof Element element && localName.equals(element.getLocalName())) {
+                return element;
+            }
+            child = child.getNextSibling();
+        }
+        throw new AssertionError("Expected XML element was not found: " + localName);
+    }
+
+    private List<String> directElementNames(Element parent) {
+        List<String> names = new ArrayList<>();
+        Node child = parent.getFirstChild();
+        while (child != null) {
+            if (child instanceof Element element) {
+                names.add(element.getLocalName());
+            }
+            child = child.getNextSibling();
+        }
+        return names;
     }
 
     private ProjectFile readProject(Path path) {
@@ -181,10 +333,10 @@ class MpxjMspdiExportArtifactServiceTests {
         }
     }
 
-    private Task taskNamed(ProjectFile project, String name) {
+    private Task taskWithUid(ProjectFile project, int uid) {
         return project.getTasks().stream()
-                .filter(task -> task != null && name.equals(task.getName()))
+                .filter(task -> task != null && Integer.valueOf(uid).equals(task.getUniqueID()))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Expected task was not found: " + name));
+                .orElseThrow(() -> new AssertionError("Expected task UID was not found: " + uid));
     }
 }

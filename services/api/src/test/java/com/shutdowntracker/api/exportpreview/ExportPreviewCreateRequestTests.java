@@ -48,6 +48,42 @@ class ExportPreviewCreateRequestTests {
     }
 
     @Test
+    void rejectsDuplicateTaskFieldCandidatesEvenWhenValuesMatch() {
+        UUID importedTaskId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(
+                UUID.randomUUID(),
+                List.of(
+                        line(importedTaskId, "percent_complete", "50"),
+                        line(importedTaskId, "percent_complete", "50")
+                ),
+                Map.of()
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "Duplicate export preview candidate for importedTaskId '"
+                                + importedTaskId
+                                + "' and fieldName 'percent_complete'."
+                );
+    }
+
+    @Test
+    void allowsDifferentAuthorizedFieldsForTheSameTask() {
+        UUID importedTaskId = UUID.randomUUID();
+
+        ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
+                UUID.randomUUID(),
+                List.of(
+                        line(importedTaskId, "percent_complete", "50"),
+                        line(importedTaskId, "actual_start", "2026-01-01T08:00:00Z")
+                ),
+                Map.of()
+        );
+
+        assertThat(request.lines()).hasSize(2);
+    }
+
+    @Test
     void rejectsUnsupportedFieldNames() {
         assertThatThrownBy(() -> new ExportPreviewLineCreateRequest(
                 UUID.randomUUID(),
@@ -127,12 +163,25 @@ class ExportPreviewCreateRequestTests {
     }
 
     private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {
+        return line(UUID.randomUUID(), "percent_complete", "50", metadata);
+    }
+
+    private ExportPreviewLineCreateRequest line(UUID importedTaskId, String fieldName, String newValue) {
+        return line(importedTaskId, fieldName, newValue, null);
+    }
+
+    private ExportPreviewLineCreateRequest line(
+            UUID importedTaskId,
+            String fieldName,
+            String newValue,
+            Map<String, Object> metadata
+    ) {
         return new ExportPreviewLineCreateRequest(
-                UUID.randomUUID(),
+                importedTaskId,
                 "task_update",
                 UUID.randomUUID(),
-                "percent_complete",
-                "50",
+                fieldName,
+                newValue,
                 UUID.randomUUID(),
                 null,
                 "Synthetic reason",

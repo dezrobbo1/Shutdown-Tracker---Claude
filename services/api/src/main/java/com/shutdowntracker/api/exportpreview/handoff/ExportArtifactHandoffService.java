@@ -1,7 +1,6 @@
 package com.shutdowntracker.api.exportpreview.handoff;
 
 import com.shutdowntracker.api.exportpreview.ExportBatchGeneratedRequest;
-import com.shutdowntracker.api.exportpreview.ExportBatchState;
 import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
 import com.shutdowntracker.api.exportpreview.ExportPreviewLineRecord;
 import com.shutdowntracker.api.exportpreview.ExportPreviewService;
@@ -59,13 +58,10 @@ public class ExportArtifactHandoffService {
                 ? ExportArtifactGenerationRequest.empty()
                 : request;
 
-        ExportPreviewDetail approvedPreview = exportPreviewService.getPreview(requiredProjectId, requiredExportBatchId);
-        if (approvedPreview.batch().status() != ExportBatchState.APPROVED) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Only approved export batches can request worker artifact generation."
-            );
-        }
+        ExportPreviewDetail approvedPreview = exportPreviewService.getApprovedPreviewForArtifactGeneration(
+                requiredProjectId,
+                requiredExportBatchId
+        );
 
         ExportArtifactStorageLocation storageLocation =
                 exportArtifactStorage.prepareExportArtifact(requiredProjectId, requiredExportBatchId);

@@ -68,6 +68,16 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(response.exportFileHash()).isEqualTo(summary.sha256());
 
         assertGeneratedArtifactMatchesExpectedTasks(outputPath, expected);
+        assertThat(readString(outputPath))
+                .doesNotContain(
+                        "<PhysicalPercentComplete>",
+                        "<WBS>",
+                        "<Duration>",
+                        "<PredecessorLink>",
+                        "<Calendars>",
+                        "<Resources>",
+                        "<Assignments>"
+                );
         assertThat(root.resolve("fixtures/import-export/synthetic-basic-wbs/synthetic-export.mspdi.xml"))
                 .doesNotExist();
     }
@@ -129,17 +139,15 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(exportedProject.getProjectProperties().getName()).isEqualTo(stringValue(expected, "project_name"));
 
         for (Map<String, Object> expectedTask : objectList(expected.get("expected_tasks"))) {
-            Task actualTask = taskNamed(exportedProject, stringValue(expectedTask, "task_name"));
-            assertThat(actualTask.getUniqueID()).isEqualTo(intValue(expectedTask, "microsoft_project_task_uid"));
+            int taskUid = intValue(expectedTask, "microsoft_project_task_uid");
+            Task actualTask = taskWithUid(exportedProject, taskUid);
+            assertThat(actualTask.getUniqueID()).isEqualTo(taskUid);
             assertThat(actualTask.getID()).isEqualTo(intValue(expectedTask, "microsoft_project_task_id"));
+            assertThat(actualTask.getName()).isEqualTo(stringValue(expectedTask, "task_name"));
 
             Map<String, Object> expectedFields = map(expectedTask.get("expected_fields"));
             if (expectedFields.containsKey("percent_complete")) {
                 assertThat(actualTask.getPercentageComplete().intValue()).isEqualTo(intValue(expectedFields, "percent_complete"));
-            }
-            if (expectedFields.containsKey("physical_percent_complete")) {
-                assertThat(actualTask.getPhysicalPercentComplete().intValue())
-                        .isEqualTo(intValue(expectedFields, "physical_percent_complete"));
             }
             if (expectedFields.containsKey("actual_start")) {
                 assertThat(actualTask.getActualStart()).isEqualTo(dateTimeValue(expectedFields, "actual_start"));
@@ -162,11 +170,11 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         }
     }
 
-    private Task taskNamed(ProjectFile project, String name) {
+    private Task taskWithUid(ProjectFile project, int uid) {
         return project.getTasks().stream()
-                .filter(task -> task != null && name.equals(task.getName()))
+                .filter(task -> task != null && Integer.valueOf(uid).equals(task.getUniqueID()))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Expected task was not found: " + name));
+                .orElseThrow(() -> new AssertionError("Expected task UID was not found: " + uid));
     }
 
     private Path repositoryRoot() {

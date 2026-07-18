@@ -9,6 +9,7 @@ record ExportPreviewMaterializedLine(
         String sourceEntityType,
         UUID sourceEntityId,
         ApprovalState approvalState,
+        UUID sourceApprovalRecordId,
         String fieldName,
         String oldValue,
         String newValue,

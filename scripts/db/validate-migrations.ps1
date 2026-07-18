@@ -94,7 +94,7 @@ Write-Host "Applying migrations..."
 $Migrations = Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" | Sort-Object Name
 foreach ($Migration in $Migrations) {
     Write-Host "Applying $($Migration.Name)"
-    Invoke-Compose @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")
+    Invoke-Compose @("exec", "-T", "postgres", "psql", "--single-transaction", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")
 }
 
 Write-Host "Verifying expected tables..."

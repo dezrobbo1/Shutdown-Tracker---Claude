@@ -6,13 +6,17 @@ import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
 import com.shutdowntracker.api.audit.AuditEventTypes;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -34,6 +38,12 @@ public class ExportPreviewService {
             + "for manual verification. No Microsoft Project write-back was run.";
     private static final String VERIFIED_MESSAGE = "Export artifact manually verified after Microsoft Project reopen. "
             + "No Microsoft Project write-back was run.";
+    private static final String LEGACY_BATCH_CONFLICT = "This export batch predates the current integrity policy "
+            + "and is read-only history. Create a fresh export preview.";
+    private static final String UNSUPPORTED_POLICY_CONFLICT = "This export batch uses an unsupported integrity policy "
+            + "and cannot progress. Create a fresh export preview under the current policy.";
+    private static final String UNSEALED_BATCH_CONFLICT = "This export preview does not have a sealed line set "
+            + "and cannot progress. Create a fresh export preview.";
 
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
@@ -65,6 +75,13 @@ public class ExportPreviewService {
                     requiredRequest.projectSnapshotId(),
                     batch.id(),
                     materializeLine(requiredProjectId, requiredRequest.projectSnapshotId(), line)
+            );
+        }
+
+        if (!repository.sealDraftPreviewLineSet(requiredProjectId, batch.id())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export preview line membership could not be sealed. Create a fresh export preview."
             );
         }
 
@@ -101,7 +118,9 @@ public class ExportPreviewService {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
         ExportBatchDecisionRequest requiredRequest = request == null ? ExportBatchDecisionRequest.empty() : request;
-        ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
+        lockBatchForIntegrityValidation(requiredProjectId, requiredExportBatchId);
+        ExportPreviewDetail preview = getPreview(requiredProjectId, requiredExportBatchId, READ_MESSAGE);
+        ExportPreviewBatchRecord existing = preview.batch();
 
         if (existing.status() != ExportBatchState.DRAFT_PREVIEW) {
             throw new ResponseStatusException(
@@ -109,7 +128,10 @@ public class ExportPreviewService {
                     "Only draft preview export batches can be approved."
             );
         }
-        if (existing.eligibleLineCount() == 0) {
+        requireCurrentPolicy(existing);
+        requireSealedLineSet(existing);
+        List<ExportPreviewLineRecord> eligibleLines = revalidateCandidateIntegrity(requiredProjectId, preview);
+        if (eligibleLines.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Only export batches with at least one eligible line can be approved."
@@ -157,6 +179,8 @@ public class ExportPreviewService {
                     "Only draft preview export batches can be rejected."
             );
         }
+        requireCurrentPolicy(existing);
+        requireSealedLineSet(existing);
 
         ExportPreviewBatchRecord updated = repository
                 .rejectBatch(requiredProjectId, requiredExportBatchId, decisionMetadata(requiredRequest))
@@ -186,7 +210,9 @@ public class ExportPreviewService {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
         ExportBatchGeneratedRequest requiredRequest = requireNonNull(request, "request is required.");
-        ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
+        lockBatchForIntegrityValidation(requiredProjectId, requiredExportBatchId);
+        ExportPreviewDetail preview = getPreview(requiredProjectId, requiredExportBatchId, READ_MESSAGE);
+        ExportPreviewBatchRecord existing = preview.batch();
 
         if (existing.status() != ExportBatchState.APPROVED) {
             throw new ResponseStatusException(
@@ -194,6 +220,9 @@ public class ExportPreviewService {
                     "Only approved export batches can be marked generated."
             );
         }
+        requireCurrentPolicy(existing);
+        requireSealedLineSet(existing);
+        requireEligibleCandidates(requiredProjectId, preview);
 
         ExportPreviewBatchRecord updated = repository
                 .markBatchGenerated(
@@ -221,6 +250,24 @@ public class ExportPreviewService {
         return detail;
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ExportPreviewDetail getApprovedPreviewForArtifactGeneration(UUID projectId, UUID exportBatchId) {
+        UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        lockBatchForIntegrityValidation(requiredProjectId, requiredExportBatchId);
+        ExportPreviewDetail preview = getPreview(requiredProjectId, requiredExportBatchId, READ_MESSAGE);
+        if (preview.batch().status() != ExportBatchState.APPROVED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Only approved export batches can request worker artifact generation."
+            );
+        }
+        requireCurrentPolicy(preview.batch());
+        requireSealedLineSet(preview.batch());
+        requireEligibleCandidates(requiredProjectId, preview);
+        return preview;
+    }
+
     @Transactional
     public ExportPreviewDetail markOpenedInMicrosoftProject(
             UUID projectId,
@@ -238,6 +285,8 @@ public class ExportPreviewService {
                     "Only generated export batches can be marked opened in Microsoft Project."
             );
         }
+        requireCurrentPolicy(existing);
+        requireSealedLineSet(existing);
 
         ExportPreviewBatchRecord updated = repository
                 .markBatchOpenedInMicrosoftProject(
@@ -280,6 +329,8 @@ public class ExportPreviewService {
                     "Only export batches opened in Microsoft Project can be verified."
             );
         }
+        requireCurrentPolicy(existing);
+        requireSealedLineSet(existing);
 
         ExportPreviewBatchRecord updated = repository
                 .markBatchVerified(
@@ -327,16 +378,24 @@ public class ExportPreviewService {
                 ));
 
         ExportPreviewField field = ExportPreviewField.fromFieldName(line.fieldName());
-        ApprovalState approvalState = repository
-                .findLatestApprovalState(projectId, line.sourceEntityType(), line.sourceEntityId())
-                .orElse(null);
-        boolean exportEligible = approvalState == ApprovalState.APPROVED_FOR_EXPORT && task.leafTask();
+        ExportPreviewApprovalRecord approval = requireCurrentApproval(
+                repository.findCurrentApprovalCandidates(
+                        projectId,
+                        line.sourceEntityType(),
+                        line.sourceEntityId()
+                ),
+                line.sourceEntityId()
+        );
+        boolean exportEligible = approval.approvalState() == ApprovalState.APPROVED_FOR_EXPORT
+                && task.leafTask()
+                && field.mvpExportAuthorized();
 
         return new ExportPreviewMaterializedLine(
                 line.importedTaskId(),
                 line.sourceEntityType(),
                 line.sourceEntityId(),
-                approvalState,
+                approval.approvalState(),
+                approval.id(),
                 field.fieldName(),
                 field.oldValue(task),
                 line.newValue(),
@@ -347,6 +406,133 @@ public class ExportPreviewService {
                 exportEligible,
                 line.metadata()
         );
+    }
+
+    private void requireEligibleCandidates(UUID projectId, ExportPreviewDetail preview) {
+        if (revalidateCandidateIntegrity(projectId, preview).isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export batch has no currently eligible candidates. Review the sources and create a fresh export preview."
+            );
+        }
+    }
+
+    private List<ExportPreviewLineRecord> revalidateCandidateIntegrity(
+            UUID projectId,
+            ExportPreviewDetail preview
+    ) {
+        requireCurrentPolicy(preview.batch());
+        Set<CandidateKey> candidates = new HashSet<>();
+        for (ExportPreviewLineRecord line : preview.lines()) {
+            if (!ExportIntegrityPolicy.isCurrent(line.integrityPolicyVersion())) {
+                throw staleCandidate(line);
+            }
+            if (!Objects.equals(line.exportBatchId(), preview.batch().id())
+                    || !Objects.equals(line.projectId(), projectId)
+                    || !Objects.equals(line.projectSnapshotId(), preview.batch().projectSnapshotId())) {
+                throw staleCandidate(line);
+            }
+            CandidateKey candidate = new CandidateKey(line.importedTaskId(), line.fieldName());
+            if (!candidates.add(candidate)) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Export preview contains duplicate candidates for imported task "
+                                + line.importedTaskId()
+                                + " and field "
+                                + line.fieldName()
+                                + ". Create a fresh export preview."
+                );
+            }
+
+            ExportPreviewTaskContext task = repository
+                    .findTaskContext(projectId, line.projectSnapshotId(), line.importedTaskId())
+                    .orElseThrow(() -> staleCandidate(line));
+            ExportPreviewField field;
+            try {
+                field = ExportPreviewField.fromFieldName(line.fieldName());
+            } catch (IllegalArgumentException exception) {
+                throw staleCandidate(line);
+            }
+            ExportPreviewApprovalRecord currentApproval = requireCurrentApproval(
+                    repository.findCurrentApprovalCandidates(
+                            projectId,
+                            line.sourceEntityType(),
+                            line.sourceEntityId()
+                    ),
+                    line.sourceEntityId()
+            );
+            if (!Objects.equals(line.sourceApprovalRecordId(), currentApproval.id())
+                    || line.approvalState() != currentApproval.approvalState()) {
+                throw staleCandidate(line);
+            }
+            boolean currentlyEligible = currentApproval.approvalState() == ApprovalState.APPROVED_FOR_EXPORT
+                    && task.leafTask()
+                    && field.mvpExportAuthorized();
+
+            if (line.leafTask() != task.leafTask() || line.exportEligible() != currentlyEligible) {
+                throw staleCandidate(line);
+            }
+        }
+
+        return preview.lines().stream()
+                .filter(ExportPreviewLineRecord::exportEligible)
+                .toList();
+    }
+
+    private ExportPreviewApprovalRecord requireCurrentApproval(
+            List<ExportPreviewApprovalRecord> candidates,
+            UUID sourceEntityId
+    ) {
+        if (candidates.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export source " + sourceEntityId
+                            + " has no current approval record. Record a new approval event and create a fresh export preview."
+            );
+        }
+        if (candidates.size() > 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export source " + sourceEntityId
+                            + " has ambiguous legacy approval authority. Record a new approval event and create a fresh export preview."
+            );
+        }
+        return candidates.getFirst();
+    }
+
+    private void requireCurrentPolicy(ExportPreviewBatchRecord batch) {
+        if (batch.integrityPolicyVersion() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, LEGACY_BATCH_CONFLICT);
+        }
+        if (!ExportIntegrityPolicy.isCurrent(batch.integrityPolicyVersion())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, UNSUPPORTED_POLICY_CONFLICT);
+        }
+    }
+
+    private void requireSealedLineSet(ExportPreviewBatchRecord batch) {
+        if (!Boolean.TRUE.equals(batch.lineSetSealed())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, UNSEALED_BATCH_CONFLICT);
+        }
+    }
+
+    private void lockBatchForIntegrityValidation(UUID projectId, UUID exportBatchId) {
+        if (!repository.lockBatchForIntegrityValidation(projectId, exportBatchId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Export preview batch not found.");
+        }
+    }
+
+    private ResponseStatusException staleCandidate(ExportPreviewLineRecord line) {
+        return new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Export preview candidate authority changed for imported task "
+                        + line.importedTaskId()
+                        + " and field "
+                        + line.fieldName()
+                        + ". Review the source and create a fresh export preview."
+        );
+    }
+
+    private record CandidateKey(UUID importedTaskId, String fieldName) {
     }
 
     private Map<String, Object> previewMetadata(ExportPreviewDetail detail) {

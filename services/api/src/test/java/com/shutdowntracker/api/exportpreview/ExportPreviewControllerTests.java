@@ -3,6 +3,7 @@ package com.shutdowntracker.api.exportpreview;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -69,6 +70,48 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
         verify(service).createPreview(eq(projectId), any(ExportPreviewCreateRequest.class));
+    }
+
+    @Test
+    void rejectsDuplicateTaskFieldCandidatesBeforeCallingService() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID snapshotId = UUID.randomUUID();
+        UUID importedTaskId = UUID.randomUUID();
+
+        String body = """
+                {
+                  "projectSnapshotId": "%s",
+                  "lines": [
+                    {
+                      "importedTaskId": "%s",
+                      "sourceEntityType": "task_update",
+                      "sourceEntityId": "%s",
+                      "fieldName": "percent_complete",
+                      "newValue": "50"
+                    },
+                    {
+                      "importedTaskId": "%s",
+                      "sourceEntityType": "task_update",
+                      "sourceEntityId": "%s",
+                      "fieldName": "percent_complete",
+                      "newValue": "50"
+                    }
+                  ]
+                }
+                """.formatted(
+                snapshotId,
+                importedTaskId,
+                UUID.randomUUID(),
+                importedTaskId,
+                UUID.randomUUID()
+        );
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -274,7 +317,9 @@ class ExportPreviewControllerTests {
                 null,
                 1,
                 eligible ? 1 : 0,
-                eligible ? 0 : 1
+                eligible ? 0 : 1,
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                true
         );
         ExportPreviewLineRecord line = new ExportPreviewLineRecord(
                 UUID.randomUUID(),
@@ -288,6 +333,7 @@ class ExportPreviewControllerTests {
                 "task_update",
                 UUID.randomUUID(),
                 eligible ? ApprovalState.APPROVED_FOR_EXPORT : ApprovalState.AWAITING_REVIEW,
+                UUID.randomUUID(),
                 "percent_complete",
                 "25",
                 "50",
@@ -295,7 +341,8 @@ class ExportPreviewControllerTests {
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                 "Synthetic reason",
                 true,
-                eligible
+                eligible,
+                ExportIntegrityPolicy.CURRENT_VERSION
         );
         return new ExportPreviewDetail(
                 batch,

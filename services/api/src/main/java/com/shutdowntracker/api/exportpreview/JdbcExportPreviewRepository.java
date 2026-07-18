@@ -33,6 +33,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    eb.export_file_uri,
                    eb.export_file_hash,
                    eb.failure_reason,
+                   eb.integrity_policy_version,
+                   eb.line_set_sealed,
                    CAST(COUNT(ebl.id) AS int) AS line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE ebl.is_export_eligible) AS int) AS eligible_line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE NOT ebl.is_export_eligible) AS int) AS ineligible_line_count
@@ -51,7 +53,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    it.name AS imported_task_name,
                    ebl.source_entity_type,
                    ebl.source_entity_id,
-                   approval.approval_state,
+                   ebl.captured_approval_state AS approval_state,
+                   ebl.captured_approval_record_id,
                    ebl.field_name,
                    ebl.old_value,
                    ebl.new_value,
@@ -59,18 +62,10 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    ebl.source_timestamp,
                    ebl.reason,
                    ebl.is_leaf_task,
-                   ebl.is_export_eligible
+                   ebl.is_export_eligible,
+                   ebl.integrity_policy_version
             FROM export_batch_lines ebl
             JOIN imported_tasks it ON it.id = ebl.imported_task_id
-            LEFT JOIN LATERAL (
-                SELECT approval_state
-                FROM approval_records ar
-                WHERE ar.project_id = ebl.project_id
-                  AND ar.source_entity_type = ebl.source_entity_type
-                  AND ar.source_entity_id = ebl.source_entity_id
-                ORDER BY ar.reviewed_at DESC NULLS LAST, ar.created_at DESC, ar.id DESC
-                LIMIT 1
-            ) approval ON true
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -143,7 +138,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                          eb.verified_by_user_id,
                          eb.export_file_uri,
                          eb.export_file_hash,
-                         eb.failure_reason
+                         eb.failure_reason,
+                         eb.integrity_policy_version,
+                         eb.line_set_sealed
                 """;
 
         return jdbcTemplate.query(
@@ -151,6 +148,45 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 Map.of("projectId", projectId, "exportBatchId", exportBatchId),
                 this::mapBatch
         ).stream().findFirst();
+    }
+
+    @Override
+    public boolean sealDraftPreviewLineSet(UUID projectId, UUID exportBatchId) {
+        String sql = """
+                UPDATE export_batches
+                SET line_set_sealed = true
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status = 'draft_preview'
+                  AND integrity_policy_version = :integrityPolicyVersion
+                  AND line_set_sealed = false
+                """;
+
+        return jdbcTemplate.update(
+                sql,
+                Map.of(
+                        "projectId", projectId,
+                        "exportBatchId", exportBatchId,
+                        "integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION
+                )
+        ) == 1;
+    }
+
+    @Override
+    public boolean lockBatchForIntegrityValidation(UUID projectId, UUID exportBatchId) {
+        String sql = """
+                SELECT id
+                FROM export_batches
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                FOR UPDATE
+                """;
+
+        return !jdbcTemplate.query(
+                sql,
+                Map.of("projectId", projectId, "exportBatchId", exportBatchId),
+                (rs, rowNum) -> rs.getObject("id", UUID.class)
+        ).isEmpty();
     }
 
     @Override
@@ -169,6 +205,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'draft_preview'
+                  AND integrity_policy_version = :integrityPolicyVersion
+                  AND line_set_sealed = true
                 RETURNING id
                 """;
 
@@ -179,6 +217,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("exportBatchId", exportBatchId)
                         .addValue("approvedByUserId", approvedByUserId)
                         .addValue("status", ExportBatchState.APPROVED.databaseValue())
+                        .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -198,6 +237,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'draft_preview'
+                  AND integrity_policy_version = :integrityPolicyVersion
                 RETURNING id
                 """;
 
@@ -207,6 +247,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("projectId", projectId)
                         .addValue("exportBatchId", exportBatchId)
                         .addValue("status", ExportBatchState.REJECTED.databaseValue())
+                        .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -233,6 +274,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'approved'
+                  AND integrity_policy_version = :integrityPolicyVersion
                 RETURNING id
                 """;
 
@@ -245,6 +287,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("exportFileHash", exportFileHash)
                         .addValue("generatedByUserId", generatedByUserId)
                         .addValue("status", ExportBatchState.GENERATED.databaseValue())
+                        .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -264,6 +307,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'generated'
+                  AND integrity_policy_version = :integrityPolicyVersion
                 RETURNING id
                 """;
 
@@ -273,6 +317,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("projectId", projectId)
                         .addValue("exportBatchId", exportBatchId)
                         .addValue("status", ExportBatchState.OPENED_IN_MICROSOFT_PROJECT.databaseValue())
+                        .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -295,6 +340,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'opened_in_microsoft_project'
+                  AND integrity_policy_version = :integrityPolicyVersion
                 RETURNING id
                 """;
 
@@ -305,6 +351,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         .addValue("exportBatchId", exportBatchId)
                         .addValue("verifiedByUserId", verifiedByUserId)
                         .addValue("status", ExportBatchState.VERIFIED.databaseValue())
+                        .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
                 projectId,
                 exportBatchId
@@ -359,19 +406,35 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
     }
 
     @Override
-    public Optional<ApprovalState> findLatestApprovalState(
+    public List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
             UUID projectId,
             String sourceEntityType,
             UUID sourceEntityId
     ) {
         String sql = """
-                SELECT approval_state
-                FROM approval_records
-                WHERE project_id = :projectId
-                  AND source_entity_type = :sourceEntityType
-                  AND source_entity_id = :sourceEntityId
-                ORDER BY reviewed_at DESC NULLS LAST, created_at DESC, id DESC
-                LIMIT 1
+                WITH matching AS (
+                    SELECT id,
+                           approval_state,
+                           created_at,
+                           approval_event_order,
+                           MAX(approval_event_order) OVER () AS max_event_order,
+                           MAX(created_at) FILTER (
+                               WHERE approval_event_order IS NULL
+                           ) OVER () AS max_legacy_created_at
+                    FROM approval_records
+                    WHERE project_id = :projectId
+                      AND source_entity_type = :sourceEntityType
+                      AND source_entity_id = :sourceEntityId
+                )
+                SELECT id,
+                       approval_state
+                FROM matching
+                WHERE (max_event_order IS NOT NULL
+                       AND approval_event_order = max_event_order)
+                   OR (max_event_order IS NULL
+                       AND approval_event_order IS NULL
+                       AND created_at = max_legacy_created_at)
+                ORDER BY id
                 """;
 
         return jdbcTemplate.query(
@@ -381,8 +444,11 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                         "sourceEntityType", sourceEntityType,
                         "sourceEntityId", sourceEntityId
                 ),
-                (rs, rowNum) -> ApprovalState.fromDatabaseValue(rs.getString("approval_state"))
-        ).stream().findFirst();
+                (rs, rowNum) -> new ExportPreviewApprovalRecord(
+                        rs.getObject("id", UUID.class),
+                        ApprovalState.fromDatabaseValue(rs.getString("approval_state"))
+                )
+        );
     }
 
     @Override
@@ -400,6 +466,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                     imported_task_id,
                     source_entity_type,
                     source_entity_id,
+                    captured_approval_record_id,
+                    captured_approval_state,
                     field_name,
                     old_value,
                     new_value,
@@ -417,6 +485,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                     :importedTaskId,
                     :sourceEntityType,
                     :sourceEntityId,
+                    :capturedApprovalRecordId,
+                    CAST(:capturedApprovalState AS approval_state),
                     :fieldName,
                     :oldValue,
                     :newValue,
@@ -437,6 +507,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 .addValue("importedTaskId", line.importedTaskId())
                 .addValue("sourceEntityType", line.sourceEntityType())
                 .addValue("sourceEntityId", line.sourceEntityId())
+                .addValue("capturedApprovalRecordId", line.sourceApprovalRecordId())
+                .addValue("capturedApprovalState", line.approvalState().databaseValue())
                 .addValue("fieldName", line.fieldName())
                 .addValue("oldValue", line.oldValue())
                 .addValue("newValue", line.newValue())
@@ -487,7 +559,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getString("failure_reason"),
                 rs.getInt("line_count"),
                 rs.getInt("eligible_line_count"),
-                rs.getInt("ineligible_line_count")
+                rs.getInt("ineligible_line_count"),
+                (Integer) rs.getObject("integrity_policy_version"),
+                (Boolean) rs.getObject("line_set_sealed")
         );
     }
 
@@ -505,6 +579,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getString("source_entity_type"),
                 rs.getObject("source_entity_id", UUID.class),
                 approvalState == null ? null : ApprovalState.fromDatabaseValue(approvalState),
+                rs.getObject("captured_approval_record_id", UUID.class),
                 rs.getString("field_name"),
                 rs.getString("old_value"),
                 rs.getString("new_value"),
@@ -512,7 +587,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getObject("source_timestamp", OffsetDateTime.class),
                 rs.getString("reason"),
                 rs.getBoolean("is_leaf_task"),
-                rs.getBoolean("is_export_eligible")
+                rs.getBoolean("is_export_eligible"),
+                (Integer) rs.getObject("integrity_policy_version")
         );
     }
 

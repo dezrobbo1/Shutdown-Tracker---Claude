@@ -31,6 +31,10 @@ class ExportPreviewEnumTests {
                 .isEqualTo(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE);
         assertThat(ExportPreviewField.fromFieldName("actual_start")).isEqualTo(ExportPreviewField.ACTUAL_START);
         assertThat(ExportPreviewField.fromFieldName("actual_finish")).isEqualTo(ExportPreviewField.ACTUAL_FINISH);
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.ACTUAL_START.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.ACTUAL_FINISH.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.mvpExportAuthorized()).isFalse();
     }
 
     @Test

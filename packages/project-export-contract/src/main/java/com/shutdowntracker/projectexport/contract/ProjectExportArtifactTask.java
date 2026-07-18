@@ -17,6 +17,9 @@ public record ProjectExportArtifactTask(
         if (taskName == null || taskName.isBlank()) {
             throw new IllegalArgumentException("taskName is required.");
         }
+        if (!leafTask) {
+            throw new IllegalArgumentException("Only leaf-task export candidates are allowed by the worker contract.");
+        }
         fieldValues = List.copyOf(fieldValues == null ? List.of() : fieldValues);
         if (fieldValues.isEmpty()) {
             throw new IllegalArgumentException("At least one field value is required for each export task.");

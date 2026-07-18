@@ -4,19 +4,25 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 
 public enum ExportPreviewField {
-    PERCENT_COMPLETE("percent_complete"),
-    PHYSICAL_PERCENT_COMPLETE("physical_percent_complete"),
-    ACTUAL_START("actual_start"),
-    ACTUAL_FINISH("actual_finish");
+    PERCENT_COMPLETE("percent_complete", true),
+    PHYSICAL_PERCENT_COMPLETE("physical_percent_complete", false),
+    ACTUAL_START("actual_start", true),
+    ACTUAL_FINISH("actual_finish", true);
 
     private final String fieldName;
+    private final boolean mvpExportAuthorized;
 
-    ExportPreviewField(String fieldName) {
+    ExportPreviewField(String fieldName, boolean mvpExportAuthorized) {
         this.fieldName = fieldName;
+        this.mvpExportAuthorized = mvpExportAuthorized;
     }
 
     public String fieldName() {
         return fieldName;
+    }
+
+    public boolean mvpExportAuthorized() {
+        return mvpExportAuthorized;
     }
 
     public String oldValue(ExportPreviewTaskContext task) {

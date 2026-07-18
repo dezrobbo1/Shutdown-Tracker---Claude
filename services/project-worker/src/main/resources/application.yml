@@ -1,6 +1,12 @@
 spring:
   application:
     name: shutdown-tracker-project-worker
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-numbers-for-enums: true
+    parser:
+      strict-duplicate-detection: true
   flyway:
     enabled: false
 

@@ -20,6 +20,8 @@ public record ExportPreviewBatchRecord(
         String failureReason,
         int lineCount,
         int eligibleLineCount,
-        int ineligibleLineCount
+        int ineligibleLineCount,
+        Integer integrityPolicyVersion,
+        Boolean lineSetSealed
 ) {
 }

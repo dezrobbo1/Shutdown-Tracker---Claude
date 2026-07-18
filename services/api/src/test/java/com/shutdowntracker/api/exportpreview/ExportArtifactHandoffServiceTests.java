@@ -60,12 +60,26 @@ class ExportArtifactHandoffServiceTests {
         assertThat(client.request.artifactRequest().tasks()).hasSize(1);
         assertThat(client.request.artifactRequest().tasks().getFirst().microsoftProjectTaskUid()).isEqualTo("101");
         assertThat(client.request.artifactRequest().tasks().getFirst().microsoftProjectTaskId()).isEqualTo("1");
-        assertThat(client.request.artifactRequest().tasks().getFirst().fieldValues()).hasSize(2);
+        assertThat(client.request.artifactRequest().tasks().getFirst().fieldValues())
+                .extracting(ProjectExportArtifactFieldValue::field)
+                .containsExactlyInAnyOrder(
+                        ProjectExportArtifactField.PERCENT_COMPLETE,
+                        ProjectExportArtifactField.ACTUAL_START,
+                        ProjectExportArtifactField.ACTUAL_FINISH
+                );
+        assertThat(client.request.artifactRequest().tasks().getFirst().fieldValues())
+                .extracting(fieldValue -> fieldValue.field().fieldName() + "=" + fieldValue.newValue())
+                .containsExactlyInAnyOrder(
+                        "percent_complete=75",
+                        "actual_start=2026-01-05T07:00:00Z",
+                        "actual_finish=2026-01-06T15:00:00Z"
+                );
         assertThat(response.exportPreview().batch().status()).isEqualTo(ExportBatchState.GENERATED);
         assertThat(response.exportPreview().batch().generatedByUserId()).isEqualTo(generatedByUserId);
         assertThat(response.exportPreview().batch().exportFileUri()).isEqualTo(storage.location.storageUri());
         assertThat(response.exportPreview().batch().exportFileHash()).isEqualTo(client.response.exportFileHash());
         assertThat(response.message()).contains("No Microsoft Project write-back");
+        assertThat(repository.integrityLockCount).isEqualTo(2);
     }
 
     @Test
@@ -80,6 +94,24 @@ class ExportArtifactHandoffServiceTests {
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only approved export batches can request worker artifact generation.");
         assertThat(client.request).isNull();
+    }
+
+    @Test
+    void rejectsGenerationWhenSourceWasSupersededAfterBatchApproval() {
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
+        repository.currentApprovalState = ApprovalState.SUPERSEDED;
+        CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
+        CapturingExportArtifactStorage storage = new CapturingExportArtifactStorage();
+        ExportArtifactHandoffService service = service(repository, client, storage);
+
+        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("authority changed")
+                .hasMessageContaining("fresh export preview");
+        assertThat(storage.location).isNull();
+        assertThat(client.request).isNull();
+        assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
     }
 
     @Test
@@ -211,6 +243,8 @@ class ExportArtifactHandoffServiceTests {
         private String exportFileHash;
         private OffsetDateTime verifiedAt;
         private UUID verifiedByUserId;
+        private ApprovalState currentApprovalState = ApprovalState.APPROVED_FOR_EXPORT;
+        private int integrityLockCount;
         private List<ExportPreviewLineRecord> lines = List.of(
                 eligibleLine("101", "1"),
                 new ExportPreviewLineRecord(
@@ -225,6 +259,7 @@ class ExportArtifactHandoffServiceTests {
                         "task_update",
                         UUID.randomUUID(),
                         ApprovalState.APPROVED_FOR_EXPORT,
+                        UUID.randomUUID(),
                         "actual_start",
                         null,
                         "2026-01-05T07:00:00Z",
@@ -232,7 +267,54 @@ class ExportArtifactHandoffServiceTests {
                         OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                         "Synthetic reason",
                         true,
-                        true
+                        true,
+                        ExportIntegrityPolicy.CURRENT_VERSION
+                ),
+                new ExportPreviewLineRecord(
+                        UUID.randomUUID(),
+                        exportBatchId,
+                        projectId,
+                        projectSnapshotId,
+                        importedTaskId,
+                        "101",
+                        "1",
+                        "Synthetic Task A1",
+                        "task_update",
+                        UUID.randomUUID(),
+                        ApprovalState.APPROVED_FOR_EXPORT,
+                        UUID.randomUUID(),
+                        "actual_finish",
+                        null,
+                        "2026-01-06T15:00:00Z",
+                        UUID.randomUUID(),
+                        OffsetDateTime.parse("2026-01-01T07:00:00Z"),
+                        "Synthetic reason",
+                        true,
+                        true,
+                        ExportIntegrityPolicy.CURRENT_VERSION
+                ),
+                new ExportPreviewLineRecord(
+                        UUID.randomUUID(),
+                        exportBatchId,
+                        projectId,
+                        projectSnapshotId,
+                        importedTaskId,
+                        "101",
+                        "1",
+                        "Synthetic Task A1",
+                        "task_update",
+                        UUID.randomUUID(),
+                        ApprovalState.APPROVED_FOR_EXPORT,
+                        UUID.randomUUID(),
+                        "physical_percent_complete",
+                        "20",
+                        "50",
+                        UUID.randomUUID(),
+                        OffsetDateTime.parse("2026-01-01T07:00:00Z"),
+                        "Internal physical progress only",
+                        true,
+                        false,
+                        ExportIntegrityPolicy.CURRENT_VERSION
                 ),
                 new ExportPreviewLineRecord(
                         UUID.randomUUID(),
@@ -246,6 +328,7 @@ class ExportArtifactHandoffServiceTests {
                         "task_update",
                         UUID.randomUUID(),
                         ApprovalState.APPROVED_FOR_EXPORT,
+                        UUID.randomUUID(),
                         "actual_finish",
                         null,
                         "2026-01-06T15:00:00Z",
@@ -253,7 +336,8 @@ class ExportArtifactHandoffServiceTests {
                         OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                         "Synthetic reason",
                         false,
-                        false
+                        false,
+                        ExportIntegrityPolicy.CURRENT_VERSION
                 )
         );
 
@@ -270,6 +354,7 @@ class ExportArtifactHandoffServiceTests {
                     "task_update",
                     UUID.randomUUID(),
                     ApprovalState.APPROVED_FOR_EXPORT,
+                    UUID.randomUUID(),
                     "percent_complete",
                     "25",
                     "75",
@@ -277,7 +362,8 @@ class ExportArtifactHandoffServiceTests {
                     OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                     "Synthetic reason",
                     true,
-                    true
+                    true,
+                    ExportIntegrityPolicy.CURRENT_VERSION
             );
         }
 
@@ -318,6 +404,17 @@ class ExportArtifactHandoffServiceTests {
                 return Optional.empty();
             }
             return Optional.of(batch());
+        }
+
+        @Override
+        public boolean sealDraftPreviewLineSet(UUID projectId, UUID exportBatchId) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public boolean lockBatchForIntegrityValidation(UUID projectId, UUID exportBatchId) {
+            integrityLockCount++;
+            return this.projectId.equals(projectId) && this.exportBatchId.equals(exportBatchId);
         }
 
         @Override
@@ -384,16 +481,42 @@ class ExportArtifactHandoffServiceTests {
                 UUID projectSnapshotId,
                 UUID importedTaskId
         ) {
-            throw new UnsupportedOperationException("not needed");
+            if (!this.projectId.equals(projectId) || !this.projectSnapshotId.equals(projectSnapshotId)) {
+                return Optional.empty();
+            }
+            return lines.stream()
+                    .filter(line -> line.importedTaskId().equals(importedTaskId))
+                    .findFirst()
+                    .map(line -> new ExportPreviewTaskContext(
+                            line.importedTaskId(),
+                            line.projectId(),
+                            line.projectSnapshotId(),
+                            line.importedTaskExternalUid(),
+                            line.importedTaskExternalId(),
+                            line.importedTaskName(),
+                            !line.leafTask(),
+                            null,
+                            null,
+                            null,
+                            null
+                    ));
         }
 
         @Override
-        public Optional<ApprovalState> findLatestApprovalState(
+        public List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
                 UUID projectId,
                 String sourceEntityType,
                 UUID sourceEntityId
         ) {
-            throw new UnsupportedOperationException("not needed");
+            return lines.stream()
+                    .filter(line -> line.sourceEntityType().equals(sourceEntityType)
+                            && line.sourceEntityId().equals(sourceEntityId))
+                    .findFirst()
+                    .map(line -> List.of(new ExportPreviewApprovalRecord(
+                            line.sourceApprovalRecordId(),
+                            currentApprovalState
+                    )))
+                    .orElseGet(List::of);
         }
 
         @Override
@@ -430,7 +553,9 @@ class ExportArtifactHandoffServiceTests {
                     null,
                     lines.size(),
                     eligible,
-                    lines.size() - eligible
+                    lines.size() - eligible,
+                    ExportIntegrityPolicy.CURRENT_VERSION,
+                    true
             );
         }
     }

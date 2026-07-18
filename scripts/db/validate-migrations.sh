@@ -9,6 +9,17 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 COMPOSE_FILE="$REPO_ROOT/infra/docker/docker-compose.postgres.yml"
 MIGRATIONS_DIR="$REPO_ROOT/infra/migrations"
 
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*)
+    if [ -n "${MSYS2_ARG_CONV_EXCL:-}" ]; then
+      MSYS2_ARG_CONV_EXCL="${MSYS2_ARG_CONV_EXCL};/migrations/"
+    else
+      MSYS2_ARG_CONV_EXCL="/migrations/"
+    fi
+    export MSYS2_ARG_CONV_EXCL
+    ;;
+esac
+
 EXPECTED_TABLES="
 projects
 source_files
@@ -69,7 +80,7 @@ echo "Applying migrations..."
 for migration in "$MIGRATIONS_DIR"/V*.sql; do
   migration_name=$(basename "$migration")
   echo "Applying $migration_name"
-  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f "/migrations/$migration_name"
+  compose exec -T postgres psql --single-transaction -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f "/migrations/$migration_name"
 done
 
 echo "Verifying expected tables..."

@@ -9,7 +9,7 @@
   "generated_artifact_committed": false,
   "expected_summary": {
     "task_count": 2,
-    "exported_field_count": 4,
+    "exported_field_count": 3,
     "minimum_size_bytes": 1,
     "sha256_pattern": "^[0-9a-f]{64}$",
     "expected_notes": [
@@ -35,7 +35,6 @@
       "task_name": "Synthetic Task A2",
       "leaf_task": true,
       "expected_fields": {
-        "physical_percent_complete": 50,
         "actual_finish": "2026-01-06T15:00:00"
       }
     }
