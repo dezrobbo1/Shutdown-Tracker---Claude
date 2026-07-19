@@ -19,6 +19,8 @@ From the repository root:
 
 The PowerShell script checks `PATH` first and then falls back to common Docker Desktop install locations, including per-user installs under `%LOCALAPPDATA%\Programs\DockerDesktop`.
 
+Both platform wrappers invoke the same read-only-mounted POSIX integrity runner inside the PostgreSQL container, so the SQL fixtures, assertions, and concurrency behavior do not diverge by host shell.
+
 ## POSIX Shell
 
 From the repository root:
@@ -34,9 +36,14 @@ From the repository root:
 - Wait for PostgreSQL readiness.
 - Apply each `infra/migrations/V*.sql` file in sorted version order as its own PostgreSQL transaction.
 - Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
-- Verify the expected baseline tables exist after migration.
+- Verify the expected 21 baseline tables exist after migration.
+- Upgrade populated synthetic V006 history through V007 and V008 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
+- Preserve and freeze synthetic V007 policy-1 records when V008 is applied.
+- Exercise policy-2 authoritative-candidate bindings, reciprocal foreign keys, exact line identity/value matching, field and leaf authority, duplicates, sealing, immutable history, approval ordering, and baseline freshness.
+- Prove line-versus-seal, concurrent duplicate, generation-versus-approval, and failed-generation rollback behavior with separately synchronized PostgreSQL sessions.
+- Intentionally fail V007 and V008 at the end of their transaction and verify that neither migration leaves partial objects.
 
-The scripts validate a clean install only. They do not insert seed data, exercise populated upgrades, or run application code.
+The populated data is fixed, synthetic validation data created only in temporary databases inside the local validation container. The suite does not run application code, create Project artifacts, or use operational data. Concurrency synchronization uses PostgreSQL locks and `pg_blocking_pids`, rather than assuming that a timed delay proves blocking.
 
 ## Reset
 

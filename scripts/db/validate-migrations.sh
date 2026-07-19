@@ -12,9 +12,9 @@ MIGRATIONS_DIR="$REPO_ROOT/infra/migrations"
 case "$(uname -s 2>/dev/null || true)" in
   MINGW*|MSYS*|CYGWIN*)
     if [ -n "${MSYS2_ARG_CONV_EXCL:-}" ]; then
-      MSYS2_ARG_CONV_EXCL="${MSYS2_ARG_CONV_EXCL};/migrations/"
+      MSYS2_ARG_CONV_EXCL="${MSYS2_ARG_CONV_EXCL};/migrations/;/validation/"
     else
-      MSYS2_ARG_CONV_EXCL="/migrations/"
+      MSYS2_ARG_CONV_EXCL="/migrations/;/validation/"
     fi
     export MSYS2_ARG_CONV_EXCL
     ;;
@@ -34,6 +34,7 @@ audit_events
 approval_records
 export_batches
 export_batch_lines
+export_candidate_records
 critical_watchlists
 critical_work_packages
 critical_work_package_sources
@@ -92,5 +93,8 @@ for table in $EXPECTED_TABLES; do
   fi
   echo "Verified table: $table"
 done
+
+echo "Running populated-upgrade and PostgreSQL export-integrity validation..."
+compose exec -T postgres sh -c 'tr -d "\015" < "$1" | sh' _ /validation/validation/run-export-integrity-suite.sh
 
 echo "Migration validation passed."

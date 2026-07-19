@@ -22,6 +22,7 @@ $ExpectedTables = @(
     "approval_records",
     "export_batches",
     "export_batch_lines",
+    "export_candidate_records",
     "critical_watchlists",
     "critical_work_packages",
     "critical_work_package_sources",
@@ -111,5 +112,15 @@ foreach ($Table in $ExpectedTables) {
 
     Write-Host "Verified table: $Table"
 }
+
+Write-Host "Running populated-upgrade and PostgreSQL export-integrity validation..."
+Invoke-Compose @(
+    "exec",
+    "-T",
+    "postgres",
+    "sh",
+    "-c",
+    "tr -d '\015' < /validation/validation/run-export-integrity-suite.sh | sh"
+)
 
 Write-Host "Migration validation passed."

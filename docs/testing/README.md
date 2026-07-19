@@ -37,8 +37,8 @@ Local source/import/export smoke checks can use [scripts/review/source-import-ex
 - Migrations should apply in version order against a clean PostgreSQL database.
 - Migrations are idempotent through migration tooling only; do not expect raw SQL files to be re-run manually.
 - PRs that add or change migrations should run the local validation scripts in [scripts/db](../../scripts/db) where possible. Each migration file is applied in its own PostgreSQL transaction so a failed file is rolled back completely.
-- Local script and CI migration validation use a clean PostgreSQL database through Docker Compose. Populated-upgrade preservation and intentional-failure atomicity checks are separate validation evidence and are not automated by those scripts.
-- Future tests should verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
+- Local script and CI migration validation use PostgreSQL through Docker Compose. In addition to the clean install, the scripts automate populated V006/V007 upgrade preservation, policy-2 export-integrity constraints, deterministic concurrency, and intentional-failure rollback checks with fixed synthetic data.
+- Migration regressions should continue to verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
 - Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
 - Successful local migration validation does not replace later repository, API, service, or end-to-end tests.
 
@@ -78,7 +78,7 @@ The GitHub Actions workflow in [.github/workflows/ci.yml](../../.github/workflow
 
 - The Maven backend test suite with Java 21.
 - The React/Vite frontend tests and production builds with Node 22.
-- SQL migrations `V001` through `V007` against a clean PostgreSQL database through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh).
+- SQL migrations `V001` through `V008` against clean and populated PostgreSQL databases, including export-integrity and atomicity regressions, through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh).
 
 The workflow does not add MPXJ processing, app runtime behavior, secrets, seed data, or real Project files.
 

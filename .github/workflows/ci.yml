@@ -51,12 +51,13 @@ jobs:
         run: npm run build
 
   migration-validation:
-    name: Migration validation
+    name: Migration and export-integrity validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate SQL migrations
+      - name: Validate clean install, populated upgrades, and export integrity
         run: bash scripts/db/validate-migrations.sh
