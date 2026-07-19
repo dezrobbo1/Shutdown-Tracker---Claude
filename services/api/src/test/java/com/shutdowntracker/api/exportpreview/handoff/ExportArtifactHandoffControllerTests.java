@@ -107,7 +107,9 @@ class ExportArtifactHandoffControllerTests {
                 "Synthetic reason",
                 true,
                 true,
-                ExportIntegrityPolicy.CURRENT_VERSION
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                UUID.randomUUID(),
+                "a".repeat(64)
         );
         ProjectExportArtifactGenerationResponse workerResponse = new ProjectExportArtifactGenerationResponse(
                 exportBatchId,

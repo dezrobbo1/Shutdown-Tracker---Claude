@@ -36,7 +36,7 @@ Optional switches:
 - `-RunParseHandoff`: requests worker parse-summary handoff for an existing or just-created import batch.
 - `-ListImportSnapshots`: reads import-review snapshot summaries for a project.
 - `-ReadImportSnapshot`: reads one import-review snapshot by `-SnapshotId`.
-- `-CreateExportPreview`: creates a draft export preview from supplied `-SnapshotId`, `-ImportedTaskId`, and optional source entity arguments.
+- `-CreateExportPreview`: creates a draft export preview from supplied `-SnapshotId` and `-AuthoritativeExportCandidateId`. The candidate must be explicitly pre-provisioned as synthetic/review data; no application provisioning endpoint exists yet, and the smoke script cannot create or alter the candidate's task, field, value, source, or approval binding.
 - `-ReadExportPreview`: reads an export preview by `-ExportBatchId`.
 - `-ApproveExportBatch`: approves a draft export batch when it already has at least one eligible line.
 - `-GenerateExportArtifact`: calls the worker-backed artifact generation endpoint for an approved batch.

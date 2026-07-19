@@ -24,6 +24,8 @@ public record ExportPreviewLineRecord(
         String reason,
         boolean leafTask,
         boolean exportEligible,
-        Integer integrityPolicyVersion
+        Integer integrityPolicyVersion,
+        UUID authoritativeExportCandidateId,
+        String capturedSourceEventOrPayloadHash
 ) {
 }

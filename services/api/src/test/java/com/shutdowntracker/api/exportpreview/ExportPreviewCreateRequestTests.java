@@ -15,13 +15,12 @@ class ExportPreviewCreateRequestTests {
     void defaultsMissingMetadataToEmptyObjects() {
         ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
-                List.of(line(null)),
+                List.of(line()),
                 null
         );
 
         assertThat(request.metadata()).isEmpty();
         assertThat(request.lines()).hasSize(1);
-        assertThat(request.lines().getFirst().metadata()).isEmpty();
     }
 
     @Test
@@ -29,14 +28,14 @@ class ExportPreviewCreateRequestTests {
         Map<String, Object> metadata = Map.of("source", "synthetic-export-preview");
         ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
-                List.of(line(metadata)),
+                List.of(line()),
                 metadata
         );
 
         assertThat(request.metadata()).containsEntry("source", "synthetic-export-preview");
         assertThatThrownBy(() -> request.metadata().put("extra", "not allowed"))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> request.lines().add(line(null)))
+        assertThatThrownBy(() -> request.lines().add(line()))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -48,34 +47,33 @@ class ExportPreviewCreateRequestTests {
     }
 
     @Test
-    void rejectsDuplicateTaskFieldCandidatesEvenWhenValuesMatch() {
-        UUID importedTaskId = UUID.randomUUID();
+    void rejectsDuplicateAuthoritativeCandidateIds() {
+        UUID candidateId = UUID.randomUUID();
 
         assertThatThrownBy(() -> new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
                 List.of(
-                        line(importedTaskId, "percent_complete", "50"),
-                        line(importedTaskId, "percent_complete", "50")
+                        new ExportPreviewLineCreateRequest(candidateId),
+                        new ExportPreviewLineCreateRequest(candidateId)
                 ),
                 Map.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "Duplicate export preview candidate for importedTaskId '"
-                                + importedTaskId
-                                + "' and fieldName 'percent_complete'."
+                        "Duplicate authoritative export candidate '"
+                                + candidateId
+                                + "'."
                 );
     }
 
     @Test
-    void allowsDifferentAuthorizedFieldsForTheSameTask() {
-        UUID importedTaskId = UUID.randomUUID();
+    void allowsDifferentAuthoritativeCandidates() {
 
         ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
                 List.of(
-                        line(importedTaskId, "percent_complete", "50"),
-                        line(importedTaskId, "actual_start", "2026-01-01T08:00:00Z")
+                        line(),
+                        line()
                 ),
                 Map.of()
         );
@@ -84,20 +82,10 @@ class ExportPreviewCreateRequestTests {
     }
 
     @Test
-    void rejectsUnsupportedFieldNames() {
-        assertThatThrownBy(() -> new ExportPreviewLineCreateRequest(
-                UUID.randomUUID(),
-                "task_update",
-                UUID.randomUUID(),
-                "planned_start",
-                "2026-01-01T08:00:00Z",
-                UUID.randomUUID(),
-                null,
-                "Synthetic reason",
-                Map.of()
-        ))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Unsupported export preview field: planned_start");
+    void rejectsMissingAuthoritativeCandidateId() {
+        assertThatThrownBy(() -> new ExportPreviewLineCreateRequest(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("authoritativeExportCandidateId is required.");
     }
 
     @Test
@@ -105,7 +93,7 @@ class ExportPreviewCreateRequestTests {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(null, "not allowed");
 
-        assertThatThrownBy(() -> line(metadata))
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(UUID.randomUUID(), List.of(line()), metadata))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("metadata must not contain null keys.");
     }
@@ -162,30 +150,7 @@ class ExportPreviewCreateRequestTests {
                 .hasMessage("verifiedByUserId is required.");
     }
 
-    private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {
-        return line(UUID.randomUUID(), "percent_complete", "50", metadata);
-    }
-
-    private ExportPreviewLineCreateRequest line(UUID importedTaskId, String fieldName, String newValue) {
-        return line(importedTaskId, fieldName, newValue, null);
-    }
-
-    private ExportPreviewLineCreateRequest line(
-            UUID importedTaskId,
-            String fieldName,
-            String newValue,
-            Map<String, Object> metadata
-    ) {
-        return new ExportPreviewLineCreateRequest(
-                importedTaskId,
-                "task_update",
-                UUID.randomUUID(),
-                fieldName,
-                newValue,
-                UUID.randomUUID(),
-                null,
-                "Synthetic reason",
-                metadata
-        );
+    private ExportPreviewLineCreateRequest line() {
+        return new ExportPreviewLineCreateRequest(UUID.randomUUID());
     }
 }

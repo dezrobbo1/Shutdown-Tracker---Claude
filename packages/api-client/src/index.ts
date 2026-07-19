@@ -195,15 +195,7 @@ export type TaskLineageDecisionResponse = {
 };
 
 export type ExportPreviewLineCreateRequest = {
-  importedTaskId: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  fieldName: "percent_complete" | "physical_percent_complete" | "actual_start" | "actual_finish";
-  newValue: string;
-  sourceActorUserId?: string | null;
-  sourceTimestamp?: string | null;
-  reason?: string | null;
-  metadata?: JsonObject | null;
+  authoritativeExportCandidateId: string;
 };
 
 export type ExportPreviewCreateRequest = {
@@ -230,6 +222,8 @@ export type ExportPreviewBatchRecord = {
   lineCount: number;
   eligibleLineCount: number;
   ineligibleLineCount: number;
+  integrityPolicyVersion: number | null;
+  lineSetSealed: boolean | null;
 };
 
 export type ExportPreviewLineRecord = {
@@ -244,6 +238,7 @@ export type ExportPreviewLineRecord = {
   sourceEntityType: string;
   sourceEntityId: string;
   approvalState: ApprovalState | null;
+  sourceApprovalRecordId: string | null;
   fieldName: string;
   oldValue: string | null;
   newValue: string;
@@ -252,6 +247,9 @@ export type ExportPreviewLineRecord = {
   reason: string | null;
   leafTask: boolean;
   exportEligible: boolean;
+  integrityPolicyVersion: number | null;
+  authoritativeExportCandidateId: string | null;
+  capturedSourceEventOrPayloadHash: string | null;
 };
 
 export type ExportPreviewDetail = {

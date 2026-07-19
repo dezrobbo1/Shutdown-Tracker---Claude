@@ -12,11 +12,7 @@ param(
     [string]$SnapshotId,
     [switch]$ReadImportSnapshot,
     [switch]$CreateExportPreview,
-    [string]$ImportedTaskId,
-    [string]$SourceEntityType = "review_smoke",
-    [string]$SourceEntityId,
-    [string]$ExportFieldName = "percent_complete",
-    [string]$ExportNewValue = "50",
+    [string]$AuthoritativeExportCandidateId,
     [string]$ExportBatchId,
     [switch]$ReadExportPreview,
     [switch]$ApproveExportBatch,
@@ -267,31 +263,14 @@ if ($CreateExportPreview) {
     Assert-WritesAllowed "Export preview creation"
     Assert-Required "ProjectId" $ProjectId
     Assert-Required "SnapshotId" $SnapshotId
-    Assert-Required "ImportedTaskId" $ImportedTaskId
-
-    if ([string]::IsNullOrWhiteSpace($SourceEntityId)) {
-        $SourceEntityId = [Guid]::NewGuid().ToString()
-        Write-Ok "No SourceEntityId provided; using synthetic source entity $SourceEntityId. The preview line may be ineligible without an approved source record."
-    }
+    Assert-Required "AuthoritativeExportCandidateId" $AuthoritativeExportCandidateId
 
     Write-Step "Creating export preview for project $ProjectId"
     $previewBody = @{
         projectSnapshotId = $SnapshotId
         lines = @(
             @{
-                importedTaskId = $ImportedTaskId
-                sourceEntityType = $SourceEntityType
-                sourceEntityId = $SourceEntityId
-                fieldName = $ExportFieldName
-                newValue = $ExportNewValue
-                sourceActorUserId = $ActorUserId
-                sourceTimestamp = (Get-Date).ToUniversalTime().ToString("o")
-                reason = "Synthetic smoke preview. No Microsoft Project write-back."
-                metadata = @{
-                    source = "source-import-export-smoke"
-                    synthetic = $true
-                    projectWriteBack = $false
-                }
+                authoritativeExportCandidateId = $AuthoritativeExportCandidateId
             }
         )
         metadata = @{

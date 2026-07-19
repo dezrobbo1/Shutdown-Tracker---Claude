@@ -91,6 +91,31 @@ describe("shutdown tracker api client", () => {
     expect(calls[4].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
   });
 
+  it("creates an export preview from authoritative candidate ids only", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, { batch: { status: "DRAFT" }, lines: [], message: "ok" })
+    });
+
+    await client.exportPreview.create("project-a", {
+      projectSnapshotId: "snapshot-a",
+      lines: [{ authoritativeExportCandidateId: "candidate-a" }],
+      metadata: { source: "synthetic-test" }
+    });
+
+    expect(calls).toEqual([
+      {
+        input: "/api/projects/project-a/export-preview",
+        method: "POST",
+        body: JSON.stringify({
+          projectSnapshotId: "snapshot-a",
+          lines: [{ authoritativeExportCandidateId: "candidate-a" }],
+          metadata: { source: "synthetic-test" }
+        })
+      }
+    ]);
+  });
+
   it("uploads source files as multipart form data", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

@@ -14,11 +14,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 class ExportPreviewServiceTests {
+
+    private static final Map<UUID, CandidateSpec> CANDIDATE_SPECS = new HashMap<>();
 
     @Test
     void createsDraftPreviewWithEligibleApprovedLeafTaskLine() {
@@ -42,7 +46,7 @@ class ExportPreviewServiceTests {
         assertThat(detail.batch().lineCount()).isEqualTo(1);
         assertThat(detail.batch().eligibleLineCount()).isEqualTo(1);
         assertThat(detail.lines()).hasSize(1);
-        assertThat(detail.lines().getFirst().oldValue()).isEqualTo("25.00");
+        assertThat(detail.lines().getFirst().oldValue()).isEqualTo("25");
         assertThat(detail.lines().getFirst().newValue()).isEqualTo("50");
         assertThat(detail.lines().getFirst().approvalState()).isEqualTo(ApprovalState.APPROVED_FOR_EXPORT);
         assertThat(detail.lines().getFirst().leafTask()).isTrue();
@@ -81,20 +85,21 @@ class ExportPreviewServiceTests {
     }
 
     @Test
-    void keepsUnapprovedSourceLineIneligible() {
+    void rejectsUnapprovedSourceAsAnAuthoritativeCandidate() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
 
-        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
-                List.of(line(repository.leafTaskId, repository.awaitingReviewSourceEntityId, "actual_start", "2026-01-01T08:00:00Z")),
+                List.of(line(repository.leafTaskId, repository.awaitingReviewSourceEntityId,
+                        "actual_start", "2026-01-01T08:00:00Z")),
                 null
-        ));
-
-        assertThat(detail.batch().eligibleLineCount()).isZero();
-        assertThat(detail.lines().getFirst().approvalState()).isEqualTo(ApprovalState.AWAITING_REVIEW);
-        assertThat(detail.lines().getFirst().exportEligible()).isFalse();
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer matches")
+                .hasMessageContaining("fresh export preview");
     }
 
     @Test
@@ -122,6 +127,27 @@ class ExportPreviewServiceTests {
         assertThat(detail.lines().getFirst().leafTask()).isTrue();
         assertThat(detail.lines().getFirst().exportEligible()).isFalse();
         assertThat(detail.batch().eligibleLineCount()).isZero();
+    }
+
+    @Test
+    void rejectsDifferentCandidatesForTheSameTaskAndFieldBeforeCreatingBatch() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(
+                        line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50"),
+                        line(repository.leafTaskId, repository.physicalSourceEntityId, "percent_complete", "50")
+                ),
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Duplicate authoritative candidates")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.createBatchProjectId).isNull();
     }
 
     @Test
@@ -296,6 +322,29 @@ class ExportPreviewServiceTests {
     }
 
     @Test
+    void mapsDatabaseIntegrityFailureDuringApprovalToFreshPreviewConflict() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        repository.failApprovalWithIntegrityViolation = true;
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Export batch approval")
+                .hasMessageContaining("stale candidate or accepted-baseline authority")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+        assertThat(audit.events()).hasSize(1);
+    }
+
+    @Test
     void rejectsUnsealedCurrentPolicyBatch() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
@@ -325,7 +374,7 @@ class ExportPreviewServiceTests {
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
         ));
-        repository.integrityPolicyVersion = 2;
+        repository.integrityPolicyVersion = 3;
 
         assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
@@ -352,7 +401,7 @@ class ExportPreviewServiceTests {
         assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
-                .hasMessageContaining("authority changed")
+                .hasMessageContaining("no longer matches")
                 .hasMessageContaining("fresh export preview");
         assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
     }
@@ -377,7 +426,7 @@ class ExportPreviewServiceTests {
         assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
-                .hasMessageContaining("authority changed")
+                .hasMessageContaining("no longer matches")
                 .hasMessageContaining("fresh export preview");
         assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
     }
@@ -402,9 +451,167 @@ class ExportPreviewServiceTests {
         assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
-                .hasMessageContaining("authority changed")
+                .hasMessageContaining("no longer matches")
                 .hasMessageContaining("fresh export preview");
         assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+    }
+
+    @Test
+    void rejectsApprovalForFrozenPolicyOneDraftBatch() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        repository.integrityPolicyVersion = 1;
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail frozen = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+
+        assertThat(frozen.batch().integrityPolicyVersion()).isEqualTo(1);
+        assertThatThrownBy(() -> service.approveBatch(projectId, frozen.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("unsupported integrity policy")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+    }
+
+    @Test
+    void rejectsApprovalWhenCandidateBindingPolicyIsNotCurrent() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        ExportPreviewLineRecord line = created.lines().getFirst();
+        repository.approvalCandidates.put(
+                repository.approvedSourceEntityId,
+                List.of(new ExportPreviewApprovalRecord(
+                        line.sourceApprovalRecordId(),
+                        ApprovalState.APPROVED_FOR_EXPORT,
+                        line.authoritativeExportCandidateId(),
+                        1
+                ))
+        );
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer matches")
+                .hasMessageContaining("fresh export preview");
+    }
+
+    @Test
+    void rejectsApprovalWhenAcceptedSnapshotBecomesStale() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        repository.acceptedSnapshot = false;
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer an accepted baseline")
+                .hasMessageContaining("fresh export preview");
+    }
+
+    @Test
+    void rejectsGenerationWhenAcceptedSnapshotBecomesStale() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        repository.acceptedSnapshot = false;
+
+        assertThatThrownBy(() -> service.markGenerated(
+                projectId,
+                approved.batch().id(),
+                new ExportBatchGeneratedRequest(
+                        "object://synthetic/export-batches/stale.mspdi.xml",
+                        "sha256:stale",
+                        UUID.randomUUID(),
+                        "Must remain blocked",
+                        null
+                )
+        ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer an accepted baseline")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
+    }
+
+    @Test
+    void rejectsImportedTaskUidDrift() {
+        assertTaskDriftBlocksApproval(repository -> repository.replaceLeafTask(
+                "CHANGED-UID", "1", "Synthetic Task A1", false, new BigDecimal("25")
+        ));
+    }
+
+    @Test
+    void rejectsImportedTaskIdDrift() {
+        assertTaskDriftBlocksApproval(repository -> repository.replaceLeafTask(
+                "SYN-TASK-1", "CHANGED-ID", "Synthetic Task A1", false, new BigDecimal("25")
+        ));
+    }
+
+    @Test
+    void rejectsImportedTaskNameDrift() {
+        assertTaskDriftBlocksApproval(repository -> repository.replaceLeafTask(
+                "SYN-TASK-1", "1", "Changed task name", false, new BigDecimal("25")
+        ));
+    }
+
+    @Test
+    void rejectsImportedTaskLeafStatusDrift() {
+        assertTaskDriftBlocksApproval(repository -> repository.replaceLeafTask(
+                "SYN-TASK-1", "1", "Synthetic Task A1", true, new BigDecimal("25")
+        ));
+    }
+
+    @Test
+    void rejectsImportedTaskOldValueDrift() {
+        assertTaskDriftBlocksApproval(repository -> repository.replaceLeafTask(
+                "SYN-TASK-1", "1", "Synthetic Task A1", false, new BigDecimal("26")
+        ));
+    }
+
+    @Test
+    void rejectsReusingCandidateWithDifferentTask() {
+        assertTamperedLineBlocksApproval(repository ->
+                repository.tamperFirstLine(UUID.randomUUID(), null, null, null));
+    }
+
+    @Test
+    void rejectsReusingCandidateWithDifferentField() {
+        assertTamperedLineBlocksApproval(repository ->
+                repository.tamperFirstLine(null, "actual_finish", null, null));
+    }
+
+    @Test
+    void rejectsReusingCandidateWithDifferentValue() {
+        assertTamperedLineBlocksApproval(repository ->
+                repository.tamperFirstLine(null, null, "99", null));
+    }
+
+    @Test
+    void rejectsCandidateSourceHashMismatch() {
+        assertTamperedLineBlocksApproval(repository ->
+                repository.tamperFirstLine(null, null, null, "c".repeat(64)));
     }
 
     @Test
@@ -541,6 +748,40 @@ class ExportPreviewServiceTests {
     }
 
     @Test
+    void mapsDatabaseIntegrityFailureDuringGenerationToFreshPreviewConflict() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "75")),
+                null
+        ));
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        repository.failGenerationWithIntegrityViolation = true;
+
+        assertThatThrownBy(() -> service.markGenerated(
+                projectId,
+                approved.batch().id(),
+                new ExportBatchGeneratedRequest(
+                        "object://synthetic/export-batches/export-1.mspdi.xml",
+                        "sha256:synthetic",
+                        UUID.randomUUID(),
+                        "Synthetic worker artifact recorded",
+                        null
+                )
+        ))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Export batch generation")
+                .hasMessageContaining("stale candidate or accepted-baseline authority")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
+        assertThat(audit.events()).hasSize(2);
+    }
+
+    @Test
     void rejectsGeneratedMetadataWhenSourceWasSupersededAfterApproval() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
@@ -567,7 +808,7 @@ class ExportPreviewServiceTests {
         ))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
-                .hasMessageContaining("authority changed")
+                .hasMessageContaining("no longer matches")
                 .hasMessageContaining("fresh export preview");
         assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
         assertThat(audit.events()).hasSize(2);
@@ -791,8 +1032,9 @@ class ExportPreviewServiceTests {
                 null
         )))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
-                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND))
-                .hasMessageContaining("Imported task not found for export preview.");
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer matches")
+                .hasMessageContaining("fresh export preview");
         assertThat(audit.events()).isEmpty();
     }
 
@@ -811,8 +1053,88 @@ class ExportPreviewServiceTests {
         )))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
-                .hasMessageContaining("Export preview requires an accepted project snapshot.");
+                .hasMessageContaining("no longer an accepted baseline")
+                .hasMessageContaining("fresh export preview");
         assertThat(audit.events()).isEmpty();
+    }
+
+    @Test
+    void mapsDatabaseIntegrityFailureWhileSealingToFreshPreviewConflict() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        repository.failSealingWithIntegrityViolation = true;
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("Export preview sealing")
+                .hasMessageContaining("stale candidate or accepted-baseline authority")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+        assertThat(audit.events()).isEmpty();
+    }
+
+    @Test
+    void returnsFreshPreviewConflictWhenCandidateChangesBeforeLineInsertion() {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        repository.failLineCreation = true;
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportPreviewService service = new ExportPreviewService(repository, audit);
+
+        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        )))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("authority changed")
+                .hasMessageContaining("fresh export preview");
+        assertThat(audit.events()).isEmpty();
+    }
+
+    private void assertTaskDriftBlocksApproval(Consumer<FakeExportPreviewRepository> drift) {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        drift.accept(repository);
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("no longer matches")
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
+    }
+
+    private void assertTamperedLineBlocksApproval(Consumer<FakeExportPreviewRepository> tamper) {
+        UUID projectId = UUID.randomUUID();
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+                repository.projectSnapshotId,
+                List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
+                null
+        ));
+        tamper.accept(repository);
+
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("fresh export preview");
+        assertThat(repository.status).isEqualTo(ExportBatchState.DRAFT_PREVIEW);
     }
 
     private ExportPreviewLineCreateRequest line(
@@ -821,17 +1143,12 @@ class ExportPreviewServiceTests {
             String fieldName,
             String newValue
     ) {
-        return new ExportPreviewLineCreateRequest(
-                importedTaskId,
-                "task_update",
-                sourceEntityId,
-                fieldName,
-                newValue,
-                UUID.randomUUID(),
-                OffsetDateTime.parse("2026-01-01T07:00:00Z"),
-                "Synthetic reason",
-                null
-        );
+        UUID candidateId = UUID.randomUUID();
+        CANDIDATE_SPECS.put(candidateId, new CandidateSpec(importedTaskId, sourceEntityId, fieldName, newValue));
+        return new ExportPreviewLineCreateRequest(candidateId);
+    }
+
+    private record CandidateSpec(UUID importedTaskId, UUID sourceEntityId, String fieldName, String newValue) {
     }
 
     private static class FakeExportPreviewRepository implements ExportPreviewRepository {
@@ -849,6 +1166,8 @@ class ExportPreviewServiceTests {
         private final UUID physicalApprovalRecordId = UUID.randomUUID();
         private final Map<UUID, ExportPreviewTaskContext> tasks = new HashMap<>();
         private final Map<UUID, List<ExportPreviewApprovalRecord>> approvalCandidates = new HashMap<>();
+        private final Map<UUID, ExportCandidateRecord> candidates = new HashMap<>();
+        private final Map<UUID, UUID> authoritativeCandidateBySource = new HashMap<>();
         private final List<ExportPreviewLineRecord> lines = new ArrayList<>();
         private ExportBatchState status = ExportBatchState.DRAFT_PREVIEW;
         private OffsetDateTime approvedAt;
@@ -865,6 +1184,10 @@ class ExportPreviewServiceTests {
         private Integer integrityPolicyVersion = ExportIntegrityPolicy.CURRENT_VERSION;
         private Boolean lineSetSealed = false;
         private boolean sealSucceeds = true;
+        private boolean failSealingWithIntegrityViolation;
+        private boolean failApprovalWithIntegrityViolation;
+        private boolean failGenerationWithIntegrityViolation;
+        private boolean failLineCreation;
         private int integrityLockCount;
 
         private FakeExportPreviewRepository(UUID projectId) {
@@ -934,6 +1257,9 @@ class ExportPreviewServiceTests {
 
         @Override
         public boolean sealDraftPreviewLineSet(UUID projectId, UUID exportBatchId) {
+            if (failSealingWithIntegrityViolation) {
+                throw new DataIntegrityViolationException("Synthetic stale candidate during sealing.");
+            }
             if (!sealSucceeds) {
                 return false;
             }
@@ -968,6 +1294,9 @@ class ExportPreviewServiceTests {
                 UUID approvedByUserId,
                 Map<String, Object> metadata
         ) {
+            if (failApprovalWithIntegrityViolation) {
+                throw new DataIntegrityViolationException("Synthetic stale candidate during approval.");
+            }
             if (status != ExportBatchState.DRAFT_PREVIEW) {
                 return Optional.empty();
             }
@@ -999,6 +1328,9 @@ class ExportPreviewServiceTests {
                 UUID generatedByUserId,
                 Map<String, Object> metadata
         ) {
+            if (failGenerationWithIntegrityViolation) {
+                throw new DataIntegrityViolationException("Synthetic stale candidate during generation.");
+            }
             if (status != ExportBatchState.APPROVED) {
                 return Optional.empty();
             }
@@ -1052,12 +1384,88 @@ class ExportPreviewServiceTests {
         }
 
         @Override
+        public boolean lockAcceptedSnapshotForIntegrityValidation(UUID projectId, UUID projectSnapshotId) {
+            return acceptedSnapshot
+                    && this.projectId.equals(projectId)
+                    && this.projectSnapshotId.equals(projectSnapshotId);
+        }
+
+        @Override
+        public Optional<ExportCandidateRecord> findAuthoritativeCandidate(
+                UUID projectId,
+                UUID authoritativeExportCandidateId
+        ) {
+            if (!this.projectId.equals(projectId)) {
+                return Optional.empty();
+            }
+            ExportCandidateRecord existing = candidates.get(authoritativeExportCandidateId);
+            if (existing != null) {
+                return Optional.of(existing);
+            }
+            CandidateSpec spec = CANDIDATE_SPECS.get(authoritativeExportCandidateId);
+            if (spec == null) {
+                return Optional.empty();
+            }
+            ExportPreviewTaskContext task = tasks.get(spec.importedTaskId());
+            List<ExportPreviewApprovalRecord> approvals = approvalCandidates.getOrDefault(
+                    spec.sourceEntityId(),
+                    List.of()
+            );
+            ExportPreviewApprovalRecord approval = approvals.isEmpty()
+                    ? new ExportPreviewApprovalRecord(UUID.randomUUID(), ApprovalState.APPROVED_FOR_EXPORT)
+                    : approvals.getFirst();
+            ExportPreviewField field = ExportPreviewField.fromFieldName(spec.fieldName());
+            ExportCandidateRecord candidate = new ExportCandidateRecord(
+                    authoritativeExportCandidateId,
+                    approval.id(),
+                    ExportIntegrityPolicy.CURRENT_VERSION,
+                    this.projectId,
+                    projectSnapshotId,
+                    spec.importedTaskId(),
+                    "task_update",
+                    spec.sourceEntityId(),
+                    approval.approvalState(),
+                    field.fieldName(),
+                    task == null ? null : field.oldValue(task),
+                    field.normalizeValue(spec.newValue()),
+                    "a".repeat(64),
+                    task == null ? "MISSING-TASK" : task.externalUid(),
+                    task == null ? "missing" : task.externalId(),
+                    task == null ? "Missing task" : task.name(),
+                    task == null || task.leafTask(),
+                    UUID.randomUUID(),
+                    OffsetDateTime.parse("2026-01-01T07:00:00Z"),
+                    "Synthetic reason"
+            );
+            candidates.put(authoritativeExportCandidateId, candidate);
+            authoritativeCandidateBySource.put(spec.sourceEntityId(), authoritativeExportCandidateId);
+            return Optional.of(candidate);
+        }
+
+        @Override
         public List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
                 UUID projectId,
                 String sourceEntityType,
                 UUID sourceEntityId
         ) {
-            return approvalCandidates.getOrDefault(sourceEntityId, List.of());
+            UUID candidateId = authoritativeCandidateBySource.get(sourceEntityId);
+            ExportCandidateRecord candidate = candidateId == null ? null : candidates.get(candidateId);
+            return approvalCandidates.getOrDefault(sourceEntityId, List.of()).stream()
+                    .map(approval -> new ExportPreviewApprovalRecord(
+                            approval.id(),
+                            approval.approvalState(),
+                            approval.authoritativeExportCandidateId() != null
+                                    ? approval.authoritativeExportCandidateId()
+                                    : candidate != null && candidate.approvalRecordId().equals(approval.id())
+                                    ? candidate.id()
+                                    : null,
+                            approval.candidateBindingPolicyVersion() != null
+                                    ? approval.candidateBindingPolicyVersion()
+                                    : candidate != null && candidate.approvalRecordId().equals(approval.id())
+                                    ? Integer.valueOf(ExportIntegrityPolicy.CURRENT_VERSION)
+                                    : null
+                    ))
+                    .toList();
         }
 
         @Override
@@ -1065,31 +1473,40 @@ class ExportPreviewServiceTests {
                 UUID projectId,
                 UUID projectSnapshotId,
                 UUID exportBatchId,
-                ExportPreviewMaterializedLine line
+                UUID authoritativeExportCandidateId
         ) {
-            ExportPreviewTaskContext task = tasks.get(line.importedTaskId());
+            if (failLineCreation) {
+                throw new IllegalArgumentException("Candidate changed before line insertion.");
+            }
+            ExportCandidateRecord candidate = findAuthoritativeCandidate(projectId, authoritativeExportCandidateId)
+                    .orElseThrow();
+            boolean exportEligible = candidate.approvalState() == ApprovalState.APPROVED_FOR_EXPORT
+                    && candidate.capturedLeafTask()
+                    && ExportPreviewField.fromFieldName(candidate.fieldName()).mvpExportAuthorized();
             ExportPreviewLineRecord record = new ExportPreviewLineRecord(
                     UUID.randomUUID(),
                     exportBatchId,
                     projectId,
                     projectSnapshotId,
-                    line.importedTaskId(),
-                    task.externalUid(),
-                    task.externalId(),
-                    task.name(),
-                    line.sourceEntityType(),
-                    line.sourceEntityId(),
-                    line.approvalState(),
-                    line.sourceApprovalRecordId(),
-                    line.fieldName(),
-                    line.oldValue(),
-                    line.newValue(),
-                    line.sourceActorUserId(),
-                    line.sourceTimestamp(),
-                    line.reason(),
-                    line.leafTask(),
-                    line.exportEligible(),
-                    integrityPolicyVersion
+                    candidate.importedTaskId(),
+                    candidate.capturedTaskExternalUid(),
+                    candidate.capturedTaskExternalId(),
+                    candidate.capturedTaskName(),
+                    candidate.sourceEntityType(),
+                    candidate.sourceEntityId(),
+                    candidate.approvalState(),
+                    candidate.approvalRecordId(),
+                    candidate.fieldName(),
+                    candidate.normalizedOldValue(),
+                    candidate.normalizedNewValue(),
+                    candidate.sourceActorUserId(),
+                    candidate.sourceTimestamp(),
+                    candidate.reason(),
+                    candidate.capturedLeafTask(),
+                    exportEligible,
+                    integrityPolicyVersion,
+                    candidate.id(),
+                    candidate.sourceEventOrPayloadHash()
             );
             lines.add(record);
             return record;
@@ -1132,6 +1549,58 @@ class ExportPreviewServiceTests {
                     List.of(new ExportPreviewApprovalRecord(approvalRecordId, approvalState))
             );
             return approvalRecordId;
+        }
+
+        private void replaceLeafTask(
+                String externalUid,
+                String externalId,
+                String name,
+                boolean summary,
+                BigDecimal percentComplete
+        ) {
+            ExportPreviewTaskContext current = tasks.get(leafTaskId);
+            tasks.put(leafTaskId, new ExportPreviewTaskContext(
+                    current.id(),
+                    current.projectId(),
+                    current.projectSnapshotId(),
+                    externalUid,
+                    externalId,
+                    name,
+                    summary,
+                    percentComplete,
+                    current.physicalPercentComplete(),
+                    current.actualStart(),
+                    current.actualFinish()
+            ));
+        }
+
+        private void tamperFirstLine(UUID importedTaskId, String fieldName, String newValue, String sourceHash) {
+            ExportPreviewLineRecord current = lines.getFirst();
+            lines.set(0, new ExportPreviewLineRecord(
+                    current.id(),
+                    current.exportBatchId(),
+                    current.projectId(),
+                    current.projectSnapshotId(),
+                    importedTaskId == null ? current.importedTaskId() : importedTaskId,
+                    current.importedTaskExternalUid(),
+                    current.importedTaskExternalId(),
+                    current.importedTaskName(),
+                    current.sourceEntityType(),
+                    current.sourceEntityId(),
+                    current.approvalState(),
+                    current.sourceApprovalRecordId(),
+                    fieldName == null ? current.fieldName() : fieldName,
+                    current.oldValue(),
+                    newValue == null ? current.newValue() : newValue,
+                    current.sourceActorUserId(),
+                    current.sourceTimestamp(),
+                    current.reason(),
+                    current.leafTask(),
+                    current.exportEligible(),
+                    current.integrityPolicyVersion(),
+                    current.authoritativeExportCandidateId(),
+                    sourceHash == null ? current.capturedSourceEventOrPayloadHash() : sourceHash
+            ));
         }
     }
 }

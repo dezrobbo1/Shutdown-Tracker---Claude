@@ -48,9 +48,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    ebl.project_id,
                    ebl.project_snapshot_id,
                    ebl.imported_task_id,
-                   it.external_uid AS imported_task_external_uid,
-                   it.external_id AS imported_task_external_id,
-                   it.name AS imported_task_name,
+                   COALESCE(ebl.captured_task_external_uid, it.external_uid) AS imported_task_external_uid,
+                   COALESCE(ebl.captured_task_external_id, it.external_id) AS imported_task_external_id,
+                   COALESCE(ebl.captured_task_name, it.name) AS imported_task_name,
                    ebl.source_entity_type,
                    ebl.source_entity_id,
                    ebl.captured_approval_state AS approval_state,
@@ -63,7 +63,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    ebl.reason,
                    ebl.is_leaf_task,
                    ebl.is_export_eligible,
-                   ebl.integrity_policy_version
+                   ebl.integrity_policy_version,
+                   ebl.authoritative_export_candidate_id,
+                   ebl.captured_source_event_or_payload_hash
             FROM export_batch_lines ebl
             JOIN imported_tasks it ON it.id = ebl.imported_task_id
             """;
@@ -380,6 +382,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WHERE project_id = :projectId
                   AND project_snapshot_id = :projectSnapshotId
                   AND id = :importedTaskId
+                FOR SHARE
                 """;
 
         return jdbcTemplate.query(
@@ -406,6 +409,87 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
     }
 
     @Override
+    public boolean lockAcceptedSnapshotForIntegrityValidation(UUID projectId, UUID projectSnapshotId) {
+        String sql = """
+                SELECT id
+                FROM project_snapshots
+                WHERE project_id = :projectId
+                  AND id = :projectSnapshotId
+                  AND status = 'accepted'
+                FOR SHARE
+                """;
+
+        return !jdbcTemplate.query(
+                sql,
+                Map.of("projectId", projectId, "projectSnapshotId", projectSnapshotId),
+                (rs, rowNum) -> rs.getObject("id", UUID.class)
+        ).isEmpty();
+    }
+
+    @Override
+    public Optional<ExportCandidateRecord> findAuthoritativeCandidate(
+            UUID projectId,
+            UUID authoritativeExportCandidateId
+    ) {
+        String sql = """
+                SELECT id,
+                       approval_record_id,
+                       binding_policy_version,
+                       project_id,
+                       project_snapshot_id,
+                       imported_task_id,
+                       source_entity_type,
+                       source_entity_id,
+                       approval_state,
+                       field_name,
+                       normalized_old_value,
+                       normalized_new_value,
+                       source_event_or_payload_hash,
+                       captured_task_external_uid,
+                       captured_task_external_id,
+                       captured_task_name,
+                       captured_is_leaf_task,
+                       source_actor_user_id,
+                       source_timestamp,
+                       reason
+                FROM export_candidate_records
+                WHERE project_id = :projectId
+                  AND id = :authoritativeExportCandidateId
+                FOR SHARE
+                """;
+
+        return jdbcTemplate.query(
+                sql,
+                Map.of(
+                        "projectId", projectId,
+                        "authoritativeExportCandidateId", authoritativeExportCandidateId
+                ),
+                (rs, rowNum) -> new ExportCandidateRecord(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("approval_record_id", UUID.class),
+                        (Integer) rs.getObject("binding_policy_version"),
+                        rs.getObject("project_id", UUID.class),
+                        rs.getObject("project_snapshot_id", UUID.class),
+                        rs.getObject("imported_task_id", UUID.class),
+                        rs.getString("source_entity_type"),
+                        rs.getObject("source_entity_id", UUID.class),
+                        ApprovalState.fromDatabaseValue(rs.getString("approval_state")),
+                        rs.getString("field_name"),
+                        rs.getString("normalized_old_value"),
+                        rs.getString("normalized_new_value"),
+                        rs.getString("source_event_or_payload_hash"),
+                        rs.getString("captured_task_external_uid"),
+                        rs.getString("captured_task_external_id"),
+                        rs.getString("captured_task_name"),
+                        rs.getBoolean("captured_is_leaf_task"),
+                        rs.getObject("source_actor_user_id", UUID.class),
+                        rs.getObject("source_timestamp", OffsetDateTime.class),
+                        rs.getString("reason")
+                )
+        ).stream().findFirst();
+    }
+
+    @Override
     public List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
             UUID projectId,
             String sourceEntityType,
@@ -415,6 +499,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 WITH matching AS (
                     SELECT id,
                            approval_state,
+                           authoritative_export_candidate_id,
+                           candidate_binding_policy_version,
                            created_at,
                            approval_event_order,
                            MAX(approval_event_order) OVER () AS max_event_order,
@@ -427,7 +513,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                       AND source_entity_id = :sourceEntityId
                 )
                 SELECT id,
-                       approval_state
+                       approval_state,
+                       authoritative_export_candidate_id,
+                       candidate_binding_policy_version
                 FROM matching
                 WHERE (max_event_order IS NOT NULL
                        AND approval_event_order = max_event_order)
@@ -446,7 +534,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 ),
                 (rs, rowNum) -> new ExportPreviewApprovalRecord(
                         rs.getObject("id", UUID.class),
-                        ApprovalState.fromDatabaseValue(rs.getString("approval_state"))
+                        ApprovalState.fromDatabaseValue(rs.getString("approval_state")),
+                        rs.getObject("authoritative_export_candidate_id", UUID.class),
+                        (Integer) rs.getObject("candidate_binding_policy_version")
                 )
         );
     }
@@ -456,7 +546,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
             UUID projectId,
             UUID projectSnapshotId,
             UUID exportBatchId,
-            ExportPreviewMaterializedLine line
+            UUID authoritativeExportCandidateId
     ) {
         String sql = """
                 INSERT INTO export_batch_lines (
@@ -468,35 +558,53 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                     source_entity_id,
                     captured_approval_record_id,
                     captured_approval_state,
+                    authoritative_export_candidate_id,
                     field_name,
                     old_value,
                     new_value,
+                    captured_source_event_or_payload_hash,
+                    captured_task_external_uid,
+                    captured_task_external_id,
+                    captured_task_name,
                     source_actor_user_id,
                     source_timestamp,
                     reason,
                     is_leaf_task,
                     is_export_eligible,
+                    integrity_policy_version,
                     metadata
                 )
-                VALUES (
+                SELECT
                     :exportBatchId,
                     :projectId,
                     :projectSnapshotId,
-                    :importedTaskId,
-                    :sourceEntityType,
-                    :sourceEntityId,
-                    :capturedApprovalRecordId,
-                    CAST(:capturedApprovalState AS approval_state),
-                    :fieldName,
-                    :oldValue,
-                    :newValue,
-                    :sourceActorUserId,
-                    :sourceTimestamp,
-                    :reason,
-                    :leafTask,
-                    :exportEligible,
-                    CAST(:metadata AS jsonb)
-                )
+                    candidate.imported_task_id,
+                    candidate.source_entity_type,
+                    candidate.source_entity_id,
+                    candidate.approval_record_id,
+                    candidate.approval_state,
+                    candidate.id,
+                    candidate.field_name,
+                    candidate.normalized_old_value,
+                    candidate.normalized_new_value,
+                    candidate.source_event_or_payload_hash,
+                    candidate.captured_task_external_uid,
+                    candidate.captured_task_external_id,
+                    candidate.captured_task_name,
+                    candidate.source_actor_user_id,
+                    candidate.source_timestamp,
+                    candidate.reason,
+                    candidate.captured_is_leaf_task,
+                    candidate.approval_state = 'approved_for_export'::approval_state
+                        AND candidate.captured_is_leaf_task
+                        AND candidate.field_name IN ('percent_complete', 'actual_start', 'actual_finish'),
+                    candidate.binding_policy_version,
+                    candidate.metadata
+                FROM export_candidate_records candidate
+                WHERE candidate.id = :authoritativeExportCandidateId
+                  AND candidate.project_id = :projectId
+                  AND candidate.project_snapshot_id = :projectSnapshotId
+                  AND candidate.binding_policy_version = :integrityPolicyVersion
                 RETURNING id
                 """;
 
@@ -504,22 +612,14 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 .addValue("exportBatchId", exportBatchId)
                 .addValue("projectId", projectId)
                 .addValue("projectSnapshotId", projectSnapshotId)
-                .addValue("importedTaskId", line.importedTaskId())
-                .addValue("sourceEntityType", line.sourceEntityType())
-                .addValue("sourceEntityId", line.sourceEntityId())
-                .addValue("capturedApprovalRecordId", line.sourceApprovalRecordId())
-                .addValue("capturedApprovalState", line.approvalState().databaseValue())
-                .addValue("fieldName", line.fieldName())
-                .addValue("oldValue", line.oldValue())
-                .addValue("newValue", line.newValue())
-                .addValue("sourceActorUserId", line.sourceActorUserId())
-                .addValue("sourceTimestamp", line.sourceTimestamp())
-                .addValue("reason", line.reason())
-                .addValue("leafTask", line.leafTask())
-                .addValue("exportEligible", line.exportEligible())
-                .addValue("metadata", toJson(line.metadata()));
+                .addValue("authoritativeExportCandidateId", authoritativeExportCandidateId)
+                .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION);
 
-        UUID lineId = jdbcTemplate.queryForObject(sql, parameters, UUID.class);
+        List<UUID> lineIds = jdbcTemplate.query(sql, parameters, (rs, rowNum) -> rs.getObject("id", UUID.class));
+        if (lineIds.size() != 1) {
+            throw new IllegalArgumentException("Authoritative export candidate is not available for this preview.");
+        }
+        UUID lineId = lineIds.getFirst();
         return listLines(projectId, exportBatchId).stream()
                 .filter(record -> record.id().equals(lineId))
                 .findFirst()
@@ -588,7 +688,9 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getString("reason"),
                 rs.getBoolean("is_leaf_task"),
                 rs.getBoolean("is_export_eligible"),
-                (Integer) rs.getObject("integrity_policy_version")
+                (Integer) rs.getObject("integrity_policy_version"),
+                rs.getObject("authoritative_export_candidate_id", UUID.class),
+                rs.getString("captured_source_event_or_payload_hash")
         );
     }
 

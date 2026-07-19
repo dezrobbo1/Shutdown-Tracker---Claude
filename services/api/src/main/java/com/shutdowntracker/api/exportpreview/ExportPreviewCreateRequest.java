@@ -23,21 +23,15 @@ public record ExportPreviewCreateRequest(
     }
 
     private static void requireUniqueCandidates(List<ExportPreviewLineCreateRequest> lines) {
-        Set<CandidateKey> candidates = new HashSet<>();
+        Set<UUID> candidates = new HashSet<>();
         for (ExportPreviewLineCreateRequest line : lines) {
-            CandidateKey candidate = new CandidateKey(line.importedTaskId(), line.fieldName());
-            if (!candidates.add(candidate)) {
+            if (!candidates.add(line.authoritativeExportCandidateId())) {
                 throw new IllegalArgumentException(
-                        "Duplicate export preview candidate for importedTaskId '"
-                                + line.importedTaskId()
-                                + "' and fieldName '"
-                                + line.fieldName()
+                        "Duplicate authoritative export candidate '"
+                                + line.authoritativeExportCandidateId()
                                 + "'."
                 );
             }
         }
-    }
-
-    private record CandidateKey(UUID importedTaskId, String fieldName) {
     }
 }

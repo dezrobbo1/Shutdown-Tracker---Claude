@@ -35,8 +35,7 @@ class ExportPreviewControllerTests {
     void createsExportPreviewOnly() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
-        UUID importedTaskId = UUID.randomUUID();
-        UUID sourceEntityId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, snapshotId, true);
         when(service.createPreview(eq(projectId), any(ExportPreviewCreateRequest.class))).thenReturn(detail);
 
@@ -45,19 +44,14 @@ class ExportPreviewControllerTests {
                   "projectSnapshotId": "%s",
                   "lines": [
                     {
-                      "importedTaskId": "%s",
-                      "sourceEntityType": "task_update",
-                      "sourceEntityId": "%s",
-                      "fieldName": "percent_complete",
-                      "newValue": "50",
-                      "reason": "Synthetic approved progress update"
+                      "authoritativeExportCandidateId": "%s"
                     }
                   ],
                   "metadata": {
                     "source": "synthetic-export-preview"
                   }
                 }
-                """.formatted(snapshotId, importedTaskId, sourceEntityId);
+                """.formatted(snapshotId, candidateId);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -73,42 +67,57 @@ class ExportPreviewControllerTests {
     }
 
     @Test
-    void rejectsDuplicateTaskFieldCandidatesBeforeCallingService() throws Exception {
+    void rejectsDuplicateAuthoritativeCandidatesBeforeCallingService() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
-        UUID importedTaskId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
 
         String body = """
                 {
                   "projectSnapshotId": "%s",
                   "lines": [
                     {
-                      "importedTaskId": "%s",
-                      "sourceEntityType": "task_update",
-                      "sourceEntityId": "%s",
-                      "fieldName": "percent_complete",
-                      "newValue": "50"
+                      "authoritativeExportCandidateId": "%s"
                     },
                     {
-                      "importedTaskId": "%s",
-                      "sourceEntityType": "task_update",
-                      "sourceEntityId": "%s",
-                      "fieldName": "percent_complete",
-                      "newValue": "50"
+                      "authoritativeExportCandidateId": "%s"
                     }
                   ]
                 }
                 """.formatted(
                 snapshotId,
-                importedTaskId,
-                UUID.randomUUID(),
-                importedTaskId,
-                UUID.randomUUID()
+                candidateId,
+                candidateId
         );
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsLegacyCallerSuppliedTaskFieldAndValueContract() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectSnapshotId": "11111111-1111-1111-1111-111111111111",
+                                  "lines": [
+                                    {
+                                      "importedTaskId": "22222222-2222-2222-2222-222222222222",
+                                      "sourceEntityType": "task_update",
+                                      "sourceEntityId": "33333333-3333-3333-3333-333333333333",
+                                      "fieldName": "actual_finish",
+                                      "newValue": "2026-01-01T08:00:00Z"
+                                    }
+                                  ]
+                                }
+                                """))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
@@ -342,7 +351,9 @@ class ExportPreviewControllerTests {
                 "Synthetic reason",
                 true,
                 eligible,
-                ExportIntegrityPolicy.CURRENT_VERSION
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                UUID.randomUUID(),
+                "a".repeat(64)
         );
         return new ExportPreviewDetail(
                 batch,

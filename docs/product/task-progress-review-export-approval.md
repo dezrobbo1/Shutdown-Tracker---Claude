@@ -205,6 +205,14 @@ Required copy:
 Planner approval marks this progress as eligible for export preview. The master .mpp is not updated.
 ```
 
+## Authoritative export-candidate binding
+
+Planner approval must bind one immutable candidate to the exact project snapshot, imported task, field, normalized proposed value, source record, and source event or payload hash that the planner reviewed. The approval event and candidate record must reference each other; an approval for one source must not be reusable with a different task, field, or value.
+
+Export-preview requests select authoritative candidates by ID. The server derives the task identity, field, old value, new value, source identity, and approval identity from the stored candidate rather than accepting those facts independently from the preview caller. Candidate creation belongs to the trusted supervisor/planner review workflow and must not be exposed as an unreviewed preview convenience endpoint.
+
+Before batch approval and again immediately before artifact generation, the API must require the exact referenced snapshot to remain accepted and must compare the candidate with the current imported snapshot row. A changed old value, task UID, task ID, task name, leaf/summary state, approval identity/state, or candidate payload blocks the complete batch and requires a fresh preview. This is a freshness check only; it does not calculate or reconcile schedule values.
+
 ## Export preview workflow
 
 Export preview is a planner-facing comparison and approval surface. It must show old value, new value, source, task identity, field, eligibility, and exclusion reason.

@@ -52,6 +52,13 @@ public interface ExportPreviewRepository {
 
     Optional<ExportPreviewTaskContext> findTaskContext(UUID projectId, UUID projectSnapshotId, UUID importedTaskId);
 
+    boolean lockAcceptedSnapshotForIntegrityValidation(UUID projectId, UUID projectSnapshotId);
+
+    Optional<ExportCandidateRecord> findAuthoritativeCandidate(
+            UUID projectId,
+            UUID authoritativeExportCandidateId
+    );
+
     List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
             UUID projectId,
             String sourceEntityType,
@@ -62,7 +69,7 @@ public interface ExportPreviewRepository {
             UUID projectId,
             UUID projectSnapshotId,
             UUID exportBatchId,
-            ExportPreviewMaterializedLine line
+            UUID authoritativeExportCandidateId
     );
 
     List<ExportPreviewLineRecord> listLines(UUID projectId, UUID exportBatchId);

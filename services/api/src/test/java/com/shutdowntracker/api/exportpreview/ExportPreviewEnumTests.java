@@ -60,9 +60,27 @@ class ExportPreviewEnumTests {
                 OffsetDateTime.parse("2026-01-01T10:00:00Z")
         );
 
-        assertThat(ExportPreviewField.PERCENT_COMPLETE.oldValue(task)).isEqualTo("25.50");
-        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.oldValue(task)).isEqualTo("30.00");
-        assertThat(ExportPreviewField.ACTUAL_START.oldValue(task)).isEqualTo("2026-01-01T08:00Z");
-        assertThat(ExportPreviewField.ACTUAL_FINISH.oldValue(task)).isEqualTo("2026-01-01T10:00Z");
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.oldValue(task)).isEqualTo("25.5");
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.oldValue(task)).isEqualTo("30");
+        assertThat(ExportPreviewField.ACTUAL_START.oldValue(task)).isEqualTo("2026-01-01T08:00:00Z");
+        assertThat(ExportPreviewField.ACTUAL_FINISH.oldValue(task)).isEqualTo("2026-01-01T10:00:00Z");
+    }
+
+    @Test
+    void normalizesCandidateValuesDeterministically() {
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.normalizeValue("075.00")).isEqualTo("75");
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.normalizeValue("30.500")).isEqualTo("30.5");
+        assertThat(ExportPreviewField.ACTUAL_START.normalizeValue("2026-01-01T16:00:00+08:00"))
+                .isEqualTo("2026-01-01T08:00:00Z");
+    }
+
+    @Test
+    void rejectsFractionalOrOutOfRangeAuthorizedPercentComplete() {
+        assertThatThrownBy(() -> ExportPreviewField.PERCENT_COMPLETE.normalizeValue("75.5"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid candidate value for percent_complete.");
+        assertThatThrownBy(() -> ExportPreviewField.PERCENT_COMPLETE.normalizeValue("101"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid candidate value for percent_complete.");
     }
 }
