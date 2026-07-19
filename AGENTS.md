@@ -10,8 +10,35 @@ Before changing code or product behaviour:
 2. Read the relevant ADRs in [docs/adr](docs/adr) and the relevant product documents in [docs/product](docs/product).
 3. Check [docs/research/source-quality-register.md](docs/research/source-quality-register.md) before relying on research material for a hard product or architecture decision.
 4. Inspect the current implementation and tests. Do not infer implemented behaviour from roadmap documents.
+5. Read [docs/goals/ACTIVE.md](docs/goals/ACTIVE.md) when it exists. It defines the current branch target and completion conditions.
 
 Do not assume access to earlier ChatGPT conversations, uploaded PDFs, ZIP files, or external project folders. Durable decisions must be present in this repository. If required context is missing or sources conflict, stop and ask rather than inventing a decision.
+
+## Active goal protocol
+
+When `docs/goals/ACTIVE.md` exists, treat these sections as the current task contract:
+
+- Outcome
+- Success criteria
+- Non-goals
+- Required validation
+- Safety constraints
+- Completion conditions
+
+Continue autonomously through repository inspection, implementation planning, implementation, focused testing, full validation, diff review, documentation, commit preparation, and draft pull-request updates when those actions are authorized by the active goal.
+
+Do not stop merely to ask about routine, reversible implementation choices. Choose the safest option consistent with this file, existing architecture, tests, and the active goal, then document material assumptions.
+
+Stop and report rather than guessing when:
+
+- two authoritative requirements conflict;
+- a decision would change the product boundary or a public contract without a defensible repository rule;
+- required credentials, external systems, or unavailable software prevent completion;
+- proceeding would destroy or overwrite uncommitted work;
+- a required validation still fails after reasonable investigation and at least two coherent correction attempts;
+- an irreversible or externally visible action requires approval that has not been granted.
+
+A pending manual or external gate does not justify claiming completion. Finish the automated scope, report the remaining gate precisely, and leave the repository in the state required by the active goal.
 
 ## Product authority and non-negotiable boundaries
 
@@ -56,7 +83,7 @@ Relevant authority documents include:
 - `packages/project-import-contract` and `packages/project-export-contract`: shared Java handoff contracts.
 - `infra/migrations`: PostgreSQL/Flyway-compatible migrations.
 - `fixtures`: synthetic test and review inputs only.
-- `docs`: product, ADR, architecture, security, testing, concept, and research authority.
+- `docs`: product, ADR, architecture, security, testing, concept, research, and active-goal authority.
 
 ## Working rules
 
@@ -67,6 +94,17 @@ Relevant authority documents include:
 - Update the relevant product or architecture document when a change alters an approved boundary, workflow, state model, permission, or ownership rule.
 - Keep environment-specific secrets and generated files out of Git.
 - Report assumptions, unavailable checks, and any difference between visual scaffolding and production behaviour.
+
+## Repository safety
+
+- Never use `git reset --hard`, `git clean -fd`, blanket checkout, or another broad destructive cleanup command.
+- Never amend, rebase, squash, rewrite existing commits, or force-push unless the user explicitly authorizes that exact operation.
+- Never merge a pull request or mark a draft pull request ready unless explicitly instructed.
+- Never modify, reset, clean, or switch another Git worktree.
+- Never change machine or user execution policy.
+- Never install global tooling without explicit approval.
+- Never commit secrets, real Project files, generated MSPDI/XML artifacts, database files, customer/site data, screenshots with operational data, IDE state, or temporary validation output.
+- Inspect staged content before committing and preserve unrelated uncommitted work.
 
 ## Validation
 
@@ -106,6 +144,12 @@ git diff --check
 
 Use the guarded scripts in `scripts/review` only when their prerequisites and explicit synthetic-data safety switches match the task. Never treat a smoke-script result as manual Microsoft Project verification.
 
+For migration changes, prove both a clean installation and an upgrade from the previous populated baseline. Use PostgreSQL integration tests for constraints, triggers, foreign keys, row locks, concurrency, and rollback behaviour; fake repositories are not sufficient evidence for database invariants.
+
+For export changes, prove that no unauthorized field, task, value, source, stale approval, stale baseline, summary-task actual, or unsupported policy version can reach the worker or generated MSPDI/XML.
+
+Before declaring completion, inspect the complete diff, confirm no temporary files remain, and verify unrelated worktrees are unchanged.
+
 ## Definition of done
 
-A change is complete only when its scope is clear, relevant checks pass, documentation and tests agree with the implementation, product boundaries remain explicit, and the final handoff states what changed, what was verified, and what remains deliberately unimplemented.
+A change is complete only when its scope is clear, relevant focused and full checks pass, migration and integration evidence match the claimed invariants, documentation and tests agree with the implementation, product boundaries remain explicit, `git diff --check` passes, temporary artifacts are absent, unrelated worktrees remain unchanged, and the final handoff states what changed, what was verified, and what remains deliberately unimplemented or pending manual validation.
