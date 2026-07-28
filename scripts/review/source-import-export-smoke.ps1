@@ -11,6 +11,14 @@ param(
     [switch]$ListImportSnapshots,
     [string]$SnapshotId,
     [switch]$ReadImportSnapshot,
+    [switch]$CreateExportCandidate,
+    [string]$ImportedTaskId,
+    [ValidateSet("percent_complete", "actual_start", "actual_finish")]
+    [string]$CandidateFieldName = "percent_complete",
+    [string]$CandidateProposedValue,
+    [string]$CandidateSourceEntityId,
+    [string]$CandidateSourceVersion = "source-import-export-smoke-1",
+    [switch]$ApproveExportCandidate,
     [switch]$CreateExportPreview,
     [string]$AuthoritativeExportCandidateId,
     [string]$ExportBatchId,
@@ -37,6 +45,8 @@ Default behavior:
 Optional write behavior requires -AllowWrites:
   -RunProjectUpload       POST /api/projects/{projectId}/source-files
   -RunParseHandoff        POST /api/projects/{projectId}/import-batches/{importBatchId}/request-parse-summary
+  -CreateExportCandidate  POST /api/projects/{projectId}/export-candidates
+  -ApproveExportCandidate POST /api/projects/{projectId}/export-candidates/{candidateId}/approval-events
   -CreateExportPreview    POST /api/projects/{projectId}/export-preview
   -ApproveExportBatch     POST /api/projects/{projectId}/export-preview/{exportBatchId}/approve
   -GenerateExportArtifact POST /api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact
@@ -45,9 +55,11 @@ Examples:
   .\scripts\review\source-import-export-smoke.ps1
   .\scripts\review\source-import-export-smoke.ps1 -ApiBaseUrl http://localhost:8080 -AllowWrites -ProjectId <uuid> -RunProjectUpload
   .\scripts\review\source-import-export-smoke.ps1 -ProjectId <uuid> -ListImportSnapshots
+  .\scripts\review\source-import-export-smoke.ps1 -AllowWrites -ProjectId <uuid> -SnapshotId <uuid> -ImportedTaskId <uuid> -CreateExportCandidate -CandidateFieldName percent_complete -CandidateProposedValue 75 -ApproveExportCandidate -CreateExportPreview
 
-This script uses only synthetic fixture input by default. It does not seed data,
-commit generated artifacts, automate Microsoft Project, or write back to Microsoft Project.
+Default mode performs no writes. Explicit write switches create synthetic local/review
+records only. The script does not commit generated artifacts, automate Microsoft Project,
+or write back to Microsoft Project.
 "@
 }
 
@@ -259,6 +271,68 @@ if ($ReadImportSnapshot -or $SnapshotId) {
     }
 }
 
+if ($CreateExportCandidate) {
+    Assert-WritesAllowed "Authoritative export candidate creation"
+    Assert-Required "ProjectId" $ProjectId
+    Assert-Required "SnapshotId" $SnapshotId
+    Assert-Required "ImportedTaskId" $ImportedTaskId
+    Assert-Required "CandidateProposedValue" $CandidateProposedValue
+    Assert-Required "CandidateSourceVersion" $CandidateSourceVersion
+    if (-not [string]::IsNullOrWhiteSpace($AuthoritativeExportCandidateId)) {
+        throw "CreateExportCandidate cannot be combined with AuthoritativeExportCandidateId. Omit the existing ID so the new candidate identity is unambiguous."
+    }
+    if ([string]::IsNullOrWhiteSpace($CandidateSourceEntityId)) {
+        $CandidateSourceEntityId = ([guid]::NewGuid()).ToString()
+    }
+
+    Write-Step "Creating approval-neutral export candidate for imported task $ImportedTaskId"
+    $candidateBody = @{
+        projectSnapshotId = $SnapshotId
+        importedTaskId = $ImportedTaskId
+        fieldName = $CandidateFieldName
+        proposedValue = $CandidateProposedValue
+        sourceEntityType = "synthetic_task_update"
+        sourceEntityId = $CandidateSourceEntityId
+        sourceVersion = $CandidateSourceVersion
+        sourceActorUserId = $ActorUserId
+        sourceTimestamp = [DateTimeOffset]::UtcNow.ToString("o")
+        reason = "Synthetic smoke candidate. No Microsoft Project write-back."
+        metadata = @{
+            source = "source-import-export-smoke"
+            synthetic = $true
+            projectWriteBack = $false
+        }
+    }
+    $candidate = Invoke-SmokeRequest -Method POST -Path "/api/projects/$(Encode-PathSegment $ProjectId)/export-candidates" -Body $candidateBody
+    $AuthoritativeExportCandidateId = $candidate.id
+    Assert-Required "Created candidate ID" $AuthoritativeExportCandidateId
+    Write-Ok "Created approval-neutral export candidate $AuthoritativeExportCandidateId under policy $($candidate.bindingPolicyVersion)"
+}
+
+if ($ApproveExportCandidate) {
+    Assert-WritesAllowed "Export candidate approval event"
+    Assert-Required "ProjectId" $ProjectId
+    Assert-Required "AuthoritativeExportCandidateId" $AuthoritativeExportCandidateId
+
+    Write-Step "Recording planner approval for export candidate $AuthoritativeExportCandidateId"
+    $candidateApprovalBody = @{
+        approvalState = "APPROVED_FOR_EXPORT"
+        reviewedByUserId = $ActorUserId
+        reviewedAt = [DateTimeOffset]::UtcNow.ToString("o")
+        reason = "Synthetic planner approval for smoke review. No Microsoft Project write-back."
+        metadata = @{
+            source = "source-import-export-smoke"
+            synthetic = $true
+            projectWriteBack = $false
+        }
+    }
+    $candidateApproval = Invoke-SmokeRequest -Method POST -Path "/api/projects/$(Encode-PathSegment $ProjectId)/export-candidates/$(Encode-PathSegment $AuthoritativeExportCandidateId)/approval-events" -Body $candidateApprovalBody
+    if ($candidateApproval.authoritativeExportCandidateId -ne $AuthoritativeExportCandidateId) {
+        throw "Candidate approval response was not bound to the requested candidate ID."
+    }
+    Write-Ok "Recorded candidate-bound approval event $($candidateApproval.id): $($candidateApproval.approvalState)"
+}
+
 if ($CreateExportPreview) {
     Assert-WritesAllowed "Export preview creation"
     Assert-Required "ProjectId" $ProjectId
@@ -268,11 +342,7 @@ if ($CreateExportPreview) {
     Write-Step "Creating export preview for project $ProjectId"
     $previewBody = @{
         projectSnapshotId = $SnapshotId
-        lines = @(
-            @{
-                authoritativeExportCandidateId = $AuthoritativeExportCandidateId
-            }
-        )
+        candidateIds = @($AuthoritativeExportCandidateId)
         metadata = @{
             source = "source-import-export-smoke"
             synthetic = $true
@@ -326,8 +396,8 @@ if ($GenerateExportArtifact) {
         }
     }
     $generated = Invoke-SmokeRequest -Method POST -Path "/api/projects/$(Encode-PathSegment $ProjectId)/export-preview/$(Encode-PathSegment $ExportBatchId)/generate-artifact" -Body $generateBody
-    Write-Ok "Generated artifact URI: $($generated.exportFileUri)"
-    Write-Ok "Generated artifact hash: $($generated.exportFileHash)"
+    Write-Ok "Generated artifact URI: $($generated.workerResponse.exportFileUri)"
+    Write-Ok "Generated artifact hash: $($generated.workerResponse.exportFileHash)"
 }
 
 Write-Step "Smoke run complete"

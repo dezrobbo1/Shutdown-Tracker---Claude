@@ -161,6 +161,100 @@ export type ImportReviewDecisionResponse = {
   message: string;
 };
 
+export type ExportCandidateFieldName =
+  | "percent_complete"
+  | "physical_percent_complete"
+  | "actual_start"
+  | "actual_finish";
+
+export type ExportCandidateCreateRequest = {
+  projectSnapshotId: string;
+  importedTaskId: string;
+  fieldName: ExportCandidateFieldName;
+  proposedValue: string;
+  sourceEntityType: string;
+  sourceEntityId: string;
+  sourceVersion: string;
+  sourceActorUserId?: string | null;
+  sourceTimestamp?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportCandidateRecord = {
+  id: string;
+  bindingPolicyVersion: number;
+  projectId: string;
+  projectSnapshotId: string;
+  importedTaskId: string;
+  sourceEntityType: string;
+  sourceEntityId: string;
+  sourceVersion: string;
+  fieldName: ExportCandidateFieldName;
+  normalizedOldValue: string | null;
+  normalizedNewValue: string;
+  sourceEventOrPayloadHash: string;
+  capturedTaskExternalUid: string;
+  capturedTaskExternalId: string;
+  capturedTaskName: string;
+  capturedLeafTask: boolean;
+  sourceActorUserId: string | null;
+  sourceTimestamp: string | null;
+  reason: string | null;
+  createdAt: string;
+  metadata: JsonObject;
+};
+
+export type ExportCandidateApprovalEventCreateRequest = {
+  approvalState: ApprovalState;
+  requestedAt?: string | null;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportCandidateApprovalEventRecord = {
+  id: string;
+  projectId: string;
+  projectSnapshotId: string;
+  authoritativeExportCandidateId: string;
+  candidateBindingPolicyVersion: number;
+  approvalState: ApprovalState;
+  requestedByUserId: string | null;
+  requestedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  reason: string | null;
+  createdAt: string;
+  metadata: JsonObject;
+};
+
+const exportCandidateCreateRequestFields = [
+  "projectSnapshotId",
+  "importedTaskId",
+  "fieldName",
+  "proposedValue",
+  "sourceEntityType",
+  "sourceEntityId",
+  "sourceVersion",
+  "sourceActorUserId",
+  "sourceTimestamp",
+  "reason",
+  "metadata"
+] as const;
+
+const exportCandidateApprovalEventCreateRequestFields = [
+  "approvalState",
+  "requestedAt",
+  "reviewedByUserId",
+  "reviewedAt",
+  "reason",
+  "metadata"
+] as const;
+
+const exportPreviewCreateRequestFields = ["projectSnapshotId", "candidateIds", "metadata"] as const;
+
 export type TaskLineageRecord = {
   id: string;
   projectId: string;
@@ -194,13 +288,9 @@ export type TaskLineageDecisionResponse = {
   message: string;
 };
 
-export type ExportPreviewLineCreateRequest = {
-  authoritativeExportCandidateId: string;
-};
-
 export type ExportPreviewCreateRequest = {
   projectSnapshotId: string;
-  lines: ExportPreviewLineCreateRequest[];
+  candidateIds: string[];
   metadata?: JsonObject | null;
 };
 
@@ -249,6 +339,7 @@ export type ExportPreviewLineRecord = {
   exportEligible: boolean;
   integrityPolicyVersion: number | null;
   authoritativeExportCandidateId: string | null;
+  capturedSourceVersion: string | null;
   capturedSourceEventOrPayloadHash: string | null;
 };
 
@@ -334,6 +425,12 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Reject import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject" },
   { label: "List lineage links", method: "GET", path: "/api/projects/{projectId}/import-review/lineage-links" },
   { label: "Create lineage link", method: "POST", path: "/api/projects/{projectId}/import-review/lineage-links" },
+  { label: "Create export candidate", method: "POST", path: "/api/projects/{projectId}/export-candidates" },
+  {
+    label: "Record export candidate approval event",
+    method: "POST",
+    path: "/api/projects/{projectId}/export-candidates/{candidateId}/approval-events"
+  },
   { label: "Create export preview", method: "POST", path: "/api/projects/{projectId}/export-preview" },
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
@@ -443,12 +540,66 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           { method: "POST" }
         )
     },
-    exportPreview: {
-      create: (projectId: string, request: ExportPreviewCreateRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId), {
+    exportCandidates: {
+      create: (projectId: string, request: ExportCandidateCreateRequest) => {
+        assertOnlySupportedRequestFields("Export candidate request", request, exportCandidateCreateRequestFields);
+        return requestJson<ExportCandidateRecord>(transport, baseUrl, exportCandidatesPath(projectId), {
           method: "POST",
-          body: request
-        }),
+          body: {
+            projectSnapshotId: request.projectSnapshotId,
+            importedTaskId: request.importedTaskId,
+            fieldName: request.fieldName,
+            proposedValue: request.proposedValue,
+            sourceEntityType: request.sourceEntityType,
+            sourceEntityId: request.sourceEntityId,
+            sourceVersion: request.sourceVersion,
+            sourceActorUserId: request.sourceActorUserId,
+            sourceTimestamp: request.sourceTimestamp,
+            reason: request.reason,
+            metadata: request.metadata
+          }
+        });
+      },
+      createApprovalEvent: (
+        projectId: string,
+        candidateId: string,
+        request: ExportCandidateApprovalEventCreateRequest
+      ) => {
+        assertOnlySupportedRequestFields(
+          "Export candidate approval request",
+          request,
+          exportCandidateApprovalEventCreateRequestFields
+        );
+        return requestJson<ExportCandidateApprovalEventRecord>(
+          transport,
+          baseUrl,
+          exportCandidatesPath(projectId, `${candidateId}/approval-events`),
+          {
+            method: "POST",
+            body: {
+              approvalState: request.approvalState,
+              requestedAt: request.requestedAt,
+              reviewedByUserId: request.reviewedByUserId,
+              reviewedAt: request.reviewedAt,
+              reason: request.reason,
+              metadata: request.metadata
+            }
+          }
+        );
+      }
+    },
+    exportPreview: {
+      create: (projectId: string, request: ExportPreviewCreateRequest) => {
+        assertOnlySupportedRequestFields("Export preview request", request, exportPreviewCreateRequestFields);
+        return requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId), {
+          method: "POST",
+          body: {
+            projectSnapshotId: request.projectSnapshotId,
+            candidateIds: request.candidateIds,
+            metadata: request.metadata
+          }
+        });
+      },
       get: (projectId: string, exportBatchId: string) =>
         requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, exportBatchId)),
       approve: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
@@ -551,6 +702,25 @@ function importReviewPath(projectId: string, path: string) {
 function exportPreviewPath(projectId: string, path = "") {
   const suffix = path ? `/${encodePath(path)}` : "";
   return `/api/projects/${encodePathSegment(projectId)}/export-preview${suffix}`;
+}
+
+function exportCandidatesPath(projectId: string, path = "") {
+  const suffix = path ? `/${encodePath(path)}` : "";
+  return `/api/projects/${encodePathSegment(projectId)}/export-candidates${suffix}`;
+}
+
+function assertOnlySupportedRequestFields(
+  requestName: string,
+  request: object,
+  supportedFields: readonly string[]
+) {
+  const supported = new Set(supportedFields);
+  const unsupported = Object.keys(request)
+    .filter((field) => !supported.has(field))
+    .sort();
+  if (unsupported.length > 0) {
+    throw new TypeError(`${requestName} contains unsupported field(s): ${unsupported.join(", ")}.`);
+  }
 }
 
 function encodePath(value: string) {

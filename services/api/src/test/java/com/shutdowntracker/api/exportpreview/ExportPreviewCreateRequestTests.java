@@ -20,7 +20,7 @@ class ExportPreviewCreateRequestTests {
         );
 
         assertThat(request.metadata()).isEmpty();
-        assertThat(request.lines()).hasSize(1);
+        assertThat(request.candidateIds()).hasSize(1);
     }
 
     @Test
@@ -35,7 +35,7 @@ class ExportPreviewCreateRequestTests {
         assertThat(request.metadata()).containsEntry("source", "synthetic-export-preview");
         assertThatThrownBy(() -> request.metadata().put("extra", "not allowed"))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> request.lines().add(line()))
+        assertThatThrownBy(() -> request.candidateIds().add(line()))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -43,7 +43,7 @@ class ExportPreviewCreateRequestTests {
     void rejectsEmptyPreviewLineList() {
         assertThatThrownBy(() -> new ExportPreviewCreateRequest(UUID.randomUUID(), List.of(), Map.of()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("At least one export preview line is required.");
+                .hasMessage("At least one authoritative export candidate is required.");
     }
 
     @Test
@@ -53,8 +53,8 @@ class ExportPreviewCreateRequestTests {
         assertThatThrownBy(() -> new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
                 List.of(
-                        new ExportPreviewLineCreateRequest(candidateId),
-                        new ExportPreviewLineCreateRequest(candidateId)
+                        candidateId,
+                        candidateId
                 ),
                 Map.of()
         ))
@@ -78,14 +78,18 @@ class ExportPreviewCreateRequestTests {
                 Map.of()
         );
 
-        assertThat(request.lines()).hasSize(2);
+        assertThat(request.candidateIds()).hasSize(2);
     }
 
     @Test
     void rejectsMissingAuthoritativeCandidateId() {
-        assertThatThrownBy(() -> new ExportPreviewLineCreateRequest(null))
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(
+                UUID.randomUUID(),
+                java.util.Collections.singletonList(null),
+                Map.of()
+        ))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("authoritativeExportCandidateId is required.");
+                .hasMessage("candidateIds must not contain null values.");
     }
 
     @Test
@@ -150,7 +154,7 @@ class ExportPreviewCreateRequestTests {
                 .hasMessage("verifiedByUserId is required.");
     }
 
-    private ExportPreviewLineCreateRequest line() {
-        return new ExportPreviewLineCreateRequest(UUID.randomUUID());
+    private UUID line() {
+        return UUID.randomUUID();
     }
 }

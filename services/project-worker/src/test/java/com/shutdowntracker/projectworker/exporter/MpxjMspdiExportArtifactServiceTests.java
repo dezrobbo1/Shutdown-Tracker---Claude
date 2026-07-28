@@ -130,33 +130,18 @@ class MpxjMspdiExportArtifactServiceTests {
 
     @Test
     void rejectsInvalidProgressPercentages() {
-        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
-                "Synthetic Invalid Percent",
-                List.of(new ProjectExportArtifactTask(
-                        "synthetic-task-invalid",
-                        "201",
-                        "21",
-                        "Synthetic Task Invalid",
-                        true,
-                        List.of(new ProjectExportArtifactFieldValue(
-                                ProjectExportArtifactField.PERCENT_COMPLETE,
-                                "101"))
-                ))
-        );
-
-        assertThatThrownBy(() -> service.generate(request, tempDir.resolve("invalid-percent.mspdi.xml")))
+        assertThatThrownBy(() -> requestWithPercent("101", "invalid"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("percent_complete must be between 0 and 100");
+                .hasMessage("Percent complete must be between 0 and 100.");
     }
 
     @Test
     void rejectsFractionalProgressInsteadOfRoundingIt() {
-        ProjectExportArtifactRequest request = requestWithPercent("75.5", "fractional");
         Path outputPath = tempDir.resolve("fractional-percent.mspdi.xml");
 
-        assertThatThrownBy(() -> service.generate(request, outputPath))
+        assertThatThrownBy(() -> requestWithPercent("75.5", "fractional"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("must be a whole-number percentage");
+                .hasMessage("Percent complete must be a whole number between 0 and 100.");
         assertThat(outputPath).doesNotExist();
     }
 
@@ -175,6 +160,156 @@ class MpxjMspdiExportArtifactServiceTests {
 
         assertThat(taskWithUid(readProject(outputPath), 301).getPercentageComplete().intValue()).isZero();
         assertThat(taskWithUid(readProject(outputPath), 302).getPercentageComplete().intValue()).isEqualTo(100);
+        assertThat(request.tasks().get(1).fieldValues().getFirst().newValue()).isEqualTo("100");
+    }
+
+    @Test
+    void preservesReviewedProjectWallClockForOffsetDateTime() throws Exception {
+        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
+                "Synthetic Offset Wall Clock",
+                List.of(new ProjectExportArtifactTask(
+                        "synthetic-offset-task",
+                        "401",
+                        "41",
+                        "Synthetic Offset Task",
+                        true,
+                        List.of(new ProjectExportArtifactFieldValue(
+                                ProjectExportArtifactField.ACTUAL_START,
+                                "2026-01-05T16:00:00.000000+08:00"))
+                ))
+        );
+        Path outputPath = tempDir.resolve("offset-wall-clock.mspdi.xml");
+
+        service.generate(request, outputPath);
+
+        assertThat(request.tasks().getFirst().fieldValues().getFirst().newValue())
+                .isEqualTo("2026-01-05T16:00:00+08:00");
+        assertThat(taskWithUid(readProject(outputPath), 401).getActualStart())
+                .isEqualTo(LocalDateTime.of(2026, 1, 5, 16, 0));
+    }
+
+    @Test
+    void rejectsInvalidOrOffsetFreeDateTimeAtTheSharedContractBoundary() {
+        assertThatThrownBy(() -> new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00:00"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Project date-time value must be an ISO-8601 offset date-time.");
+
+        ProjectExportArtifactFieldValue minutePrecision = new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00+08:00"
+        );
+        assertThat(minutePrecision.newValue()).isEqualTo("2026-01-05T16:00:00+08:00");
+
+        assertThatThrownBy(() -> new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00:00+0800"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Project date-time value must be an ISO-8601 offset date-time.");
+
+        assertThatThrownBy(() -> new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00:00.001+08:00"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Project date-time values support whole-second precision.");
+
+        assertThatThrownBy(() -> new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00:00.000001+08:00"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Project date-time values support whole-second precision.");
+    }
+
+    @Test
+    void rejectsMissingOrInconsistentTaskIdentityAtTheSharedContractBoundary() {
+        assertThatThrownBy(() -> new ProjectExportArtifactTask(
+                "synthetic-missing-uid",
+                " ",
+                "42",
+                "Synthetic Missing UID",
+                true,
+                List.of(new ProjectExportArtifactFieldValue(ProjectExportArtifactField.PERCENT_COMPLETE, "75"))
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("microsoftProjectTaskUid is required.");
+
+        assertThatThrownBy(() -> percentTask("synthetic-leading-zero-id", "501", "01", "Task", "25"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("microsoftProjectTaskId must be a canonical positive integer.");
+
+        assertThatThrownBy(() -> percentTask("synthetic-plus-uid", "+501", "51", "Task", "25"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("microsoftProjectTaskUid must be a canonical positive integer.");
+
+        assertThatThrownBy(() -> percentTask("synthetic-overflow-id", "501", "2147483648", "Task", "25"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("microsoftProjectTaskId must be a canonical positive integer.");
+
+        ProjectExportArtifactTask first = percentTask("synthetic-task-one", "501", "51", "Task One", "25");
+        ProjectExportArtifactTask reusedProjectId = percentTask(
+                "synthetic-task-two",
+                "502",
+                "51",
+                "Task Two",
+                "50"
+        );
+        assertThatThrownBy(() -> new ProjectExportArtifactRequest(
+                "Synthetic Reused Identity",
+                List.of(first, reusedProjectId)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Each Microsoft Project task ID must map to exactly one imported task: '51'.");
+
+        ProjectExportArtifactTask reusedProjectUid = percentTask(
+                "synthetic-task-three",
+                "501",
+                "52",
+                "Task Three",
+                "75"
+        );
+        assertThatThrownBy(() -> new ProjectExportArtifactRequest(
+                "Synthetic Reused Identity",
+                List.of(first, reusedProjectUid)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Each Microsoft Project task UID must map to exactly one imported task: '501'.");
+    }
+
+    @Test
+    void rejectsSplittingOneImportedTaskAcrossDifferentWorkerTaskObjects() {
+        assertThatThrownBy(() -> percentTask(" synthetic-task-shared", "600", "60", "Task", "25"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("importedTaskId must not contain leading or trailing whitespace.");
+
+        ProjectExportArtifactTask percent = percentTask(
+                "synthetic-task-shared",
+                "601",
+                "61",
+                "Synthetic Shared Task",
+                "25"
+        );
+        ProjectExportArtifactTask actual = new ProjectExportArtifactTask(
+                "synthetic-task-shared",
+                "602",
+                "62",
+                "Synthetic Shared Task Changed",
+                true,
+                List.of(new ProjectExportArtifactFieldValue(
+                        ProjectExportArtifactField.ACTUAL_START,
+                        "2026-01-05T16:00:00+08:00"))
+        );
+
+        assertThatThrownBy(() -> new ProjectExportArtifactRequest(
+                "Synthetic Split Identity",
+                List.of(percent, actual)
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Each importedTaskId must map to exactly one worker task: 'synthetic-task-shared'.");
     }
 
     @Test
@@ -186,9 +321,7 @@ class MpxjMspdiExportArtifactServiceTests {
 
     @Test
     void rejectsNonNumericMicrosoftProjectTaskIdentity() {
-        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
-                "Synthetic Invalid Identity",
-                List.of(new ProjectExportArtifactTask(
+        assertThatThrownBy(() -> new ProjectExportArtifactTask(
                         "synthetic-task-invalid-id",
                         "not-a-number",
                         "22",
@@ -198,11 +331,8 @@ class MpxjMspdiExportArtifactServiceTests {
                                 ProjectExportArtifactField.ACTUAL_START,
                                 "2026-01-05T07:00:00Z"))
                 ))
-        );
-
-        assertThatThrownBy(() -> service.generate(request, tempDir.resolve("invalid-identity.mspdi.xml")))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("microsoftProjectTaskUid must be a positive integer");
+                .hasMessage("microsoftProjectTaskUid must be a canonical positive integer.");
     }
 
     private ProjectExportArtifactRequest syntheticRequest() {

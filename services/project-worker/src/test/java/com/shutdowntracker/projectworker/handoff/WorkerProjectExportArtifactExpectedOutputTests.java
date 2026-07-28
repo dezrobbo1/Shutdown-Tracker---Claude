@@ -13,6 +13,7 @@ import com.shutdowntracker.projectworker.exporter.MpxjMspdiExportArtifactService
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -235,6 +236,6 @@ class WorkerProjectExportArtifactExpectedOutputTests {
     }
 
     private LocalDateTime dateTimeValue(Map<String, Object> values, String key) {
-        return LocalDateTime.parse(stringValue(values, key));
+        return OffsetDateTime.parse(stringValue(values, key)).toLocalDateTime();
     }
 }

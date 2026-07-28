@@ -192,6 +192,53 @@ class WorkerProjectExportArtifactControllerTests {
         verifyNoInteractions(handoffService);
     }
 
+    @Test
+    void rejectsSummaryMissingAndNonCanonicalTaskIdentityBeforeCallingHandoffService() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        String validBody = requestBody(exportBatchId, projectId, """
+                {
+                  "field": "PERCENT_COMPLETE",
+                  "newValue": "75"
+                }
+                """);
+
+        List<String> invalidBodies = List.of(
+                validBody.replace("\"leafTask\": true", "\"leafTask\": false"),
+                validBody.replace("\"microsoftProjectTaskUid\": \"101\",", ""),
+                validBody.replace("\"microsoftProjectTaskUid\": \"101\"", "\"microsoftProjectTaskUid\": \"01\""),
+                validBody.replace("\"microsoftProjectTaskId\": \"1\"", "\"microsoftProjectTaskId\": \"+1\"")
+        );
+
+        for (String body : invalidBodies) {
+            mockMvc.perform(post("/worker/project-export/generate-artifact")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(handoffService);
+    }
+
+    @Test
+    void rejectsNonzeroFractionalActualBeforeCallingHandoffService() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        String body = requestBody(exportBatchId, projectId, """
+                {
+                  "field": "ACTUAL_START",
+                  "newValue": "2026-01-05T16:00:00.001+08:00"
+                }
+                """);
+
+        mockMvc.perform(post("/worker/project-export/generate-artifact")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(handoffService);
+    }
+
     private String requestBody(UUID exportBatchId, UUID projectId, String fieldValues) {
         return """
                 {

@@ -312,14 +312,13 @@ class ExportArtifactHandoffServiceTests {
             boolean eligible = leafTask && ExportPreviewField.fromFieldName(fieldName).mvpExportAuthorized();
             ExportCandidateRecord candidate = new ExportCandidateRecord(
                     candidateId,
-                    approvalRecordId,
                     ExportIntegrityPolicy.CURRENT_VERSION,
                     projectId,
                     projectSnapshotId,
                     taskId,
                     "task_update",
                     sourceEntityId,
-                    ApprovalState.APPROVED_FOR_EXPORT,
+                    "synthetic-source-version-1",
                     fieldName,
                     oldValue,
                     newValue,
@@ -330,7 +329,9 @@ class ExportArtifactHandoffServiceTests {
                     leafTask,
                     sourceActorUserId,
                     sourceTimestamp,
-                    reason
+                    reason,
+                    sourceTimestamp,
+                    Map.of()
             );
             candidates.put(candidateId, candidate);
             return new ExportPreviewLineRecord(
@@ -356,7 +357,8 @@ class ExportArtifactHandoffServiceTests {
                     eligible,
                     ExportIntegrityPolicy.CURRENT_VERSION,
                     candidateId,
-                    candidate.sourceEventOrPayloadHash()
+                    candidate.sourceEventOrPayloadHash(),
+                    candidate.sourceVersion()
             );
         }
 
@@ -500,7 +502,7 @@ class ExportArtifactHandoffServiceTests {
                     .filter(candidateLine -> candidateLine.fieldName().equals(fieldName))
                     .findFirst()
                     .orElseThrow();
-            currentApprovalStates.put(line.sourceEntityId(), approvalState);
+            currentApprovalStates.put(line.authoritativeExportCandidateId(), approvalState);
         }
 
         @Override
@@ -522,16 +524,14 @@ class ExportArtifactHandoffServiceTests {
         @Override
         public List<ExportPreviewApprovalRecord> findCurrentApprovalCandidates(
                 UUID projectId,
-                String sourceEntityType,
-                UUID sourceEntityId
+                UUID authoritativeExportCandidateId
         ) {
             return lines.stream()
-                    .filter(line -> line.sourceEntityType().equals(sourceEntityType)
-                            && line.sourceEntityId().equals(sourceEntityId))
+                    .filter(line -> line.authoritativeExportCandidateId().equals(authoritativeExportCandidateId))
                     .findFirst()
                     .map(line -> {
                         ApprovalState currentApprovalState = currentApprovalStates.getOrDefault(
-                                sourceEntityId,
+                                authoritativeExportCandidateId,
                                 ApprovalState.APPROVED_FOR_EXPORT
                         );
                         return List.of(new ExportPreviewApprovalRecord(
@@ -539,12 +539,8 @@ class ExportArtifactHandoffServiceTests {
                                     ? line.sourceApprovalRecordId()
                                     : changedApprovalRecordId,
                             currentApprovalState,
-                            currentApprovalState == line.approvalState()
-                                    ? line.authoritativeExportCandidateId()
-                                    : null,
-                            currentApprovalState == line.approvalState()
-                                    ? ExportIntegrityPolicy.CURRENT_VERSION
-                                    : null
+                            line.authoritativeExportCandidateId(),
+                            ExportIntegrityPolicy.CURRENT_VERSION
                         ));
                     })
                     .orElseGet(List::of);

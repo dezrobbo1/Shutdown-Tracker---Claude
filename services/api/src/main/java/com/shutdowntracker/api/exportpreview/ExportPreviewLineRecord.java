@@ -26,6 +26,7 @@ public record ExportPreviewLineRecord(
         boolean exportEligible,
         Integer integrityPolicyVersion,
         UUID authoritativeExportCandidateId,
-        String capturedSourceEventOrPayloadHash
+        String capturedSourceEventOrPayloadHash,
+        String capturedSourceVersion
 ) {
 }

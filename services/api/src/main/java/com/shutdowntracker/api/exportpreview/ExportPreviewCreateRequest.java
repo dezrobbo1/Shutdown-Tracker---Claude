@@ -12,25 +12,25 @@ import java.util.UUID;
 
 public record ExportPreviewCreateRequest(
         UUID projectSnapshotId,
-        List<ExportPreviewLineCreateRequest> lines,
+        List<UUID> candidateIds,
         Map<String, Object> metadata
 ) {
     public ExportPreviewCreateRequest {
         requireNonNull(projectSnapshotId, "projectSnapshotId is required.");
-        lines = immutableNonEmptyList(lines, "At least one export preview line is required.");
-        requireUniqueCandidates(lines);
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            throw new IllegalArgumentException("At least one authoritative export candidate is required.");
+        }
+        requireUniqueCandidates(candidateIds);
+        candidateIds = immutableNonEmptyList(candidateIds, "At least one authoritative export candidate is required.");
         metadata = immutableObjectMap(metadata, "metadata");
     }
 
-    private static void requireUniqueCandidates(List<ExportPreviewLineCreateRequest> lines) {
+    private static void requireUniqueCandidates(List<UUID> candidateIds) {
         Set<UUID> candidates = new HashSet<>();
-        for (ExportPreviewLineCreateRequest line : lines) {
-            if (!candidates.add(line.authoritativeExportCandidateId())) {
-                throw new IllegalArgumentException(
-                        "Duplicate authoritative export candidate '"
-                                + line.authoritativeExportCandidateId()
-                                + "'."
-                );
+        for (UUID candidateId : candidateIds) {
+            requireNonNull(candidateId, "candidateIds must not contain null values.");
+            if (!candidates.add(candidateId)) {
+                throw new IllegalArgumentException("Duplicate authoritative export candidate '" + candidateId + "'.");
             }
         }
     }

@@ -5,6 +5,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValu
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
+import com.shutdowntracker.projectexport.contract.ProjectExportValueNormalizer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -116,20 +117,7 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
     }
 
     private BigDecimal parsePercentage(String value, ProjectExportArtifactField field) {
-        try {
-            BigDecimal parsed = new BigDecimal(value);
-            if (parsed.compareTo(BigDecimal.ZERO) < 0 || parsed.compareTo(BigDecimal.valueOf(100)) > 0) {
-                throw new IllegalArgumentException(field.fieldName() + " must be between 0 and 100.");
-            }
-            if (parsed.stripTrailingZeros().scale() > 0) {
-                throw new IllegalArgumentException(
-                        field.fieldName() + " must be a whole-number percentage; fractional values are not exported."
-                );
-            }
-            return parsed.setScale(0);
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException(field.fieldName() + " must be a decimal percentage.", ex);
-        }
+        return new BigDecimal(ProjectExportValueNormalizer.normalize(field, value));
     }
 
     private byte[] authorizedMspdiBytes(ProjectFile project, ProjectExportArtifactRequest request) throws IOException {
@@ -326,15 +314,8 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
     }
 
     private LocalDateTime parseDateTime(String value, ProjectExportArtifactField field) {
-        try {
-            return OffsetDateTime.parse(value).toLocalDateTime();
-        } catch (DateTimeParseException ignored) {
-            try {
-                return LocalDateTime.parse(value);
-            } catch (DateTimeParseException ex) {
-                throw new IllegalArgumentException(field.fieldName() + " must be an ISO-8601 date-time value.", ex);
-            }
-        }
+        String normalized = ProjectExportValueNormalizer.normalize(field, value);
+        return OffsetDateTime.parse(normalized).toLocalDateTime();
     }
 
     private int parsePositiveInteger(String value, String fieldName) {

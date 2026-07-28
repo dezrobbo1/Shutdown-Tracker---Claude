@@ -109,7 +109,8 @@ class ExportArtifactHandoffControllerTests {
                 true,
                 ExportIntegrityPolicy.CURRENT_VERSION,
                 UUID.randomUUID(),
-                "a".repeat(64)
+                "a".repeat(64),
+                "synthetic-source-version-1"
         );
         ProjectExportArtifactGenerationResponse workerResponse = new ProjectExportArtifactGenerationResponse(
                 exportBatchId,

@@ -6,6 +6,7 @@ import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
 import com.shutdowntracker.api.audit.AuditEventTypes;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,13 +59,11 @@ public class ExportPreviewService {
     public ExportPreviewDetail createPreview(UUID projectId, ExportPreviewCreateRequest request) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         ExportPreviewCreateRequest requiredRequest = requireNonNull(request, "request is required.");
-        List<ExportCandidateRecord> candidates = requiredRequest.lines().stream()
-                .map(line -> requireCurrentCandidateAuthority(
-                        requiredProjectId,
-                        requiredRequest.projectSnapshotId(),
-                        line.authoritativeExportCandidateId()
-                ))
-                .toList();
+        List<ExportCandidateRecord> candidates = requireCurrentCandidateAuthorities(
+                requiredProjectId,
+                requiredRequest.projectSnapshotId(),
+                requiredRequest.candidateIds()
+        ).stream().map(CandidateAuthority::candidate).toList();
         requireUniqueTaskFieldCandidates(candidates);
 
         ExportPreviewBatchRecord batch;
@@ -76,6 +75,8 @@ public class ExportPreviewService {
             );
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
+        } catch (DataIntegrityViolationException exception) {
+            throw databaseIntegrityConflict("Export preview creation", exception);
         }
 
         try {
@@ -399,35 +400,90 @@ public class ExportPreviewService {
         return new ExportPreviewDetail(batch, lines, message);
     }
 
-    private ExportCandidateRecord requireCurrentCandidateAuthority(
+    private List<CandidateAuthority> requireCurrentCandidateAuthorities(
             UUID projectId,
             UUID projectSnapshotId,
-            UUID authoritativeExportCandidateId
+            List<UUID> authoritativeExportCandidateIds
     ) {
-        ExportCandidateRecord candidate = repository
-                .findAuthoritativeCandidate(projectId, authoritativeExportCandidateId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "Authoritative export candidate is missing. Review the source and create a fresh export preview."
-                ));
-
-        if (!ExportIntegrityPolicy.isCurrent(candidate.bindingPolicyVersion())
-                || !Objects.equals(candidate.projectId(), projectId)
-                || !Objects.equals(candidate.projectSnapshotId(), projectSnapshotId)
-                || !Objects.equals(candidate.id(), authoritativeExportCandidateId)
-                || candidate.approvalState() != ApprovalState.APPROVED_FOR_EXPORT
-                || candidate.sourceEventOrPayloadHash() == null
-                || !candidate.sourceEventOrPayloadHash().matches("[0-9a-f]{64}")
-                || !hasText(candidate.capturedTaskExternalUid())
-                || !hasText(candidate.capturedTaskExternalId())
-                || !hasText(candidate.capturedTaskName())) {
-            throw staleCandidate(authoritativeExportCandidateId);
-        }
         if (!repository.lockAcceptedSnapshotForIntegrityValidation(projectId, projectSnapshotId)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "The export candidate snapshot is no longer an accepted baseline. Create a fresh export preview."
             );
+        }
+
+        List<UUID> candidateIds = authoritativeExportCandidateIds.stream().distinct().toList();
+        List<ExportCandidateRecord> lockedCandidates = repository
+                .lockAuthoritativeCandidatesForIntegrityValidation(projectId, projectSnapshotId, candidateIds);
+        Map<UUID, ExportCandidateRecord> candidatesById = new HashMap<>();
+        for (ExportCandidateRecord candidate : lockedCandidates) {
+            if (candidatesById.put(candidate.id(), candidate) != null) {
+                throw staleCandidate(candidate.id());
+            }
+        }
+
+        List<UUID> importedTaskIds = lockedCandidates.stream()
+                .map(ExportCandidateRecord::importedTaskId)
+                .distinct()
+                .toList();
+        List<ExportPreviewTaskContext> lockedTasks = repository.lockTaskContextsForIntegrityValidation(
+                projectId,
+                projectSnapshotId,
+                importedTaskIds
+        );
+        Map<UUID, ExportPreviewTaskContext> tasksById = new HashMap<>();
+        for (ExportPreviewTaskContext task : lockedTasks) {
+            tasksById.put(task.id(), task);
+        }
+
+        List<ExportPreviewApprovalRecord> lockedApprovals = repository
+                .lockCurrentApprovalCandidatesForIntegrityValidation(projectId, candidateIds);
+        Map<UUID, ExportPreviewApprovalRecord> approvalsByCandidateId = new HashMap<>();
+        for (ExportPreviewApprovalRecord approval : lockedApprovals) {
+            UUID candidateId = approval.authoritativeExportCandidateId();
+            if (candidateId == null || approvalsByCandidateId.put(candidateId, approval) != null) {
+                throw staleCandidate(candidateId);
+            }
+        }
+
+        List<CandidateAuthority> authorities = authoritativeExportCandidateIds.stream()
+                .map(candidateId -> validateCandidateAuthority(
+                        projectId,
+                        projectSnapshotId,
+                        candidateId,
+                        candidatesById.get(candidateId),
+                        candidatesById.get(candidateId) == null
+                                ? null
+                                : tasksById.get(candidatesById.get(candidateId).importedTaskId()),
+                        approvalsByCandidateId.get(candidateId)
+                ))
+                .toList();
+        requireUniqueProjectTaskIdentities(authorities);
+        return authorities;
+    }
+
+    private CandidateAuthority validateCandidateAuthority(
+            UUID projectId,
+            UUID projectSnapshotId,
+            UUID authoritativeExportCandidateId,
+            ExportCandidateRecord candidate,
+            ExportPreviewTaskContext task,
+            ExportPreviewApprovalRecord currentApproval
+    ) {
+        if (candidate == null
+                || !ExportIntegrityPolicy.isCurrent(candidate.bindingPolicyVersion())
+                || !Objects.equals(candidate.projectId(), projectId)
+                || !Objects.equals(candidate.projectSnapshotId(), projectSnapshotId)
+                || !Objects.equals(candidate.id(), authoritativeExportCandidateId)
+                || !hasText(candidate.sourceEntityType())
+                || candidate.sourceEntityId() == null
+                || !hasText(candidate.sourceVersion())
+                || candidate.sourceEventOrPayloadHash() == null
+                || !candidate.sourceEventOrPayloadHash().matches("[0-9a-f]{64}")
+                || !isCanonicalPositiveProjectInteger(candidate.capturedTaskExternalUid())
+                || !isCanonicalPositiveProjectInteger(candidate.capturedTaskExternalId())
+                || !hasText(candidate.capturedTaskName())) {
+            throw staleCandidate(authoritativeExportCandidateId);
         }
 
         ExportPreviewField field;
@@ -440,10 +496,8 @@ public class ExportPreviewService {
             throw staleCandidate(authoritativeExportCandidateId);
         }
 
-        ExportPreviewTaskContext task = repository
-                .findTaskContext(projectId, projectSnapshotId, candidate.importedTaskId())
-                .orElseThrow(() -> staleCandidate(authoritativeExportCandidateId));
-        if (!Objects.equals(task.id(), candidate.importedTaskId())
+        if (task == null
+                || !Objects.equals(task.id(), candidate.importedTaskId())
                 || !Objects.equals(task.projectId(), candidate.projectId())
                 || !Objects.equals(task.projectSnapshotId(), candidate.projectSnapshotId())
                 || !Objects.equals(task.externalUid(), candidate.capturedTaskExternalUid())
@@ -454,22 +508,20 @@ public class ExportPreviewService {
             throw staleCandidate(authoritativeExportCandidateId);
         }
 
-        ExportPreviewApprovalRecord currentApproval = requireCurrentApproval(
-                repository.findCurrentApprovalCandidates(
-                        projectId,
-                        candidate.sourceEntityType(),
-                        candidate.sourceEntityId()
-                ),
-                candidate.sourceEntityId()
-        );
-        if (!Objects.equals(candidate.approvalRecordId(), currentApproval.id())
-                || candidate.approvalState() != currentApproval.approvalState()
-                || !Objects.equals(candidate.id(), currentApproval.authoritativeExportCandidateId())
+        if (currentApproval == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Authoritative export candidate "
+                            + authoritativeExportCandidateId
+                            + " has no current approval record bound to this candidate. Record a new approval event and "
+                            + "create a fresh export preview."
+            );
+        }
+        if (!Objects.equals(candidate.id(), currentApproval.authoritativeExportCandidateId())
                 || !ExportIntegrityPolicy.isCurrent(currentApproval.candidateBindingPolicyVersion())) {
             throw staleCandidate(authoritativeExportCandidateId);
         }
-
-        return candidate;
+        return new CandidateAuthority(candidate, task, currentApproval);
     }
 
     private void requireUniqueTaskFieldCandidates(List<ExportCandidateRecord> candidates) {
@@ -489,6 +541,45 @@ public class ExportPreviewService {
         }
     }
 
+    private void requireUniqueProjectTaskIdentities(List<CandidateAuthority> authorities) {
+        Map<String, UUID> importedTasksByExternalUid = new HashMap<>();
+        Map<String, UUID> importedTasksByExternalId = new HashMap<>();
+        for (CandidateAuthority authority : authorities) {
+            ExportPreviewTaskContext task = authority.task();
+            requireUniqueProjectTaskIdentity(
+                    "UID",
+                    task.externalUid(),
+                    task.id(),
+                    importedTasksByExternalUid
+            );
+            requireUniqueProjectTaskIdentity(
+                    "ID",
+                    task.externalId(),
+                    task.id(),
+                    importedTasksByExternalId
+            );
+        }
+    }
+
+    private void requireUniqueProjectTaskIdentity(
+            String identityKind,
+            String identityValue,
+            UUID importedTaskId,
+            Map<String, UUID> importedTasksByIdentity
+    ) {
+        UUID previousImportedTaskId = importedTasksByIdentity.putIfAbsent(identityValue, importedTaskId);
+        if (previousImportedTaskId != null && !previousImportedTaskId.equals(importedTaskId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The selected export candidates contain multiple imported tasks with Microsoft Project task "
+                            + identityKind
+                            + " "
+                            + identityValue
+                            + ". Import and accept a corrected snapshot, then create a fresh export preview."
+            );
+        }
+    }
+
     private void requireEligibleCandidates(UUID projectId, ExportPreviewDetail preview) {
         if (revalidateCandidateIntegrity(projectId, preview).isEmpty()) {
             throw new ResponseStatusException(
@@ -503,6 +594,35 @@ public class ExportPreviewService {
             ExportPreviewDetail preview
     ) {
         requireCurrentPolicy(preview.batch());
+        int eligibleLineCount = (int) preview.lines().stream()
+                .filter(ExportPreviewLineRecord::exportEligible)
+                .count();
+        if (preview.batch().lineCount() != preview.lines().size()
+                || preview.batch().eligibleLineCount() != eligibleLineCount
+                || preview.batch().ineligibleLineCount() != preview.lines().size() - eligibleLineCount) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export preview line membership or eligibility counts no longer match the sealed batch. "
+                            + "Create a fresh export preview."
+            );
+        }
+        preview.lines().stream()
+                .filter(line -> line.authoritativeExportCandidateId() == null)
+                .findFirst()
+                .ifPresent(line -> {
+                    throw staleCandidate(line);
+                });
+        List<UUID> candidateIds = preview.lines().stream()
+                .map(ExportPreviewLineRecord::authoritativeExportCandidateId)
+                .toList();
+        Map<UUID, CandidateAuthority> authorities = new HashMap<>();
+        for (CandidateAuthority authority : requireCurrentCandidateAuthorities(
+                projectId,
+                preview.batch().projectSnapshotId(),
+                candidateIds
+        )) {
+            authorities.put(authority.candidate().id(), authority);
+        }
         Set<CandidateKey> candidates = new HashSet<>();
         for (ExportPreviewLineRecord line : preview.lines()) {
             if (!ExportIntegrityPolicy.isCurrent(line.integrityPolicyVersion())) {
@@ -516,11 +636,12 @@ public class ExportPreviewService {
             if (line.authoritativeExportCandidateId() == null) {
                 throw staleCandidate(line);
             }
-            ExportCandidateRecord authoritativeCandidate = requireCurrentCandidateAuthority(
-                    projectId,
-                    preview.batch().projectSnapshotId(),
-                    line.authoritativeExportCandidateId()
-            );
+            CandidateAuthority authority = authorities.get(line.authoritativeExportCandidateId());
+            if (authority == null) {
+                throw staleCandidate(line);
+            }
+            ExportCandidateRecord authoritativeCandidate = authority.candidate();
+            ExportPreviewApprovalRecord currentApproval = authority.approval();
             CandidateKey candidateKey = new CandidateKey(
                     authoritativeCandidate.importedTaskId(),
                     authoritativeCandidate.fieldName()
@@ -536,7 +657,7 @@ public class ExportPreviewService {
                 );
             }
             ExportPreviewField field = ExportPreviewField.fromFieldName(authoritativeCandidate.fieldName());
-            boolean currentlyEligible = authoritativeCandidate.approvalState() == ApprovalState.APPROVED_FOR_EXPORT
+            boolean currentlyEligible = currentApproval.approvalState() == ApprovalState.APPROVED_FOR_EXPORT
                     && authoritativeCandidate.capturedLeafTask()
                     && field.mvpExportAuthorized();
 
@@ -546,8 +667,8 @@ public class ExportPreviewService {
                     || !Objects.equals(line.importedTaskName(), authoritativeCandidate.capturedTaskName())
                     || !Objects.equals(line.sourceEntityType(), authoritativeCandidate.sourceEntityType())
                     || !Objects.equals(line.sourceEntityId(), authoritativeCandidate.sourceEntityId())
-                    || !Objects.equals(line.sourceApprovalRecordId(), authoritativeCandidate.approvalRecordId())
-                    || line.approvalState() != authoritativeCandidate.approvalState()
+                    || !Objects.equals(line.sourceApprovalRecordId(), currentApproval.id())
+                    || line.approvalState() != currentApproval.approvalState()
                     || !Objects.equals(line.fieldName(), authoritativeCandidate.fieldName())
                     || !Objects.equals(line.oldValue(), authoritativeCandidate.normalizedOldValue())
                     || !Objects.equals(line.newValue(), authoritativeCandidate.normalizedNewValue())
@@ -555,6 +676,7 @@ public class ExportPreviewService {
                             line.capturedSourceEventOrPayloadHash(),
                             authoritativeCandidate.sourceEventOrPayloadHash()
                     )
+                    || !Objects.equals(line.capturedSourceVersion(), authoritativeCandidate.sourceVersion())
                     || !Objects.equals(line.sourceActorUserId(), authoritativeCandidate.sourceActorUserId())
                     || !Objects.equals(line.sourceTimestamp(), authoritativeCandidate.sourceTimestamp())
                     || !Objects.equals(line.reason(), authoritativeCandidate.reason())
@@ -567,27 +689,6 @@ public class ExportPreviewService {
         return preview.lines().stream()
                 .filter(ExportPreviewLineRecord::exportEligible)
                 .toList();
-    }
-
-    private ExportPreviewApprovalRecord requireCurrentApproval(
-            List<ExportPreviewApprovalRecord> candidates,
-            UUID sourceEntityId
-    ) {
-        if (candidates.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Export source " + sourceEntityId
-                            + " has no current approval record. Record a new approval event and create a fresh export preview."
-            );
-        }
-        if (candidates.size() > 1) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Export source " + sourceEntityId
-                            + " has ambiguous legacy approval authority. Record a new approval event and create a fresh export preview."
-            );
-        }
-        return candidates.getFirst();
     }
 
     private void requireCurrentPolicy(ExportPreviewBatchRecord batch) {
@@ -614,7 +715,7 @@ public class ExportPreviewService {
     private ResponseStatusException staleCandidate(ExportPreviewLineRecord line) {
         return new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "Export preview candidate authority changed for imported task "
+                "Export preview line no longer matches authoritative candidate authority for imported task "
                         + line.importedTaskId()
                         + " and field "
                         + line.fieldName()
@@ -648,7 +749,25 @@ public class ExportPreviewService {
         return value != null && !value.isBlank();
     }
 
+    private boolean isCanonicalPositiveProjectInteger(String value) {
+        if (value == null || !value.matches("[1-9][0-9]*")) {
+            return false;
+        }
+        try {
+            return Long.parseLong(value) <= Integer.MAX_VALUE;
+        } catch (NumberFormatException exception) {
+            return false;
+        }
+    }
+
     private record CandidateKey(UUID importedTaskId, String fieldName) {
+    }
+
+    private record CandidateAuthority(
+            ExportCandidateRecord candidate,
+            ExportPreviewTaskContext task,
+            ExportPreviewApprovalRecord approval
+    ) {
     }
 
     private Map<String, Object> previewMetadata(ExportPreviewDetail detail) {

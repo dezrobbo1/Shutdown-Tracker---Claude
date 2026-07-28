@@ -8,8 +8,6 @@ public record ProjectExportArtifactFieldValue(
 ) {
     public ProjectExportArtifactFieldValue {
         Objects.requireNonNull(field, "field is required.");
-        if (newValue == null || newValue.isBlank()) {
-            throw new IllegalArgumentException("newValue is required.");
-        }
+        newValue = ProjectExportValueNormalizer.normalize(field, newValue);
     }
 }

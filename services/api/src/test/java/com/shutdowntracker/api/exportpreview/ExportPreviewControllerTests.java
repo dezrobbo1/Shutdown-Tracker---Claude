@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.shutdowntracker.api.ApiStrictJsonConfiguration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -19,10 +20,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ExportPreviewController.class)
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
+@Import(ApiStrictJsonConfiguration.class)
 class ExportPreviewControllerTests {
 
     @Autowired
@@ -42,11 +45,7 @@ class ExportPreviewControllerTests {
         String body = """
                 {
                   "projectSnapshotId": "%s",
-                  "lines": [
-                    {
-                      "authoritativeExportCandidateId": "%s"
-                    }
-                  ],
+                  "candidateIds": ["%s"],
                   "metadata": {
                     "source": "synthetic-export-preview"
                   }
@@ -75,14 +74,7 @@ class ExportPreviewControllerTests {
         String body = """
                 {
                   "projectSnapshotId": "%s",
-                  "lines": [
-                    {
-                      "authoritativeExportCandidateId": "%s"
-                    },
-                    {
-                      "authoritativeExportCandidateId": "%s"
-                    }
-                  ]
+                  "candidateIds": ["%s", "%s"]
                 }
                 """.formatted(
                 snapshotId,
@@ -107,6 +99,7 @@ class ExportPreviewControllerTests {
                         .content("""
                                 {
                                   "projectSnapshotId": "11111111-1111-1111-1111-111111111111",
+                                  "candidateIds": ["44444444-4444-4444-4444-444444444444"],
                                   "lines": [
                                     {
                                       "importedTaskId": "22222222-2222-2222-2222-222222222222",
@@ -353,7 +346,8 @@ class ExportPreviewControllerTests {
                 eligible,
                 ExportIntegrityPolicy.CURRENT_VERSION,
                 UUID.randomUUID(),
-                "a".repeat(64)
+                "a".repeat(64),
+                "synthetic-source-version-1"
         );
         return new ExportPreviewDetail(
                 batch,

@@ -91,15 +91,87 @@ describe("shutdown tracker api client", () => {
     expect(calls[4].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
   });
 
+  it("creates an authoritative candidate without caller-authored baseline, task identity, or fingerprint", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, { id: "candidate-a", bindingPolicyVersion: 1 })
+    });
+
+    await client.exportCandidates.create("project a", {
+      projectSnapshotId: "snapshot-a",
+      importedTaskId: "task-a",
+      fieldName: "actual_start",
+      proposedValue: "2026-07-19T16:00:00+08:00",
+      sourceEntityType: "task_update",
+      sourceEntityId: "source-a",
+      sourceVersion: "source-version-7",
+      sourceActorUserId: "user-a",
+      sourceTimestamp: "2026-07-19T15:55:00+08:00",
+      reason: "Synthetic reviewed start",
+      metadata: { fixture: "synthetic" }
+    });
+
+    expect(calls).toEqual([
+      {
+        input: "/api/projects/project%20a/export-candidates",
+        method: "POST",
+        body: JSON.stringify({
+          projectSnapshotId: "snapshot-a",
+          importedTaskId: "task-a",
+          fieldName: "actual_start",
+          proposedValue: "2026-07-19T16:00:00+08:00",
+          sourceEntityType: "task_update",
+          sourceEntityId: "source-a",
+          sourceVersion: "source-version-7",
+          sourceActorUserId: "user-a",
+          sourceTimestamp: "2026-07-19T15:55:00+08:00",
+          reason: "Synthetic reviewed start",
+          metadata: { fixture: "synthetic" }
+        })
+      }
+    ]);
+    expect(calls[0].body).not.toContain("sourceEventOrPayloadHash");
+    expect(calls[0].body).not.toContain("normalizedOldValue");
+    expect(calls[0].body).not.toContain("capturedTaskExternalUid");
+    expect(calls[0].body).not.toContain("approvalState");
+  });
+
+  it("records candidate approval as a separate event", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, { id: "approval-a", approvalState: "APPROVED_FOR_EXPORT" })
+    });
+
+    await client.exportCandidates.createApprovalEvent("project-a", "candidate a", {
+      approvalState: "APPROVED_FOR_EXPORT",
+      reviewedByUserId: "planner-a",
+      reviewedAt: "2026-07-19T16:05:00+08:00",
+      reason: "Synthetic planner approval"
+    });
+
+    expect(calls).toEqual([
+      {
+        input: "/api/projects/project-a/export-candidates/candidate%20a/approval-events",
+        method: "POST",
+        body: JSON.stringify({
+          approvalState: "APPROVED_FOR_EXPORT",
+          reviewedByUserId: "planner-a",
+          reviewedAt: "2026-07-19T16:05:00+08:00",
+          reason: "Synthetic planner approval"
+        })
+      }
+    ]);
+  });
+
   it("creates an export preview from authoritative candidate ids only", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({
-      fetchImpl: captureFetch(calls, { batch: { status: "DRAFT" }, lines: [], message: "ok" })
+      fetchImpl: captureFetch(calls, { batch: { status: "DRAFT_PREVIEW" }, lines: [], message: "ok" })
     });
 
     await client.exportPreview.create("project-a", {
       projectSnapshotId: "snapshot-a",
-      lines: [{ authoritativeExportCandidateId: "candidate-a" }],
+      candidateIds: ["candidate-a"],
       metadata: { source: "synthetic-test" }
     });
 
@@ -109,11 +181,52 @@ describe("shutdown tracker api client", () => {
         method: "POST",
         body: JSON.stringify({
           projectSnapshotId: "snapshot-a",
-          lines: [{ authoritativeExportCandidateId: "candidate-a" }],
+          candidateIds: ["candidate-a"],
           metadata: { source: "synthetic-test" }
         })
       }
     ]);
+  });
+
+  it("rejects runtime caller-authored export authority before making a request", () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    const candidateRequest = {
+      projectSnapshotId: "snapshot-a",
+      importedTaskId: "task-a",
+      fieldName: "actual_start",
+      proposedValue: "2026-07-19T16:00:00+08:00",
+      sourceEntityType: "task_update",
+      sourceEntityId: "source-a",
+      sourceVersion: "source-version-7",
+      normalizedOldValue: "caller-baseline",
+      sourceEventOrPayloadHash: "caller-fingerprint",
+      approvalState: "APPROVED_FOR_EXPORT"
+    } as Parameters<typeof client.exportCandidates.create>[1];
+    const approvalRequest = {
+      approvalState: "APPROVED_FOR_EXPORT",
+      authoritativeExportCandidateId: "different-candidate",
+      candidateBindingPolicyVersion: 999
+    } as Parameters<typeof client.exportCandidates.createApprovalEvent>[2];
+    const previewRequest = {
+      projectSnapshotId: "snapshot-a",
+      candidateIds: ["candidate-a"],
+      lines: [{ importedTaskId: "task-a", fieldName: "actual_start", newValue: "caller-value" }]
+    } as Parameters<typeof client.exportPreview.create>[1];
+
+    expect(() => client.exportCandidates.create("project-a", candidateRequest)).toThrow(
+      "Export candidate request contains unsupported field(s): approvalState, normalizedOldValue, sourceEventOrPayloadHash."
+    );
+    expect(() => client.exportCandidates.createApprovalEvent("project-a", "candidate-a", approvalRequest)).toThrow(
+      "Export candidate approval request contains unsupported field(s): authoritativeExportCandidateId, candidateBindingPolicyVersion."
+    );
+    expect(() => client.exportPreview.create("project-a", previewRequest)).toThrow(
+      "Export preview request contains unsupported field(s): lines."
+    );
+    expect(calls).toEqual([]);
   });
 
   it("uploads source files as multipart form data", async () => {
@@ -176,6 +289,8 @@ describe("shutdown tracker api client", () => {
         "Upload source file",
         "Request import batch parse summary",
         "Create lineage link",
+        "Create export candidate",
+        "Record export candidate approval event",
         "Create export preview",
         "Approve export batch",
         "Record generated artifact",

@@ -9,6 +9,12 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 COMPOSE_FILE="$REPO_ROOT/infra/docker/docker-compose.postgres.yml"
 MIGRATIONS_DIR="$REPO_ROOT/infra/migrations"
 
+set -- "$MIGRATIONS_DIR"/V*.sql
+if [ "$#" -ne 7 ] || [ "$(basename "$7")" != "V007__enforce_export_candidate_integrity.sql" ]; then
+  echo "Expected exactly V001-V007 ending with V007__enforce_export_candidate_integrity.sql." >&2
+  exit 1
+fi
+
 case "$(uname -s 2>/dev/null || true)" in
   MINGW*|MSYS*|CYGWIN*)
     if [ -n "${MSYS2_ARG_CONV_EXCL:-}" ]; then
@@ -48,10 +54,17 @@ compose() {
   docker compose -f "$COMPOSE_FILE" "$@"
 }
 
+cleanup() {
+  compose down -v >/dev/null 2>&1 || true
+}
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required for migration validation." >&2
   exit 1
 fi
+
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
 
 echo "Resetting local PostgreSQL validation database..."
 compose down -v
@@ -77,7 +90,7 @@ until [ "$stable" -ge 3 ]; do
   fi
 done
 
-echo "Applying migrations..."
+echo "Applying exactly V001-V007..."
 for migration in "$MIGRATIONS_DIR"/V*.sql; do
   migration_name=$(basename "$migration")
   echo "Applying $migration_name"

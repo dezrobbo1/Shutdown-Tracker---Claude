@@ -17,6 +17,34 @@ public record ProjectExportArtifactRequest(
             throw new IllegalArgumentException("At least one export task is required.");
         }
         requireUniqueCandidates(tasks);
+        requireConsistentTaskIdentity(tasks);
+    }
+
+    private static void requireConsistentTaskIdentity(List<ProjectExportArtifactTask> tasks) {
+        Set<String> importedTaskIds = new HashSet<>();
+        Set<String> projectTaskUids = new HashSet<>();
+        Set<String> projectTaskIds = new HashSet<>();
+        for (ProjectExportArtifactTask task : tasks) {
+            if (!importedTaskIds.add(task.importedTaskId())) {
+                throw new IllegalArgumentException(
+                        "Each importedTaskId must map to exactly one worker task: '" + task.importedTaskId() + "'."
+                );
+            }
+            if (!projectTaskUids.add(task.microsoftProjectTaskUid())) {
+                throw new IllegalArgumentException(
+                        "Each Microsoft Project task UID must map to exactly one imported task: '"
+                                + task.microsoftProjectTaskUid()
+                                + "'."
+                );
+            }
+            if (!projectTaskIds.add(task.microsoftProjectTaskId())) {
+                throw new IllegalArgumentException(
+                        "Each Microsoft Project task ID must map to exactly one imported task: '"
+                                + task.microsoftProjectTaskId()
+                                + "'."
+                );
+            }
+        }
     }
 
     private static void requireUniqueCandidates(List<ProjectExportArtifactTask> tasks) {

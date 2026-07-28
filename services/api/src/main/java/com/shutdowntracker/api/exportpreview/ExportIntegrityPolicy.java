@@ -2,7 +2,7 @@ package com.shutdowntracker.api.exportpreview;
 
 public final class ExportIntegrityPolicy {
 
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 1;
 
     private ExportIntegrityPolicy() {
     }
