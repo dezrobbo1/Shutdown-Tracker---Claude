@@ -15,19 +15,16 @@ Microsoft Project remains the schedule authority. Shutdown Tracker is the live e
 
 Shutdown Tracker imports Microsoft Project schedule snapshots and may export reviewed, approved batches back to Microsoft Project. It does not live-feed Microsoft Project and does not silently modify the schedule.
 
-Task progress review follows this boundary:
+The controlled Project handoff lifecycle is explicit:
 
-```text
-field progress update
--> supervisor review
--> planner review
--> export eligibility
--> export preview
--> MSPDI/XML artifact generated
--> planner manually opens/checks in Microsoft Project
--> planner controls whether master .mpp is saved
--> Shutdown Tracker records verification metadata and audit
-```
+1. Candidate created — master `.mpp` not updated.
+2. Candidate approved — master `.mpp` not updated.
+3. Export preview created — master `.mpp` not updated.
+4. Export batch approved — master `.mpp` not updated.
+5. MSPDI/XML artifact generated — master `.mpp` not updated.
+6. Artifact opened in Microsoft Project — master `.mpp` not updated.
+7. Artifact verified in Microsoft Project — master `.mpp` not updated.
+8. Planner manually updates or saves the master `.mpp` — outside Shutdown Tracker automation.
 
 Comments, discussion, mentions, announcements, review decisions, export approval, artifact generation, and Project verification notes do not update or save the master `.mpp`.
 
@@ -51,7 +48,7 @@ The backend scaffold is placeholder-only:
 - `services/api` contains local-profile JDBC services for immutable project snapshot and imported Project entity persistence using the existing `project_snapshots`, `imported_tasks`, `imported_resources`, `imported_assignments`, and `imported_extended_attributes` tables; no public endpoint calls them yet.
 - `services/api` contains a local-profile import review API for listing parsed snapshots, reviewing imported tasks/resources/assignments/extended attributes, and accepting or rejecting parsed snapshots with existing status values.
 - `services/api` contains a local-profile task lineage review API for persisting concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
-- `services/api` contains a local-profile export preview API that selects immutable, approval-bound export candidates by ID and revalidates their accepted snapshot, task identity, field, normalized value, source, and approval authority before approval and artifact generation.
+- `services/api` contains local-profile endpoints that create immutable approval-neutral export candidates, append separate candidate-bound approval events, and create export previews from candidate IDs only. The server derives baseline/task identity, normalizes the proposed value, computes the source fingerprint, and revalidates the accepted snapshot, exact candidate, current approval event, and task identity before batch approval and artifact generation.
 - `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
 - `services/api` contains local-profile export batch approval/rejection endpoints and a generated-artifact metadata endpoint using existing export batch status values.
 - `services/api` contains local-profile Project reopen/verification metadata endpoints that use existing export batch status values and do not automate Microsoft Project.
@@ -77,7 +74,7 @@ The backend scaffold is placeholder-only:
 - No scheduler logic, task execution endpoints, task progress write APIs, supervisor review APIs, planner review APIs, communications APIs, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, production object-store provider implementation, secrets, binaries, actual seed data, or real Project files have been added yet.
 - Database migrations remain under `infra/migrations`.
 - Local migration validation remains under `scripts/db`.
-- CI validates the Maven backend test suite, React/Vite frontend test/build, and SQL migrations against a clean PostgreSQL database through Docker Compose.
+- CI runs the Maven backend test suite and React/Vite frontend test/build separately from PostgreSQL migration evidence. The migration job runs a clean V001–V007 install, populated V006-to-V007 history and current-policy assertions, deterministic concurrency scenarios, and an intentionally failing late-V007 rollback check through Docker Compose. Its wrapper cleans up the validation container and volume even after failure.
 
 ## Architecture Direction
 

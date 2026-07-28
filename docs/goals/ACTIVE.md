@@ -34,14 +34,14 @@ authoritative export candidate
 
 An approval must authorize one exact execution fact for one project, accepted snapshot, imported task, field, normalized old value, normalized proposed value, source identity/version, candidate identity, and approval identity. It must not be reusable for another task, field, value, snapshot, project, or source version.
 
-## Current implementation claims to verify
+## Corrected implementation claims to verify
 
-The branch currently claims to provide:
+The corrected branch must provide:
 
 - immutable normalized `export_candidate_records`;
-- current export-integrity policy version 2;
+- current export-integrity policy version 1 introduced by the corrected, unmerged V007;
 - exact candidate-to-approval and candidate-to-preview-line binding;
-- preservation of V006 and V007 historical business values;
+- preservation of V006 historical business values with legacy policy, candidate, approval-reference, and event-order fields left null;
 - accepted-snapshot, task-identity, old-value, proposed-value, source, and approval freshness checks;
 - deterministic approval-event ordering;
 - sealed and immutable preview membership;
@@ -49,7 +49,7 @@ The branch currently claims to provide:
 - a worker contract limited to `percent_complete`, `actual_start`, and `actual_finish`;
 - request-specific task and field allowlisting in generated MSPDI/XML;
 - a committed PostgreSQL validation suite for clean install, populated upgrades, integrity assertions, concurrency, and migration rollback;
-- a 21-table V001–V008 baseline;
+- a 21-table V001–V007 baseline;
 - passing Java, TypeScript, frontend build, and migration validation.
 
 Treat each item as a claim requiring evidence, not as an established fact.
@@ -59,7 +59,7 @@ Treat each item as a claim requiring evidence, not as an established fact.
 ### Exact candidate authority
 
 - Every current-policy preview line is derived from an immutable authoritative candidate.
-- The caller cannot authoritatively override project, snapshot, imported task, Project UID/ID, field, old value, new value, source identity, or source fingerprint.
+- The preview caller cannot authoritatively override project, snapshot, imported task, Project UID/ID, field, old value, new value, source identity/version, or source fingerprint.
 - Every current-policy approval event identifies exactly one authoritative candidate through a database-enforced relationship.
 - An approval for candidate A cannot satisfy candidate B.
 - A newer approval event invalidates a preview that captured an older approval identity, even when the approval state is unchanged.
@@ -70,8 +70,9 @@ Treat each item as a claim requiring evidence, not as an established fact.
 
 - `percent_complete` uses one canonical whole-number representation within 0–100.
 - Semantically equivalent inputs such as `75`, `75.0`, and `075` do not create different approved facts.
-- `actual_start` and `actual_finish` use one documented canonical date-time rule consistent across candidate creation, previewing, revalidation, worker handoff, and XML verification.
-- Date-time normalization does not silently alter the intended Microsoft Project wall-clock value.
+- Proposed `actual_start` and `actual_finish` values use one documented whole-second canonical date-time rule consistent across candidate creation, previewing, revalidation, worker handoff, and XML verification.
+- Imported actual baselines retain their available microsecond precision under a separate canonicalizer used for exact freshness comparison.
+- Proposed-value normalization preserves the intended Microsoft Project local wall-clock component; the worker does not convert that component to UTC.
 - `physical_percent_complete` remains readable where required for historical/internal compatibility but cannot become newly export eligible.
 
 ### Baseline and task freshness
@@ -101,10 +102,10 @@ Any failed line must block the complete batch.
 
 ### Historical compatibility
 
-- V006 and V007 business rows are not rewritten, normalized, deduplicated, deleted, or assigned invented chronology.
+- V006 business rows are not rewritten, normalized, deduplicated, deleted, or assigned invented chronology.
 - Historical physical-percent and duplicate rows remain readable.
-- Legacy and policy-1 terminal batches remain readable.
-- Legacy and policy-1 nonterminal batches cannot newly progress under policy 2.
+- Legacy V006 terminal batches remain readable.
+- Legacy V006 draft and approved batches cannot newly progress under policy 1.
 - New policy, candidate, approval-reference, and event-order columns remain null on historical rows where required.
 - Pre/post deterministic hashes over historical business columns match exactly.
 
@@ -136,10 +137,9 @@ No native `.mpp` may be written. Artifact generation, opening, and verification 
 
 The committed validation suite and CI must reproduce:
 
-- clean V001–V008 installation;
+- clean V001–V007 installation;
 - expected table count and key database objects;
-- populated V006-to-current upgrade preservation;
-- populated V007 policy-1-to-policy-2 preservation;
+- populated V006-to-V007 upgrade preservation;
 - candidate, approval, and preview-line relationship enforcement;
 - candidate, approval, and line immutability;
 - candidate uniqueness and field-authority enforcement;
@@ -150,15 +150,26 @@ The committed validation suite and CI must reproduce:
 - concurrent duplicate insertion;
 - approval changes versus approval and generation;
 - worker failure rollback;
-- intentional late V007 and V008 failures leaving no partial migration objects.
+- an intentional late V007 failure leaving no partial migration objects or V006 business-data changes.
 
 Fake repository tests do not replace PostgreSQL evidence for constraints, triggers, foreign keys, locking, concurrency, or rollback.
 
 ### Documentation and pull request accuracy
 
+The controlled handoff lifecycle remains:
+
+1. Candidate created — master `.mpp` not updated.
+2. Candidate approved — master `.mpp` not updated.
+3. Export preview created — master `.mpp` not updated.
+4. Export batch approved — master `.mpp` not updated.
+5. MSPDI/XML artifact generated — master `.mpp` not updated.
+6. Artifact opened in Microsoft Project — master `.mpp` not updated.
+7. Artifact verified in Microsoft Project — master `.mpp` not updated.
+8. Planner manually updates or saves the master `.mpp` — outside Shutdown Tracker automation.
+
 - Product, API, worker, migration, testing, and operational documentation describe the implementation that actually exists.
 - Documentation distinguishes candidate creation, candidate approval, preview creation, batch approval, artifact generation, Project open, Project verification, and planner-controlled master-file save.
-- The PR body reports exact commands and results without presenting local-only checks as CI evidence.
+- The PR body reports Java tests, PostgreSQL validation, GitHub Actions, Bash execution, PowerShell wrapper status, and the manual Project gate as separate evidence without presenting one as proof of another.
 - Direct PowerShell wrapper execution and its underlying PostgreSQL transaction-pattern validation are reported separately.
 - The manual Microsoft Project round-trip remains explicitly pending.
 - PR #48 remains draft.

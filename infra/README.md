@@ -5,7 +5,7 @@ This directory contains the local PostgreSQL migration-validation configuration 
 ## Contents
 
 - [`docker/docker-compose.postgres.yml`](docker/docker-compose.postgres.yml): PostgreSQL 16 Compose service for local migration validation.
-- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V008`.
+- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V007`.
 - [`../scripts/db`](../scripts/db): Bash and PowerShell runners that reset the validation database, apply every migration file in its own transaction, verify the 21-table baseline, and run populated-upgrade and export-integrity regressions.
 
 ## Local validation
@@ -24,9 +24,9 @@ Windows PowerShell:
 .\scripts\db\validate-migrations.ps1
 ```
 
-Both scripts use Docker Compose and run `psql` inside the PostgreSQL container; a host `psql` installation is not required. They remove the named validation volume before applying the migrations. A SQL error rolls back the complete migration file rather than leaving partial objects. Synthetic V006 and V007 upgrades, policy-2 constraints, deterministic lock behavior, and intentionally failed migration transactions are then checked in isolated temporary databases.
+Both scripts use Docker Compose and run `psql` inside the PostgreSQL container; a host `psql` installation is not required. They remove the named validation volume before applying migrations and again when validation exits, including after failure. A SQL error rolls back the complete migration file rather than leaving partial objects. Synthetic populated V006 upgrades, current policy-1 constraints, deterministic lock behavior, and an intentionally failed V007 transaction are checked in isolated temporary databases.
 
-V007 preserves V006 export batches and lines as unversioned, read-only history. V008 also freezes policy-1 rows and requires new policy-2 previews to use immutable candidates bound to exact approval, snapshot, task, field, normalized old/new value, and source-payload identity. Legacy physical-percent and duplicate candidates remain readable without becoming newly exportable.
+V007 preserves V006 export batches and lines as unversioned, read-only history and introduces current policy 1. New immutable candidates capture an accepted snapshot, task identity, canonical old/new value, required source version, and database-generated fingerprint. Approval events are separate append-only records bound to the exact candidate, and new previews select candidate IDs only. Legacy physical-percent and duplicate lines remain readable without becoming newly exportable.
 
 ## Application infrastructure
 

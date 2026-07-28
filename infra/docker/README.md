@@ -49,4 +49,4 @@ Use the repository validation scripts for the full reset, ordered migration appl
 .\scripts\db\validate-migrations.ps1
 ```
 
-`down -v` removes the named local validation volume. The validation scripts perform that reset automatically before applying migrations.
+`down -v` removes the named local validation volume. The validation scripts perform that reset before applying migrations and always run the same cleanup when they exit, including after validation failure.

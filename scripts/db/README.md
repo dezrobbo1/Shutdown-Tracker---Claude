@@ -37,11 +37,10 @@ From the repository root:
 - Apply each `infra/migrations/V*.sql` file in sorted version order as its own PostgreSQL transaction.
 - Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
 - Verify the expected 21 baseline tables exist after migration.
-- Upgrade populated synthetic V006 history through V007 and V008 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
-- Preserve and freeze synthetic V007 policy-1 records when V008 is applied.
-- Exercise policy-2 authoritative-candidate bindings, reciprocal foreign keys, exact line identity/value matching, field and leaf authority, duplicates, sealing, immutable history, approval ordering, and baseline freshness.
-- Prove line-versus-seal, concurrent duplicate, generation-versus-approval, and failed-generation rollback behavior with separately synchronized PostgreSQL sessions.
-- Intentionally fail V007 and V008 at the end of their transaction and verify that neither migration leaves partial objects.
+- Upgrade populated synthetic V006 history through V007 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
+- Exercise current policy-1 approval-neutral candidate creation, trusted fingerprints, separate exact candidate-bound approval history, candidate-ID-only preview lines, field and leaf authority, duplicates, sealing, immutable history, deterministic latest-event ordering, and baseline freshness.
+- Prove line-versus-seal, concurrent duplicate, approval versus batch approval/generation, snapshot/task mutation versus generation, worker-failure rollback, and stable reversed multi-source contention behavior with separately synchronized PostgreSQL sessions.
+- Intentionally fail V007 near the end of its transaction and verify that it leaves no partial V007 objects while V006 data remains intact.
 
 The populated data is fixed, synthetic validation data created only in temporary databases inside the local validation container. The suite does not run application code, create Project artifacts, or use operational data. Concurrency synchronization uses PostgreSQL locks and `pg_blocking_pids`, rather than assuming that a timed delay proves blocking.
 
@@ -53,7 +52,7 @@ To manually reset the local validation container and volume:
 docker compose -f infra/docker/docker-compose.postgres.yml down -v
 ```
 
-The validation scripts already run this reset before applying migrations.
+The validation scripts run this reset before applying migrations and again from their exit cleanup, including when validation fails. CI uses the same wrapper and cleanup behavior.
 
 ## Boundary
 
