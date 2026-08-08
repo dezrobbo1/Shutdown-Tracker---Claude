@@ -46,10 +46,6 @@ describe("shutdown tracker api client", () => {
     await client.exportPreview.approve("project-a", "batch-a", {
       reason: "Synthetic approval"
     });
-    await client.exportPreview.markGenerated("project-a", "batch-a", {
-      exportFileUri: "object://synthetic/export.mspdi.xml",
-      exportFileHash: "sha256:synthetic"
-    });
     await client.exportPreview.markOpenedInMicrosoftProject("project-a", "batch-a", {
       openedByUserId: "user-a",
       reason: "Synthetic Microsoft Project reopen"
@@ -64,7 +60,6 @@ describe("shutdown tracker api client", () => {
 
     expect(calls.map((call) => call.input)).toEqual([
       "/api/projects/project-a/export-preview/batch-a/approve",
-      "/api/projects/project-a/export-preview/batch-a/mark-generated",
       "/api/projects/project-a/export-preview/batch-a/mark-opened-in-microsoft-project",
       "/api/projects/project-a/export-preview/batch-a/verify",
       "/api/projects/project-a/export-preview/batch-a/generate-artifact"
@@ -72,23 +67,17 @@ describe("shutdown tracker api client", () => {
     expect(calls[0].body).toBe(JSON.stringify({ reason: "Synthetic approval" }));
     expect(calls[1].body).toBe(
       JSON.stringify({
-        exportFileUri: "object://synthetic/export.mspdi.xml",
-        exportFileHash: "sha256:synthetic"
-      })
-    );
-    expect(calls[2].body).toBe(
-      JSON.stringify({
         openedByUserId: "user-a",
         reason: "Synthetic Microsoft Project reopen"
       })
     );
-    expect(calls[3].body).toBe(
+    expect(calls[2].body).toBe(
       JSON.stringify({
         verifiedByUserId: "user-b",
         reason: "Synthetic manual verification complete"
       })
     );
-    expect(calls[4].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
+    expect(calls[3].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
   });
 
   it("creates an authoritative candidate without caller-authored baseline, task identity, or fingerprint", async () => {
@@ -293,11 +282,13 @@ describe("shutdown tracker api client", () => {
         "Record export candidate approval event",
         "Create export preview",
         "Approve export batch",
-        "Record generated artifact",
         "Record Project reopen",
         "Verify export artifact",
         "Generate export artifact"
       ])
+    );
+    expect(shutdownTrackerReviewApiSurfaces.map((surface) => surface.path)).not.toContain(
+      "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated"
     );
   });
 });

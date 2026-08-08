@@ -339,6 +339,110 @@ SELECT validation.create_candidate('20000000-0000-0000-0000-000000000207', '2000
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000208', '20000000-0000-0000-0000-000000000101', 'percent_complete', '80', 'Different-value duplicate candidate', 'source-v3');
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000209', '20000000-0000-0000-0000-000000000104', 'actual_start', '2026-07-18T09:00Z', 'Duplicate UID candidate');
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000210', '20000000-0000-0000-0000-000000000105', 'actual_finish', '2026-07-18T10:00Z', 'Duplicate ID candidate');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000229', '20000000-0000-0000-0000-000000000102', 'percent_complete', '36', 'Approval snapshot freshness');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000230', '20000000-0000-0000-0000-000000000102', 'percent_complete', '37', 'Approval baseline freshness');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000231', '20000000-0000-0000-0000-000000000102', 'actual_start', '2026-07-18T09:30Z', 'Approval task UID freshness');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000232', '20000000-0000-0000-0000-000000000102', 'actual_finish', '2026-07-18T12:00Z', 'Approval task ID freshness');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000233', '20000000-0000-0000-0000-000000000102', 'percent_complete', '38', 'Approval task name freshness');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000234', '20000000-0000-0000-0000-000000000102', 'percent_complete', '39', 'Approval leaf freshness');
+
+SELECT validation.expect_failure_after(
+  'stale snapshot approval',
+  $$UPDATE project_snapshots
+    SET status = 'superseded'
+    WHERE id = '20000000-0000-0000-0000-000000000004'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000360',
+      '20000000-0000-0000-0000-000000000229',
+      'approved_for_export',
+      'Must reject a stale snapshot approval'
+    )$$,
+  '23514',
+  'accepted project snapshot'
+);
+
+SELECT validation.expect_failure_after(
+  'stale baseline approval',
+  $$UPDATE imported_tasks
+    SET percent_complete = 11
+    WHERE id = '20000000-0000-0000-0000-000000000102'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000361',
+      '20000000-0000-0000-0000-000000000230',
+      'approved_for_export',
+      'Must reject a stale baseline approval'
+    )$$,
+  '23514',
+  'task identity or baseline'
+);
+
+SELECT validation.expect_failure_after(
+  'stale task UID approval',
+  $$UPDATE imported_tasks
+    SET external_uid = '299'
+    WHERE id = '20000000-0000-0000-0000-000000000102'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000362',
+      '20000000-0000-0000-0000-000000000231',
+      'approved_for_export',
+      'Must reject a stale task UID approval'
+    )$$,
+  '23514',
+  'task identity or baseline'
+);
+
+SELECT validation.expect_failure_after(
+  'stale task ID approval',
+  $$UPDATE imported_tasks
+    SET external_id = '29'
+    WHERE id = '20000000-0000-0000-0000-000000000102'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000363',
+      '20000000-0000-0000-0000-000000000232',
+      'approved_for_export',
+      'Must reject a stale task ID approval'
+    )$$,
+  '23514',
+  'task identity or baseline'
+);
+
+SELECT validation.expect_failure_after(
+  'stale task name approval',
+  $$UPDATE imported_tasks
+    SET name = 'Changed before approval'
+    WHERE id = '20000000-0000-0000-0000-000000000102'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000364',
+      '20000000-0000-0000-0000-000000000233',
+      'approved_for_export',
+      'Must reject a stale task name approval'
+    )$$,
+  '23514',
+  'task identity or baseline'
+);
+
+SELECT validation.expect_failure_after(
+  'stale leaf-state approval',
+  $$UPDATE imported_tasks
+    SET is_summary = true
+    WHERE id = '20000000-0000-0000-0000-000000000102'$$,
+  $$SELECT validation.create_approval(
+      '20000000-0000-0000-0000-000000000365',
+      '20000000-0000-0000-0000-000000000234',
+      'approved_for_export',
+      'Must reject a stale leaf-state approval'
+    )$$,
+  '23514',
+  'task identity or baseline'
+);
+
+SELECT validation.assert_true(
+  (SELECT count(*) = 0
+   FROM approval_records
+   WHERE id BETWEEN '20000000-0000-0000-0000-000000000360'
+                AND '20000000-0000-0000-0000-000000000365'),
+  'Stale approved-for-export events must not be persisted'
+);
 
 SELECT validation.create_approval('20000000-0000-0000-0000-000000000301', '20000000-0000-0000-0000-000000000201', 'approved_for_export', 'Approve percent');
 SELECT validation.create_approval('20000000-0000-0000-0000-000000000302', '20000000-0000-0000-0000-000000000202', 'approved_for_export', 'Approve actual start');
@@ -825,6 +929,7 @@ SELECT validation.create_candidate('20000000-0000-0000-0000-000000000247', '2000
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000248', '20000000-0000-0000-0000-000000000102', 'percent_complete', '65', 'Rollback candidate');
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000249', '20000000-0000-0000-0000-000000000101', 'physical_percent_complete', '75', 'Reversed candidate A');
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000250', '20000000-0000-0000-0000-000000000102', 'physical_percent_complete', '80', 'Reversed candidate B');
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000251', '20000000-0000-0000-0000-000000000102', 'percent_complete', '70', 'Task mutation versus approval candidate');
 
 SELECT validation.create_approval('20000000-0000-0000-0000-000000000340', '20000000-0000-0000-0000-000000000240', 'approved_for_export', 'Concurrency approval');
 SELECT validation.create_approval('20000000-0000-0000-0000-000000000341', '20000000-0000-0000-0000-000000000241', 'approved_for_export', 'Concurrency approval');

@@ -1175,6 +1175,10 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   candidate_record RECORD;
+  task_record RECORD;
+  current_old_value TEXT;
+  canonical_new_value TEXT;
+  expected_hash TEXT;
 BEGIN
   IF NEW.approval_event_order IS NOT NULL THEN
     RAISE EXCEPTION 'approval event order is assigned by the database'
@@ -1183,6 +1187,22 @@ BEGIN
   IF NEW.authoritative_export_candidate_id IS NULL
      OR NEW.candidate_binding_policy_version IS DISTINCT FROM 1 THEN
     RAISE EXCEPTION 'new approval events require an authoritative policy-1 export candidate binding'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Candidate identity is immutable, so this unlocked locator read is safe and
+  -- lets approval use the same batch -> snapshot -> candidate -> task order as
+  -- export generation.
+  SELECT candidate.project_id,
+         candidate.project_snapshot_id,
+         candidate.imported_task_id
+    INTO candidate_record
+    FROM export_candidate_records candidate
+    WHERE candidate.id = NEW.authoritative_export_candidate_id
+      AND candidate.binding_policy_version = 1;
+
+  IF NOT FOUND OR candidate_record.project_id IS DISTINCT FROM NEW.project_id THEN
+    RAISE EXCEPTION 'approval event requires a matching authoritative export candidate'
       USING ERRCODE = '23514';
   END IF;
 
@@ -1204,6 +1224,20 @@ BEGIN
   ORDER BY batch.id
   FOR SHARE OF batch;
 
+  IF NEW.approval_state = 'approved_for_export'::approval_state THEN
+    PERFORM snapshot.id
+    FROM project_snapshots snapshot
+    WHERE snapshot.id = candidate_record.project_snapshot_id
+      AND snapshot.project_id = candidate_record.project_id
+      AND snapshot.status = 'accepted'::project_snapshot_status
+    FOR SHARE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'approved export candidate requires its accepted project snapshot; create a fresh candidate'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
   SELECT candidate.*
     INTO candidate_record
     FROM export_candidate_records candidate
@@ -1219,6 +1253,76 @@ BEGIN
      OR NEW.source_entity_id IS DISTINCT FROM candidate_record.id THEN
     RAISE EXCEPTION 'candidate approval event source identity must be the exact export candidate'
       USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.approval_state = 'approved_for_export'::approval_state THEN
+    SELECT task.external_uid,
+           task.external_id,
+           task.name,
+           task.is_summary,
+           task.percent_complete,
+           task.physical_percent_complete,
+           task.actual_start,
+           task.actual_finish
+      INTO task_record
+      FROM imported_tasks task
+      WHERE task.id = candidate_record.imported_task_id
+        AND task.project_id = candidate_record.project_id
+        AND task.project_snapshot_id = candidate_record.project_snapshot_id
+      FOR SHARE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'approved export candidate no longer matches its imported task identity or baseline; create a fresh candidate'
+        USING ERRCODE = '23514';
+    END IF;
+
+    current_old_value := CASE candidate_record.field_name
+      WHEN 'percent_complete' THEN
+        CASE WHEN task_record.percent_complete IS NULL
+          THEN NULL ELSE trim_scale(task_record.percent_complete)::TEXT END
+      WHEN 'physical_percent_complete' THEN
+        CASE WHEN task_record.physical_percent_complete IS NULL
+          THEN NULL ELSE trim_scale(task_record.physical_percent_complete)::TEXT END
+      WHEN 'actual_start' THEN canonical_export_candidate_instant(task_record.actual_start)
+      WHEN 'actual_finish' THEN canonical_export_candidate_instant(task_record.actual_finish)
+    END;
+
+    canonical_new_value := normalize_export_candidate_new_value(
+      candidate_record.field_name,
+      candidate_record.normalized_new_value
+    );
+
+    expected_hash := calculate_export_candidate_fingerprint(
+      candidate_record.binding_policy_version,
+      candidate_record.project_id,
+      candidate_record.project_snapshot_id,
+      candidate_record.imported_task_id,
+      candidate_record.source_entity_type,
+      candidate_record.source_entity_id,
+      candidate_record.source_version,
+      candidate_record.field_name,
+      candidate_record.normalized_old_value,
+      candidate_record.normalized_new_value,
+      candidate_record.captured_task_external_uid,
+      candidate_record.captured_task_external_id,
+      candidate_record.captured_task_name,
+      candidate_record.captured_is_leaf_task,
+      candidate_record.source_actor_user_id,
+      candidate_record.source_timestamp,
+      candidate_record.reason,
+      candidate_record.metadata
+    );
+
+    IF candidate_record.captured_task_external_uid IS DISTINCT FROM task_record.external_uid
+       OR candidate_record.captured_task_external_id IS DISTINCT FROM task_record.external_id
+       OR candidate_record.captured_task_name IS DISTINCT FROM task_record.name
+       OR candidate_record.captured_is_leaf_task IS DISTINCT FROM (NOT task_record.is_summary)
+       OR candidate_record.normalized_old_value IS DISTINCT FROM current_old_value
+       OR candidate_record.normalized_new_value IS DISTINCT FROM canonical_new_value
+       OR candidate_record.source_event_or_payload_hash IS DISTINCT FROM expected_hash THEN
+      RAISE EXCEPTION 'approved export candidate no longer matches its imported task identity or baseline; create a fresh candidate'
+        USING ERRCODE = '23514';
+    END IF;
   END IF;
 
   NEW.approval_event_order := nextval('approval_records_event_order_seq'::regclass);

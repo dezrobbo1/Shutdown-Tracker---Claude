@@ -54,15 +54,6 @@ public class ExportPreviewController {
         return service.rejectBatch(projectId, exportBatchId, request);
     }
 
-    @PostMapping("/{exportBatchId}/mark-generated")
-    public ExportPreviewDetail markGenerated(
-            @PathVariable UUID projectId,
-            @PathVariable UUID exportBatchId,
-            @RequestBody ExportBatchGeneratedRequest request
-    ) {
-        return service.markGenerated(projectId, exportBatchId, request);
-    }
-
     @PostMapping("/{exportBatchId}/mark-opened-in-microsoft-project")
     public ExportPreviewDetail markOpenedInMicrosoftProject(
             @PathVariable UUID projectId,

@@ -53,7 +53,7 @@ export const reviewApiConnection = {
       "Create lineage link",
       "Create export preview",
       "Approve export batch",
-      "Record generated artifact"
+      "Generate export artifact"
     ].includes(surface.label)
   ),
   surfaces: shutdownTrackerReviewApiSurfaces

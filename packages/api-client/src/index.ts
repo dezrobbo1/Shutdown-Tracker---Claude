@@ -355,14 +355,6 @@ export type ExportBatchDecisionRequest = {
   metadata?: JsonObject | null;
 };
 
-export type ExportBatchGeneratedRequest = {
-  exportFileUri: string;
-  exportFileHash: string;
-  generatedByUserId?: string | null;
-  reason?: string | null;
-  metadata?: JsonObject | null;
-};
-
 export type ExportBatchProjectOpenRequest = {
   openedByUserId: string;
   reason?: string | null;
@@ -435,7 +427,6 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
   { label: "Reject export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/reject" },
-  { label: "Record generated artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated" },
   {
     label: "Record Project reopen",
     method: "POST",
@@ -612,13 +603,6 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           method: "POST",
           body: request
         }),
-      markGenerated: (projectId: string, exportBatchId: string, request: ExportBatchGeneratedRequest) =>
-        requestJson<ExportPreviewDetail>(
-          transport,
-          baseUrl,
-          exportPreviewPath(projectId, `${exportBatchId}/mark-generated`),
-          { method: "POST", body: request }
-        ),
       markOpenedInMicrosoftProject: (projectId: string, exportBatchId: string, request: ExportBatchProjectOpenRequest) =>
         requestJson<ExportPreviewDetail>(
           transport,

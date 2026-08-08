@@ -179,12 +179,9 @@ class ExportPreviewControllerTests {
     }
 
     @Test
-    void marksExportBatchGeneratedFromArtifactMetadata() throws Exception {
+    void doesNotExposeGeneratedStateMetadataAsAStandaloneRoute() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
-        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.GENERATED);
-        when(service.markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class)))
-                .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated", projectId, exportBatchId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -195,13 +192,9 @@ class ExportPreviewControllerTests {
                                   "reason": "Synthetic worker artifact recorded"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.batch.status").value("GENERATED"))
-                .andExpect(jsonPath("$.batch.exportFileUri").value("object://synthetic/export-batches/export-1.mspdi.xml"))
-                .andExpect(jsonPath("$.batch.exportFileHash").value("sha256:synthetic"))
-                .andExpect(jsonPath("$.message").value(detail.message()));
+                .andExpect(status().isNotFound());
 
-        verify(service).markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class));
+        verifyNoInteractions(service);
     }
 
     @Test

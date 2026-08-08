@@ -9,7 +9,7 @@ Purpose: hand-maintained TypeScript API client for the console and future mobile
 - Typed import-batch parse-summary handoff method for requesting worker-owned summary parsing of pending import batches.
 - Typed task lineage review methods for listing links, creating suggested links, and accepting or rejecting suggested links.
 - Typed export preview methods for creating and reading draft preview batches.
-- Typed export batch lifecycle methods for approving, rejecting, and recording generated artifact metadata.
+- Typed export batch lifecycle methods for approving, rejecting, requesting worker-backed artifact generation, and recording manual Project open/verification metadata.
 - A small review API surface manifest used by the console to show which local-profile operations are wired.
 
 The client does not fetch data by itself, persist state, call MPXJ directly, parse uploaded files in the API, generate files, implement auth, run offline sync, or write back to Microsoft Project.

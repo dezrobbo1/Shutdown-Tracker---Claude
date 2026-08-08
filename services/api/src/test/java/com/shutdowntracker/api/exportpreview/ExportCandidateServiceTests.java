@@ -119,6 +119,31 @@ class ExportCandidateServiceTests {
                 .isEqualTo(AuditEventTypes.EXPORT_CANDIDATE_APPROVAL_RECORDED);
     }
 
+    @Test
+    void failsClosedWhenDatabaseRejectsAStaleApprovedForExportEvent() {
+        UUID projectId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+        ExportPreviewRepository repository = mock(ExportPreviewRepository.class);
+        CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
+        ExportCandidateService service = new ExportCandidateService(repository, audit);
+        ExportCandidateApprovalEventRequest request = new ExportCandidateApprovalEventRequest(
+                ApprovalState.APPROVED_FOR_EXPORT,
+                OffsetDateTime.parse("2026-01-01T07:00:00Z"),
+                UUID.randomUUID(),
+                OffsetDateTime.parse("2026-01-01T08:00:00Z"),
+                "Synthetic planner approval",
+                Map.of("source", "synthetic-test")
+        );
+        when(repository.createCandidateApprovalEvent(projectId, candidateId, request))
+                .thenThrow(new DataIntegrityViolationException("Synthetic stale task baseline."));
+
+        assertThatThrownBy(() -> service.recordApprovalEvent(projectId, candidateId, request))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
+                .hasMessageContaining("approval authority changed");
+        assertThat(audit.events()).isEmpty();
+    }
+
     private ExportCandidateCreateRequest request(String fieldName, String proposedValue) {
         return new ExportCandidateCreateRequest(
                 UUID.randomUUID(),
