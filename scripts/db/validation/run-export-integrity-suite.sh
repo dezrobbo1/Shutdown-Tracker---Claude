@@ -299,7 +299,7 @@ run_task_approval_concurrency() {
   wait_success "$holder_pid" "$holder_log" "Task approval holder"
   wait_failure "$waiter_pid" "$waiter_log" "task identity or baseline" "Stale task approval waiter"
   assert_scalar "$CURRENT_DB" "SELECT count(*) FROM approval_records WHERE id = '20000000-0000-0000-0000-000000000355';" "0" "Stale concurrent approval count"
-  assert_scalar "$CURRENT_DB" "SELECT percent_complete::TEXT FROM imported_tasks WHERE id = '20000000-0000-0000-0000-000000000102';" "12" "Concurrent task baseline"
+  assert_scalar "$CURRENT_DB" "SELECT trim_scale(percent_complete)::TEXT FROM imported_tasks WHERE id = '20000000-0000-0000-0000-000000000102';" "12" "Concurrent task baseline"
   db_psql "$CURRENT_DB" -c "UPDATE imported_tasks SET percent_complete = 10 WHERE id = '20000000-0000-0000-0000-000000000102';" >/dev/null
 }
 
