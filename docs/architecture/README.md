@@ -1,117 +1,147 @@
 # Architecture
 
-## High-Level System
+Shutdown Tracker is a live shutdown execution-control system. Microsoft Project remains the schedule authority and final master-file control point; Shutdown Tracker owns execution truth, review, evidence, handover, reporting, operational mapping, controlled export preparation, verification metadata, and audit.
 
-Shutdown Tracker is planned as a monorepo with two frontend applications, backend services, shared packages, infrastructure definitions, and test fixtures.
+This document describes durable architecture boundaries. Exact endpoint/test inventories belong in source code and service/app READMEs rather than here.
 
-The product is a live shutdown execution tracker, not a scheduler. Microsoft Project remains the schedule authority and final master-file control point. Shutdown Tracker owns execution truth, review, evidence, handover, export preparation, verification metadata, and audit.
+## System shape
 
-## Modular Monolith First
+The repository is a monorepo with:
 
-The first backend should be a modular monolith rather than a distributed service mesh. Module boundaries should be explicit enough to support future extraction if the product grows.
+- `apps/console`: Master Console frontend.
+- `apps/mobile-pwa`: current Mobile Field App PWA implementation.
+- `services/api`: Spring Boot API and persistence/orchestration boundary.
+- `services/project-worker`: Spring Boot worker for Microsoft Project file processing through MPXJ.
+- `packages/api-client`: shared TypeScript API client.
+- `packages/project-import-contract`: API-to-worker import handoff contract.
+- `packages/project-export-contract`: API-to-worker export handoff contract.
+- `infra/migrations`: PostgreSQL schema migrations.
+- `fixtures/import-export`: approved synthetic import/export regression assets.
 
-The core backend module boundaries are expected to include:
+The backend follows a modular-monolith-first approach. Explicit module and worker boundaries should remain clear enough to extract later only if operational scale requires it.
 
-- identity and access;
-- projects and imported snapshots;
-- imported WBS, tasks, resources, and assignments;
-- task execution and task progress review;
+## Core domain boundaries
+
+The architecture is expected to support:
+
+- identity and project-scoped authorization;
+- projects, source files, import batches, and immutable Project snapshots;
+- imported tasks, resources, assignments, and extended attributes;
+- Project Operational Mapping: Source Catalogue, versioned Import Profiles, Operational Categories, mapping health, resolved task-category membership, provenance, Scope, and Saved Views;
+- task lineage across snapshots;
+- execution state and structured task progress;
+- supervisor and planner review;
 - problems and actions;
 - evidence metadata;
 - handover;
-- Critical Watchlists and reporting policies;
-- communications / entity-linked Discussion;
+- Critical Watchlists, Critical Work Packages, reporting policies, and Critical Updates;
+- entity-linked communications/discussion;
 - approval and export batches;
 - manual Microsoft Project verification metadata;
 - audit events;
-- offline sync queue.
+- mobile offline/sync workflows.
 
-## API Service
+Project Operational Mapping architecture is defined in [Project Operational Mapping — Implementation Architecture](project-operational-mapping-implementation.md). Its product boundary is defined in [Project Operational Mapping](../product/project-operational-mapping.md) and ADR-011.
 
-The API service will own request/response workflows, authentication, authorization, task events, task progress submissions, supervisor review, planner review candidates, problems, actions, evidence metadata, handover, communications records, audit events, reporting policies, and export approvals.
+## API and worker ownership
 
-The repository now includes a minimal Spring Boot API scaffold in [services/api](../../services/api). Actuator, `GET /api/version`, validation-only source-file checks, source-file storage abstraction, export-artifact storage abstraction, source-file upload orchestration, review project bootstrap services, source-file metadata persistence services, import batch persistence services, worker parse-summary handoff, parse summary persistence, immutable project snapshot/imported entity persistence, a local-profile import review API, local-profile task lineage review persistence, a local-profile export preview model, export batch approval/generation/reopen/verification metadata orchestration, worker-backed export artifact handoff, and audit event writes for the first review and export lifecycle mutations exist. No task execution endpoints, task progress write APIs, supervisor review APIs, planner progress review APIs, communications APIs, production offline sync, scheduler logic, parser execution in the API, automatic lineage matching, automated Project verification workflow, or authorization behavior exists yet.
+The API owns application workflows, authorization decisions, operational state, persistence orchestration, review/approval decisions, audit, Operational Mapping configuration/resolution orchestration, and user-facing API contracts.
 
-The repository also includes React/Vite scaffolds in [apps/console](../../apps/console) and [apps/mobile-pwa](../../apps/mobile-pwa). The console imports the shared TypeScript API client for current upload and import/export review operation wiring, renders synthetic scaffold data by default, and can opt into read-only live import/export review data fetching when an API base URL and project id are explicitly configured. The mobile PWA remains a static UI shell. The apps do not write execution state, implement offline queues, store files, parse Project files, generate exports, or write back to Microsoft Project.
+The project worker owns Microsoft Project file processing. MPXJ parsing and MSPDI/XML artifact generation belong in the worker rather than the API. For Operational Mapping, the worker returns source facts and normalized source metadata; it does not decide Tracker category meaning.
 
-The current Task Progress Review frontend surfaces are static/synthetic visual review surfaces only. They are not final IA, backend API contracts, or production route structure. See [Frontend Visual Review Scope](../product/frontend-visual-review-scope.md), [UX Anti-Slop Rules](../product/ux-anti-slop-rules.md), and [Task Progress Review and Export Approval](../product/task-progress-review-export-approval.md).
+Current API-to-worker handoffs are explicit and opt-in. The future asynchronous direction is documented in [Worker Handoff Queue Strategy](worker-handoff-queue-strategy.md). Product workflow statuses must not be replaced with transport/job statuses merely because a queue is introduced.
 
-Seeded local/review data guidance is documented in [Seeded Review and Demo Data Strategy](../testing/seeded-review-demo-data-strategy.md). No seeded dataset implementation, migration-driven seed data, production tenant data, or real Project data has been added.
+## Data and storage
 
-## Project Worker
+PostgreSQL is the relational system of record for application state. Imported Microsoft Project data is stored as immutable snapshot facts; operational records, Operational Mapping configuration, resolved snapshot-specific category memberships, and audit history are app-owned.
 
-The project worker will process stored Microsoft Project source files for import batches, run MPXJ parsing, capture warnings, help persist snapshots, and later generate MSPDI/XML export artifacts.
+The v1 model uses relational domain records plus append-only audit events rather than full event sourcing.
 
-The repository now includes a minimal Spring Boot worker scaffold in [services/project-worker](../../services/project-worker). The worker has a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, a synthetic MSPDI/XML export artifact spike, a shared-contract export artifact generation endpoint, and the `local` profile wires PostgreSQL and Flyway. It reads explicit local paths only when configured or handed one through a local contract, reports summary counts for imports, can write a local MSPDI/XML export artifact from explicit leaf-task candidates, and does not persist, run background jobs, integrate queues, calculate schedules, or write back to Microsoft Project.
+Versioned migrations live in [`infra/migrations`](../../infra/migrations). See the migration README and validation scripts under [`scripts/db`](../../scripts/db).
 
-## PostgreSQL
+Source files, generated export artifacts, and evidence should use storage abstractions with metadata held in PostgreSQL. Local filesystem implementations are development/review facilities only. Production provider guidance is in [Object Storage Provider Strategy](object-storage-provider-strategy.md).
 
-PostgreSQL is the system of record for relational operational data including users, roles, projects, imported snapshots, tasks, assignments, task events, task progress submissions, progress review decisions, export candidates, problems, actions, handover, communications records, export batches, and audit events.
+## Import and operational-mapping lifecycle
 
-The v1 model should use relational domain records plus append-only audit events. Full event sourcing remains later/experimental.
+The durable import/mapping handoff is:
 
-## Database Migrations
+1. Accept and store an immutable Microsoft Project source file.
+2. Create an import batch.
+3. Process the source file in the project worker with MPXJ.
+4. Persist parse metadata and immutable snapshot entities.
+5. Build/query the Source Catalogue from imported facts.
+6. Validate the selected Import Profile version against the snapshot.
+7. Planner resolves confirmation-required or broken mappings where policy requires it.
+8. Activate an explicit profile version for the snapshot.
+9. Resolve and persist snapshot-specific task-category memberships with provenance.
+10. Make mapped Scope/Saved Views and downstream execution context available.
+11. Review/accept imported task lineage where required.
+12. Track execution in Shutdown Tracker.
 
-The migration foundation now lives in [infra/migrations](../../infra/migrations). It establishes SQL conventions and baseline PostgreSQL tables for projects, source files, import batches, immutable snapshots, imported Project entities, audit events, approval-neutral authoritative export candidates, candidate-bound approval/export batches, and Critical Watchlist reporting.
+A Project snapshot may exist before Operational Mapping activation. Mapping activation must not rewrite the immutable snapshot.
 
-The Spring Boot services include PostgreSQL JDBC and Flyway runtime dependencies. Their `local` profiles point Flyway to `filesystem:infra/migrations`, which is intended to be run from the repository root. The test profiles disable datasource and Flyway auto-configuration so simple context-load tests do not require PostgreSQL.
+For a new snapshot, prior memberships remain unchanged; the selected profile version is revalidated and a new snapshot-specific membership set is generated only after the mapping-health gate passes.
 
-## Audit Event Schema
+## Export lifecycle
 
-Audit events are immutable and must be designed before domain tables are implemented. See [Audit Event Schema](audit-event-schema.md) for the baseline event identity, actor, target, correlation, idempotency, offline, evidence, communications, task progress, snapshot, and export-batch fields. The API now records local-profile audit rows for import snapshot accept/reject decisions, task lineage link review decisions, authoritative candidate creation, candidate approval events, export preview creation, export batch approval/rejection, and generated artifact metadata recording using the existing `audit_events` table.
+The durable export handoff is:
 
-Task Progress Review and Communications Layer product docs define future event families that are not implemented yet.
+1. Capture structured task progress.
+2. Supervisor reviews operational validity.
+3. Planner reviews export eligibility.
+4. Materialise an export preview from approved leaf-task candidates.
+5. Approve the export batch.
+6. Generate an MSPDI/XML artifact through the worker.
+7. Planner manually opens/checks the artifact in Microsoft Project.
+8. Planner controls whether the master `.mpp` is saved.
+9. Shutdown Tracker records verification metadata and audit.
 
-## Object Storage
+No step authorises hidden Project write-back or native `.mpp` generation.
 
-Object storage should hold uploaded source files, evidence files, and generated export files. The database should store metadata, ownership, access, lifecycle state, and audit linkage.
+## Project Operational Mapping implementation sequence
 
-Production provider selection and configuration guidance is documented in [Object Storage Provider Strategy](object-storage-provider-strategy.md). No production object-store provider, SDK dependency, bucket/container, credential, or deployment secret has been added yet.
+Implementation should proceed as narrow vertical slices rather than creating all future mapping tables/UI at once:
 
-The API now has internal source-file and export-artifact storage abstractions with local filesystem implementations for development and review wiring. They are not production object storage. The local-profile upload orchestration endpoint writes accepted source files through source-file storage, then stores the returned storage URI and content hash in metadata rather than raw file bytes. The export-artifact handoff endpoint prepares a storage-owned output target before calling the worker and verifies the worker response uses that reserved URI before recording artifact metadata.
+1. **Source Catalogue** — prove normalized extraction/query of available task custom fields, hierarchy, Resource `Group`, assignments, coverage, distinct values, and source provenance.
+2. **Direct task-field mapping** — add Import Profile/category foundations, direct mapping, validation, membership, provenance, and audit.
+3. **Hierarchy mapping** — explicit structural anchors/ancestry plus re-import validation.
+4. **Resource Group mapping** — assignment-derived multi-value membership and provenance.
+5. **Scope and Saved Views** — operational query reuse over resolved memberships without widening authorization.
+6. **Responsibility context and operational-record inheritance** — only as corresponding production domains are ready.
 
-The API also has local-profile JDBC services for synthetic review project bootstrap, `source_files` metadata persistence, `import_batches` creation/status updates, worker parse-summary handoff, parse summary persistence, immutable `project_snapshots`, imported Project entity rows, import review endpoints over already-persisted snapshots, task lineage review persistence over `task_lineage_links`, approval-neutral authoritative candidate creation, separate candidate-bound approval events, candidate-ID-only draft export previews over `export_batches` and `export_batch_lines`, export batch lifecycle status transitions including manual Project reopen/verification metadata, worker-backed export artifact handoff, export artifact storage target preparation, and audit event writes for those upload/review/export mutations. The API can call explicitly configured worker endpoints for summary-only parsing and approved export artifact generation, but the default API clients are disconnected. The future async handoff direction is documented in [Worker Handoff Queue Strategy](worker-handoff-queue-strategy.md). These services use existing baseline tables and do not parse Project files in the API, enqueue worker jobs, automatically match task lineage, create live execution records, automate Microsoft Project, write directly to Microsoft Project, or create seeded demo execution data.
+See [Project Operational Mapping — Implementation Architecture](project-operational-mapping-implementation.md) for the proposed logical data model, API surface, migration strategy, consistency requirements, and test plan.
 
-## PWA and Offline Model
+## Audit
 
-The Mobile Field App should eventually use IndexedDB for queued local state, service workers and Cache API for offline-capable resources, idempotency keys for replay-safe operations, and visible sync states for user trust. Background Sync is progressive enhancement only.
+Audit events are append-only application records for material workflow and authority changes. See [Audit Event Schema](audit-event-schema.md) for the baseline schema and event requirements.
 
-Offline copy and state rules are defined in [Offline Audit and Sync Rules](../product/offline-audit-sync-rules.md). Key rule: queued is not submitted.
+Operational Mapping must audit category/profile/mapping activation, remap confirmation, validation overrides, value configuration, shared-view changes, and responsibility/delegation changes as they are implemented.
 
-## Communications Model
+Product documents may define additional event families as capabilities are implemented; those product rules do not imply that the corresponding backend functionality already exists.
 
-The communications layer is not generic chat. Future communication records should be entity-linked Discussion attached to tasks, problems, actions, evidence, handover, export preview lines, export batches, Project verification steps, or Critical Watch reporting objects.
+## Mobile and offline model
 
-A comment is not task progress, a blocker, an action, evidence, or handover unless it is promoted or linked into that structured object. See [Communications Layer](../product/communications-layer.md).
+The field application must make queued/submitted/synced state explicit. Offline direction includes IndexedDB, service workers, Cache API, idempotency keys, replay-safe mutations, and recoverable conflict states. Background Sync is progressive enhancement only.
 
-## Import/Export Flow
+See [Offline Audit and Sync Rules](../product/offline-audit-sync-rules.md). Key rule: queued is not submitted.
 
-1. Upload Microsoft Project source file.
-2. Store the immutable source file.
-3. Ensure a project exists for the source file.
-4. Persist source-file metadata.
-5. Create an import batch.
-6. Hand off the stored source file to the project worker through the current explicit HTTP boundary, later wrapped by the queue strategy.
-7. Parse with MPXJ in the worker and capture warnings.
-8. Persist parse summary metadata on the import batch.
-9. Persist snapshot data for tasks, resources, and assignments.
-10. Review parsed snapshot data and accept or reject the imported snapshot.
-11. Review task lineage links between imported snapshots where a re-import needs continuity.
-12. Track live execution state in Shutdown Tracker.
-13. Capture structured task progress.
-14. Supervisor reviews progress for operational validity.
-15. Planner reviews supervisor-accepted leaf-task progress/actual fields for export eligibility.
-16. Preview export-eligible approved updates.
-17. Approve export batch.
-18. Hand approved export batch to the worker through the current explicit HTTP boundary, later wrapped by the queue strategy, to generate an MSPDI/XML artifact.
-19. Manually reopen and verify in Microsoft Project.
-20. Record reopen/verification metadata in Shutdown Tracker without write-back.
+## Communications
 
-## Frontend and UX Guardrails
+Communications are entity-linked operational context, not a generic chat system of record. Discussion may attach to tasks, problems, actions, evidence, handover, export review, verification, or Critical Watch objects.
 
-- Master Console top-level zones remain Today, Tasks, Problems, Evidence, Exports.
-- Mobile Field App top-level zones remain My Work, Today, Problems, Evidence, Sync.
-- Do not add top-level Chat, Supervisor Review, Planner Review, Verification, Dashboard, Reports, or Gantt without product and ADR/source-doc approval.
-- Use saved views, drill-down pages, detail drawers, and scoped sections rather than a dashboard/card wall.
-- Keep visual-only surfaces clearly labelled and disabled until APIs exist.
-- Use [Design Language and Status Semantics](../product/design-language-and-status-semantics.md) for status meaning and copy.
+A comment is not progress, a blocker, an action, evidence, or handover unless it is promoted or linked into the corresponding structured record. See [Communications Layer](../product/communications-layer.md).
+
+## Frontend and UX guardrails
+
+- Master Console top-level zones remain Today, Tasks, Problems, Evidence, Exports unless current product/ADR sources explicitly change them.
+- Mobile Field App top-level zones remain My Work, Today, Problems, Evidence, Sync unless current product/ADR sources explicitly change them.
+- Project Operational Mapping is planner/project setup functionality; it does not require a new permanent top-level operational zone.
+- Do not introduce scheduler/Gantt/critical-path ownership through the frontend.
+- Review, verification, mapping setup, and communications should remain scoped operational/configuration surfaces rather than uncontrolled top-level navigation growth.
+- Use [Frontend Visual Review Scope](../product/frontend-visual-review-scope.md), [UX Anti-Slop Rules](../product/ux-anti-slop-rules.md), and [Design Language and Status Semantics](../product/design-language-and-status-semantics.md) for current UI guidance.
+
+## Non-negotiable Microsoft Project boundary
+
+Shutdown Tracker must not calculate CPM, critical path, or float; resource-level; optimise schedules; evaluate Project formulas; automatically move dates; silently alter dependencies, constraints, calendars, or baselines; or imply that an internal approval/mapping changes the master Project file.
+
+Critical Watch is an execution-reporting construct, not a critical-path calculation. Project-derived category membership is classification/context, not application authorization.

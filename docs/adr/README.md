@@ -14,19 +14,22 @@ ADR status values: Draft, Accepted, Superseded, Rejected.
 - [ADR-008: MVP Scope Boundary](ADR-008-mvp-scope-boundary.md)
 - [ADR-009: UX/UI Architecture](ADR-009-ux-ui-architecture.md)
 - [ADR-010: Critical Work Package Reporting](ADR-010-critical-work-package-reporting.md)
+- [ADR-011: Project Operational Mapping](ADR-011-project-operational-mapping.md)
 
 ## Proposed future ADRs
 
 These decisions are currently captured in product/source documents and should become ADRs when implementation moves from visual review into production architecture.
 
-- ADR-011: Task Progress Review and Export Approval.
-- ADR-012: Entity-linked Communications Layer.
-- ADR-013: Frontend Visual Review and UX Anti-Slop Guardrails.
-- ADR-014: Progress Review Backend/API Model.
-- ADR-015: Evidence Upload and Chain-of-Custody Model.
-- ADR-016: Mobile Offline Queue Implementation.
+- Task Progress Review and Export Approval.
+- Entity-linked Communications Layer.
+- Frontend Visual Review and UX Anti-Slop Guardrails.
+- Progress Review Backend/API Model.
+- Evidence Upload and Chain-of-Custody Model.
+- Mobile Offline Queue Implementation.
 
 ## Implementation Guidance
+
+ADR-003 controls application experience/delivery-channel direction.
 
 ADR-006 controls audit and approval.
 
@@ -36,20 +39,25 @@ ADR-009 controls UX/UI architecture.
 
 ADR-010 controls Critical Work Package reporting.
 
-The following product docs elaborate the current implementation direction without creating new ADRs yet:
+ADR-011 controls Project-derived operational classification and mapping boundaries.
 
+The following product docs elaborate the current implementation direction:
+
+- [Project Operational Mapping](../product/project-operational-mapping.md)
 - [Task Progress Review and Export Approval](../product/task-progress-review-export-approval.md)
 - [Communications Layer](../product/communications-layer.md)
 - [Frontend Visual Review Scope](../product/frontend-visual-review-scope.md)
 - [UX Anti-Slop Rules](../product/ux-anti-slop-rules.md)
 - [Design Language and Status Semantics](../product/design-language-and-status-semantics.md)
 
-The permission, audit, authorization, approval/export, correction/supersession, offline sync, Critical Watchlist, task-progress review, and communications documents provide implementation guidance under those ADRs. This elaborates existing decisions rather than adding production behavior.
+The permission, audit, authorization, approval/export, correction/supersession, offline sync, Critical Watchlist, operational-mapping, task-progress review, and communications documents provide implementation guidance under those ADRs.
 
 ## Boundary reminders
 
 - Microsoft Project remains the schedule authority.
-- Shutdown Tracker remains the execution, review, evidence, handover, export-preparation, verification-metadata, and audit system.
+- Shutdown Tracker remains the execution, review, evidence, handover, operational-mapping, export-preparation, verification-metadata, and audit system.
+- Imported Project values remain immutable source facts; Tracker aliases/groupings do not rewrite them.
+- Project-derived classification is not application authorisation.
 - Planner approval does not update the master `.mpp`.
 - MSPDI/XML artifact generation does not update the master `.mpp`.
 - Project verification metadata does not save the master `.mpp`.

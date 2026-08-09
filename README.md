@@ -1,105 +1,79 @@
 # Shutdown Tracker
 
-Shutdown Tracker is a shutdown, turnaround, and construction live execution tracking platform. It is intended to help control teams, planners, coordinators, supervisors, package owners, field crews, inspectors, contractors, and managers understand what is happening during execution without turning the product into a scheduling engine.
+Shutdown Tracker is a shutdown, turnaround, outage, and major-overhaul execution-control platform. It is intended to help planners, coordinators, supervisors, field teams, inspectors, contractors, and managers understand and control live execution without turning the product into a scheduling engine.
 
-## Project Overview
+## Product boundary
 
-The platform has two main applications:
+Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution, review, evidence, handover, reporting, and controlled export system.
 
-- Master Console: a desktop-oriented operations console for imported Microsoft Project work packages, summary tasks, child tasks, task progress review, problems, delays, actions, evidence, handover notes, reporting state, export approval state, and manual Project verification metadata.
-- Mobile Field App: a mobile-first PWA for field supervisors, leading hands, contractors, inspectors, and execution crews to view assigned work, submit progress updates, start, pause, resume, block, and complete work, log problems, manage actions, attach evidence, and submit handover notes.
+The controlled progress path is:
 
-## Product Boundary
+```text
+field progress update
+-> supervisor review
+-> planner review
+-> export eligibility
+-> export preview
+-> MSPDI/XML artifact generation
+-> planner manually opens/checks in Microsoft Project
+-> planner controls whether the master .mpp is saved
+-> Shutdown Tracker records verification metadata and audit
+```
 
-Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution and reporting authority.
+Shutdown Tracker must not calculate CPM, critical path, or float; resource-level; optimise the schedule; automatically move dates; silently recalculate schedule logic; or silently write back to Microsoft Project. Critical Work Packages and Critical Watchlists are configurable execution-reporting constructs, not calculated critical-path features.
 
-Shutdown Tracker imports Microsoft Project schedule snapshots and may export reviewed, approved batches back to Microsoft Project. It does not live-feed Microsoft Project and does not silently modify the schedule.
+## Applications
 
-The controlled Project handoff lifecycle is explicit:
+- **Master Console** — desktop-oriented operations workspace for imported Project work, execution status, problems, actions, evidence, handover, review, Critical Watch, and controlled exports.
+- **Mobile Field App** — field-oriented application for assigned work, progress updates, problems, actions, evidence, handover, and visible sync state. The current repository implementation is a React/Vite PWA scaffold.
 
-1. Candidate created — master `.mpp` not updated.
-2. Candidate approved — master `.mpp` not updated.
-3. Export preview created — master `.mpp` not updated.
-4. Export batch approved — master `.mpp` not updated.
-5. MSPDI/XML artifact generated — master `.mpp` not updated.
-6. Artifact opened in Microsoft Project — master `.mpp` not updated.
-7. Artifact verified in Microsoft Project — master `.mpp` not updated.
-8. Planner manually updates or saves the master `.mpp` — outside Shutdown Tracker automation.
+## Current maturity
 
-Comments, discussion, mentions, announcements, review decisions, export approval, artifact generation, and Project verification notes do not update or save the master `.mpp`.
+Implemented foundations include:
 
-## Do Not Build Scheduler
+- Java 21 Spring Boot API and project-worker services;
+- PostgreSQL and Flyway-compatible migrations;
+- immutable Project source/snapshot and imported-entity persistence foundations;
+- MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
+- import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
+- append-only audit foundations;
+- React/Vite Master Console and Mobile Field App visual shells;
+- TypeScript API client and shared Java import/export handoff contracts;
+- synthetic MSPDI regression fixtures and expected-output tests;
+- local migration and import/export smoke tooling.
 
-This repository must not implement CPM, critical-path calculation, resource levelling, recovery scheduling, automatic date movement, hidden schedule recalculation, dependency-map scheduling, or schedule optimization. Critical Work Packages and Critical Watchlists are configurable reporting constructs, not calculated critical-path features.
+Not production-complete yet:
 
-## Current Status
+- live task-execution and progress-write workflows;
+- supervisor/planner production review workflows;
+- production authentication and authorization enforcement;
+- mobile offline execution queue;
+- production object storage;
+- durable background-job/queue integration;
+- full human Microsoft Project round-trip evidence;
+- communications implementation;
+- Project Operational Mapping and configurable operational scope.
 
-Repository scaffold, product/architecture/security docs, baseline SQL migrations, local migration validation scripts, a minimal Spring Boot backend scaffold, PostgreSQL/Flyway runtime wiring, and GitHub Actions CI validation now exist.
+Current implementation details belong in the app/service READMEs and source code rather than this root overview.
 
-The backend scaffold is placeholder-only:
-
-- `services/api` contains a Spring Boot API shell with Actuator and `GET /api/version`.
-- `services/api` also contains `POST /api/source-files/validate`, a validation-only multipart placeholder that stores nothing and parses nothing.
-- `services/api` contains an internal source-file storage abstraction with a local filesystem implementation for upload workflows.
-- `services/api` contains an internal export-artifact storage abstraction with a local filesystem implementation for worker-generated MSPDI/XML artifacts.
-- `services/api` contains a local-profile source-file upload orchestration endpoint that validates, stores accepted bytes, creates `source_files` metadata, creates a pending import batch, and records an audit event.
-- `services/api` contains local-profile JDBC services for synthetic review project bootstrap and source-file metadata persistence.
-- `services/api` contains local-profile JDBC services for import batch creation, status updates, and parse summary persistence using the existing `import_batches` table and `import_batch_status` enum.
-- `services/api` contains local-profile JDBC services for immutable project snapshot and imported Project entity persistence using the existing `project_snapshots`, `imported_tasks`, `imported_resources`, `imported_assignments`, and `imported_extended_attributes` tables; no public endpoint calls them yet.
-- `services/api` contains a local-profile import review API for listing parsed snapshots, reviewing imported tasks/resources/assignments/extended attributes, and accepting or rejecting parsed snapshots with existing status values.
-- `services/api` contains a local-profile task lineage review API for persisting concrete task-to-task lineage links between imported snapshots and accepting or rejecting suggested links with existing review-state values.
-- `services/api` contains local-profile endpoints that create immutable approval-neutral export candidates, append separate candidate-bound approval events, and create export previews from candidate IDs only. The server derives baseline/task identity, normalizes the proposed value, computes the source fingerprint, and revalidates the accepted snapshot, exact candidate, current approval event, and task identity before batch approval and artifact generation.
-- `services/api` records local-profile audit events for import snapshot decisions, task lineage review decisions, and export preview creation using the existing `audit_events` table.
-- `services/api` contains local-profile export batch approval/rejection endpoints; generated-artifact metadata is persisted only by the worker-backed artifact generation handoff using existing export batch status values.
-- `services/api` contains local-profile Project reopen/verification metadata endpoints that use existing export batch status values and do not automate Microsoft Project.
-- `services/api` contains a local-profile worker-backed export artifact handoff endpoint for approved export batches. It prepares an export-artifact storage target, calls an explicitly configured project-worker endpoint, verifies the returned URI matches the reserved target, records returned artifact URI/hash metadata, and does not generate files in the API.
-- `services/api` contains a local-profile import-batch parse-summary handoff endpoint. It can call an explicitly configured project-worker endpoint, record summary-only parser metadata on the import batch, and still does not parse Project files in the API.
-- `docs/architecture/worker-handoff-queue-strategy.md` documents the future queue/background-job strategy for import/export handoffs while keeping existing product status enums and Microsoft Project boundaries intact.
-- `services/api` has a `review` profile for backend smoke deployment without PostgreSQL; it is limited to health, version, and validation-only source-file checks.
-- `services/project-worker` contains a Spring Boot worker shell with a local-only MPXJ import summary spike, a shared-contract parse summary handoff service and endpoint, a synthetic MSPDI/XML export artifact spike, and a shared-contract export artifact generation endpoint.
-- `packages/api-client` contains a TypeScript API client for source-file upload and the current import/export review surfaces.
-- `packages/project-import-contract` contains shared Java request/response records for API-to-worker parse summary handoff.
-- `packages/project-export-contract` contains shared Java request/response records for API-to-worker MSPDI/XML export artifact handoff.
-- `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` now provides a structured expected worker parse summary for the approved synthetic MSPDI fixture.
-- `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json` now provides a text-only expected worker export artifact summary for synthetic MSPDI/XML generation tests.
-- `docs/testing/manual-microsoft-project-round-trip-evidence.md` now defines the text-only evidence format for future manual Microsoft Project reopen checks without committing generated artifacts or screenshots.
-- `docs/architecture/object-storage-provider-strategy.md` now defines production object-store provider selection and configuration guidance for source files, generated export artifacts, and future evidence files.
-- `docs/testing/seeded-review-demo-data-strategy.md` now defines future local/review seeded data rules without adding seed data.
-- `scripts/review/source-import-export-smoke.ps1` now provides a guarded local source/import/export smoke script using synthetic fixture input by default.
-- `docs/research/source-quality-register.md`, `docs/research/source-map.md`, `docs/research/research-decisions-summary.md`, and `docs/research/research-index.md` consolidate source quality and research decisions.
-- `docs/product/task-progress-review-export-approval.md`, `docs/product/communications-layer.md`, `docs/product/frontend-visual-review-scope.md`, `docs/product/ux-anti-slop-rules.md`, and `docs/product/design-language-and-status-semantics.md` define the current product-source direction for task progress review, communications, and frontend guardrails.
-- `apps/console` contains a React/Vite scaffold wired to the shared API client surface. It renders synthetic UI state by default, can opt into read-only live import/export review data fetching with explicit Vite environment variables, and contains a static Task Progress Review visual shell.
-- `apps/mobile-pwa` contains a React/Vite scaffold with static synthetic Task Progress Review UI state only.
-- Both services have `local` profile PostgreSQL/Flyway wiring that points Flyway to `filesystem:infra/migrations` when run from the repository root.
-- No scheduler logic, task execution endpoints, task progress write APIs, supervisor review APIs, planner review APIs, communications APIs, queue integration, parser execution in the API, automatic lineage matching, live execution state, automated Project verification, Project write-back, live frontend write workflows, mobile offline queue, production object-store provider implementation, secrets, binaries, actual seed data, or real Project files have been added yet.
-- Database migrations remain under `infra/migrations`.
-- Local migration validation remains under `scripts/db`.
-- CI runs the Maven backend test suite and React/Vite frontend test/build separately from PostgreSQL migration evidence. The migration job runs a clean V001–V007 install, populated V006-to-V007 history and current-policy assertions, deterministic concurrency scenarios, and an intentionally failing late-V007 rollback check through Docker Compose. Its wrapper cleans up the validation container and volume even after failure.
-
-## Architecture Direction
+## Architecture
 
 - Monorepo.
 - Frontend: React and Vite.
-- Mobile: mobile-first PWA.
-- Backend: Kotlin or Java Spring Boot; current repo implementation is Java.
+- Current mobile implementation: mobile-first PWA scaffold.
+- Backend: Java Spring Boot.
 - Database: PostgreSQL.
-- Microsoft Project import/export: MPXJ.
-- Export format: MSPDI/XML, not native MPP writing.
-- Storage: object storage for uploaded evidence, source files, and generated export files.
-- Offline mobile workflow: IndexedDB, service workers, Cache API, idempotency keys, visible sync state, and Background Sync as progressive enhancement only.
-- Communications: entity-linked Discussion later, not generic chat.
+- Microsoft Project parsing/export: MPXJ.
+- Controlled export format: MSPDI/XML, not native `.mpp` writing.
+- File/evidence architecture: provider-neutral storage abstractions, local filesystem implementations for development/review, production object storage later.
+- Offline field direction: IndexedDB, service workers, Cache API, idempotency keys, and explicit sync states.
+- Communications direction: entity-linked Discussion around structured records, not generic chat as the source of truth.
 
-## Repo Structure
+See [docs/architecture](docs/architecture/README.md) for durable architecture rules and focused strategy documents.
+
+## Repository structure
 
 ```text
-docs/
-  concept/
-  research/
-  adr/
-  architecture/
-  product/
-  testing/
-  security/
 apps/
   console/
   mobile-pwa/
@@ -107,30 +81,62 @@ services/
   api/
   project-worker/
 packages/
+  api-client/
   project-import-contract/
   project-export-contract/
-  shared-types/
-  validation/
-  api-client/
-  ui/
-  config/
 infra/
   docker/
   migrations/
-  deployment/
 scripts/
   db/
   review/
 fixtures/
-  project-files/
   import-export/
-  offline-sync/
+docs/
+  concept/
+  product/
+  architecture/
+  adr/
+  research/
+  testing/
+  security/
+  deployment/
 ```
 
-## Next Steps
+## Documentation authority
 
-1. Review the frontend cleanup pass, then add static Critical Watch, Critical Update, and entity-linked Discussion surfaces.
-2. Add review/demo dataset manifest format.
-3. Add provider-neutral object-storage config properties and tests after a provider decision.
-4. Add local-only seeded dataset implementation after the manifest format is reviewed.
-5. Draft backend/API brief for Task Progress Review only after visual review feedback is collected.
+Use documentation by purpose:
+
+- [docs/concept](docs/concept/README.md) — high-level product definition and MVP boundary.
+- [docs/product](docs/product/README.md) — current product behavior, roles, permissions, workflows, and UX rules.
+- [docs/architecture](docs/architecture/README.md) — durable system structure and technical boundaries.
+- [docs/adr](docs/adr/README.md) — architecture decision history.
+- [docs/research](docs/research/README.md) — research evidence, source quality, and provenance.
+- [docs/testing](docs/testing/README.md) — durable test policy and verification procedures.
+- GitHub pull requests and commit history — implementation chronology.
+
+`AGENTS.md` contains repository-specific implementation guidance for coding agents.
+
+## Development and validation
+
+From the repository root:
+
+```text
+mvn test
+npm test
+npm run build
+```
+
+Database migration validation:
+
+```text
+./scripts/db/validate-migrations.sh
+```
+
+or on Windows PowerShell:
+
+```text
+.\scripts\db\validate-migrations.ps1
+```
+
+The repository must not contain real customer Project files, generated exports, evidence uploads, secrets, local databases, or other operational artifacts unless an explicit fixture policy permits a fully synthetic test asset.

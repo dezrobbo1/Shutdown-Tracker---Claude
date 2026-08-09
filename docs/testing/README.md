@@ -1,113 +1,129 @@
 # Testing
 
-## Strategy
+Testing should protect the Microsoft Project authority boundary, immutable imported snapshots, execution/review integrity, auditability, permissions, offline safety, and controlled export correctness.
 
-Testing should protect the Microsoft Project boundary, imported snapshot integrity, auditability, permissions, offline safety, and export correctness.
+This document describes durable test policy. Exact test-class inventories belong in the source tree and CI results rather than being copied here.
 
-Local source/import/export smoke checks can use [scripts/review/source-import-export-smoke.ps1](../../scripts/review/source-import-export-smoke.ps1). Its default mode checks health, version, and validation-only source-file handling with the approved synthetic MSPDI fixture. Any write step requires explicit switches and must remain local/review-only.
+## Core validation layers
 
-## Import/Export Fixture Tests
+### Backend
 
-- Keep fixture project files out of Git unless explicitly approved.
-- Store fixture metadata and expected parse outcomes in text form where possible.
-- Follow the [Import/Export Fixture Strategy](import-export-fixture-strategy.md) before adding any fixture metadata or future approved fixture files.
-- Follow the [Seeded Review and Demo Data Strategy](seeded-review-demo-data-strategy.md) before adding local/review seeded data, dataset manifests, or smoke-review datasets.
-- Current MPXJ import spike tests use synthetic in-memory MPXJ objects and do not commit real Project files.
-- The approved `synthetic-basic-wbs` MSPDI fixture has structured expected-output JSON that is compared against the worker parse summary response.
-- The same fixture now has text-only export artifact expected-output JSON that is compared against worker-generated temporary MSPDI/XML summary and readback fields.
-- Test MPXJ parsing for tasks, summary tasks, resources, assignments, calendars, baselines, and warnings.
-- Test MSPDI/XML export artifacts with manual Microsoft Project reopen checks. Use the [Manual Microsoft Project Round-Trip Evidence](manual-microsoft-project-round-trip-evidence.md) format for text-only notes.
+Run from the repository root when Java 21 and Maven are available:
 
-## Offline Sync Tests
+```text
+mvn test
+```
 
-- Verify queued operations are idempotent.
-- Verify retry behavior is visible and recoverable.
-- Verify Background Sync is not required for correctness.
-- Verify conflicts and blocked sync states do not silently drop field updates.
+Backend tests should cover service/domain validation, persistence boundaries, API contracts, audit events, import/export handoffs, review/approval state transitions, and rejection of scheduler-like or uncontrolled write-back behavior.
 
-## Permission and Audit Tests
+### Frontend
 
-- Test project-scoped RBAC.
-- Test export approval permissions.
-- Test evidence access permissions.
-- Test immutable audit events for critical state changes.
+Run:
 
-## Migration Validation
+```text
+npm test
+npm run build
+```
 
-- Migrations should apply in version order against a clean PostgreSQL database.
-- Migrations are idempotent through migration tooling only; do not expect raw SQL files to be re-run manually.
-- PRs that add or change migrations should run the local validation scripts in [scripts/db](../../scripts/db) where possible. Each migration file is applied in its own PostgreSQL transaction so a failed file is rolled back completely.
-- Local script and CI migration validation use PostgreSQL through Docker Compose. In addition to the clean install, the scripts automate populated V006 upgrade preservation, current policy-1 export-candidate integrity, deterministic concurrency, and intentional-failure rollback checks with fixed synthetic data. The wrappers always remove the validation container and volume on exit, including after a failed assertion.
-- Migration regressions should continue to verify indexes and constraints important to import/export, audit, approvals, export eligibility, task lineage, offline sync, and Critical WP reporting.
-- Future tests should confirm the schema does not introduce scheduler-like fields such as critical path, float calculation, recovery scheduling, resource levelling, or automatic date movement.
-- Successful local migration validation does not replace later repository, API, service, or end-to-end tests.
+Frontend tests should cover application rendering, critical workflow state/copy, API client contracts, validation logic, and explicit absence of unintended schedule-authoring behavior.
 
-## Backend Tests
+### Database migrations
 
-- The Maven backend scaffold contains Spring Boot context-load tests for `services/api` and `services/project-worker`.
-- Run `mvn test` from the repository root when Maven and Java 21 are available.
-- CI runs the Maven backend test suite on Java 21 for pushes to `main` and pull requests targeting `main`.
-- Backend context-load tests use the `test` profile, which disables datasource and Flyway auto-configuration so PostgreSQL is not required for those tests.
-- The API service has Actuator, `GET /api/version`, and a validation-only `POST /api/source-files/validate` endpoint. Source-file validation tests use synthetic byte arrays only and verify no file is stored or parsed.
-- Source-file validation tests cover missing multipart field handling, uppercase accepted extensions, validation-owned oversized responses, exception-scoped multipart error advice, and validation-style JSON for hard multipart failures where practical.
-- Source-file storage abstraction tests use synthetic byte arrays and temporary directories only. They verify local storage URI creation, filename sanitisation, content hashing, and cleanup on failed writes without committing source files or binaries.
-- Export-artifact storage abstraction tests use synthetic IDs and temporary directories only. They verify storage target preparation, local URI creation, XML artifact filename rules, and root containment without generating or committing artifacts.
-- Future production object-store provider tests should follow [Object Storage Provider Strategy](../architecture/object-storage-provider-strategy.md) and use synthetic bytes, generated identifiers, isolated test buckets/containers or emulators, and no committed provider credentials, real Project files, or generated artifacts.
-- Source-file upload orchestration tests use synthetic byte arrays only. They verify accepted uploads call storage, create source-file metadata, create a pending import batch, and record `source_file_uploaded`, while rejected uploads stop before storage, persistence, import-batch creation, and audit writes.
-- Review project bootstrap and source-file metadata service tests use fake repositories and synthetic metadata only. They do not require PostgreSQL, create import batches, parse Project files, or commit source files.
-- Future seeded review/demo data tests should prove seeding is disabled by default, dataset-scoped, synthetic-only, idempotent, reset-safe, not migration-driven, and uses existing product status enums only.
-- The source/import/export smoke script should remain synthetic-only, guarded for writes, and should not perform manual Microsoft Project verification or commit generated artifacts.
-- Import batch service tests use fake repositories and synthetic IDs only. They verify `pending` creation, status updates, parse summary update mapping, and that alternate statuses such as `queued`, `running`, and `completed` are not accepted enum values.
-- Import summary persistence tests use synthetic worker summary responses only. They verify summary-only count metadata and do not create snapshots, imported tasks, parser executions, queue jobs, source files, or real Project fixtures.
-- Imported project persistence tests use fake repositories and synthetic entities only. They verify existing project snapshot statuses, entity-type values, snapshot-scoped persistence counts, and validation matching database constraints without parsing files or requiring PostgreSQL.
-- Import review API tests use fake repositories and synthetic imported rows only. They verify project-scoped snapshot review reads, parsed-only accept/reject decisions, existing snapshot status values, and no-write-back response copy without requiring PostgreSQL or real Project files.
-- Import review audit tests verify snapshot accept/reject decisions record audit event requests with existing snapshot statuses, imported snapshot references, and no-write-back metadata.
-- Task lineage review tests use fake repositories and synthetic task IDs only. They verify concrete previous-task to current-task link creation, existing review-state values, suggested-only accept/reject decisions, audit event requests for create/accept/reject, and no schedule-calculation/write-back response copy without requiring PostgreSQL or real Project files.
-- Export-candidate API tests use fake repositories to verify request validation, proposed-value normalization, approval-neutral orchestration, separately appended candidate-bound approval events, project/snapshot isolation, conflict mapping for database-rejected stale approvals, and rejection of caller-authored captured values, fingerprints, or approval state. They do not prove PostgreSQL capture, fingerprint, foreign-key, trigger, or lock behavior.
-- Export preview and batch lifecycle tests use fake repositories to verify candidate-ID-only preview requests, exact candidate/approval comparison, whole-batch freshness failure, draft-only approve/reject transitions, internal worker-result metadata recording, absence of a standalone generated-metadata route, manual Project reopen/verification metadata transitions, audit events, and no Project write-back.
-- The PostgreSQL migration suite separately proves database-derived baseline/task identity, approval-time snapshot/task/baseline freshness, database-computed fingerprints, candidate/approval/line relationships, immutability, legacy preservation, policy enforcement, transaction rollback, and deterministic lock behavior. Neither test layer is presented as evidence for the other.
-- MSPDI/XML export artifact tests use synthetic leaf-task candidates and temporary output directories only. They verify the exact request-specific root/task element allowlist, generated XML readback through MPXJ, stable summary/readback fields against expected-output JSON, shared whole-number and offset-bearing wall-clock normalization, strict request deserialization, task-identity consistency, summary-task rejection, and that generated artifacts are not committed.
-- Project parse handoff tests use synthetic IDs and metadata only. API tests verify request construction, pending-only parse-summary handoff, the default disconnected client, and the local-profile controller route; worker tests verify local URI resolution, the worker parse-summary endpoint, summary response mapping, and expected-output matching for the approved synthetic MSPDI fixture.
-- Project export artifact handoff tests use synthetic authoritative candidates, export-preview rows, and temporary paths only. API tests verify approved-only worker handoff, grouping eligible leaf-task lines, candidate-captured Microsoft Project task UID/ID propagation, storage-reserved artifact URI checks, generated metadata recording through the existing lifecycle path, the default disconnected client, and the local-profile controller route. Worker tests verify the export artifact endpoint and response mapping without requiring real Project files.
-- Future worker queue/background-job implementation tests should follow the [Worker Handoff Queue Strategy](../architecture/worker-handoff-queue-strategy.md). They should prove retry idempotency, no duplicate import/export records, no new product enum values such as `queued`, `running`, or `completed`, API-owned workflow/audit updates, worker-owned file processing, no API-side Project parsing, and no Project write-back.
-- The project worker has a worker-only MPXJ import summary spike, shared-contract parse summary handoff, and shared-contract MSPDI/XML export artifact handoff; no committed real Project files, persistence, background jobs, queue integration, production artifact storage, Project write-back, or scheduler logic exists yet.
-- Migrations remain under [infra/migrations](../../infra/migrations); local migration validation remains under [scripts/db](../../scripts/db); Spring Boot `local` profiles point Flyway to `filesystem:infra/migrations`.
-- The migration validation scripts apply each SQL file directly in its own transaction and do not create Flyway history; use a clean PostgreSQL volume when checking runtime Flyway migration through Spring Boot.
+Versioned migrations live under [`infra/migrations`](../../infra/migrations).
 
-## CI Validation
+Validate them against a clean PostgreSQL database using:
 
-The GitHub Actions workflow in [.github/workflows/ci.yml](../../.github/workflows/ci.yml) validates:
+```text
+./scripts/db/validate-migrations.sh
+```
 
-- The Maven backend test suite with Java 21.
-- The React/Vite frontend tests and production builds with Node 22.
-- SQL migrations `V001` through `V007` against clean and populated PostgreSQL databases, including export-candidate integrity, concurrency, historical-preservation, and atomicity regressions, through Docker Compose and [scripts/db/validate-migrations.sh](../../scripts/db/validate-migrations.sh). Cleanup runs even when validation fails.
+or Windows PowerShell:
 
-The workflow does not add MPXJ processing, app runtime behavior, secrets, seed data, or real Project files.
+```text
+.\scripts\db\validate-migrations.ps1
+```
 
-## Frontend Tests
+Migration changes should verify ordering, constraints, indexes, upgrade safety where relevant, and compatibility with the product boundary. Applied migrations must not be rewritten merely to simplify history.
 
-- Run `npm test` from the repository root when Node and npm dependencies are available.
-- The React/Vite console and mobile PWA scaffolds include render tests for planned navigation, status signals, and absence of schedule-authoring language.
-- The shared TypeScript API client has unit tests for source-file upload multipart requests, import review paths, task lineage query parameters, approval-neutral export-candidate creation, separate candidate approval events, candidate-ID-only preview creation, export batch lifecycle, manual Project reopen/verification metadata requests, artifact handoff JSON requests, typed error handling, and the exposed review surface manifest.
-- Console tests verify the shared upload and import/export review API client wiring renders without live backend calls, and separately cover opt-in live review data loading with fake import snapshot/export preview responses.
-- Console live data tests verify read-only import/export review loading uses existing GET endpoints and does not create source-file uploads, import batches, parser calls, export approvals, generated artifacts, Project write-back, or execution-state writes.
-- Run `npm run build` from the repository root to type-check and build both frontend scaffolds.
-- Unit test UI state and validation logic.
-- Component test task lists, problem/action forms, evidence flows, and sync indicators.
-- Keep schedule-authoring UI out of the MVP.
+## Import/export fixture policy
 
-## Playwright E2E Tests
+Use [Import/Export Fixture Strategy](import-export-fixture-strategy.md).
 
-- Cover import review, task execution updates, problem/action creation, evidence metadata, handover, export preview, and approval workflows once implemented.
+- Do not commit real customer/site schedules or operational data.
+- Prefer synthetic text/XML fixtures and text expected-output files.
+- Keep generated export artifacts temporary and uncommitted.
+- Validate MPXJ parsing, stable task/resource/assignment identity fields, relevant extended attributes, warnings, and export allowlisting.
+- The approved synthetic MSPDI fixture lives under `fixtures/import-export/synthetic-basic-wbs/`.
 
-## Manual Microsoft Project Round-Trip Tests
+## Microsoft Project round-trip validation
 
-- Preserve the complete handoff sequence: candidate created, candidate approved, export preview created, export batch approved, MSPDI/XML generated, artifact opened, and artifact verified all leave the master `.mpp` unchanged; any planner update or save of the master `.mpp` is step eight and remains outside Shutdown Tracker automation.
-- Import representative Microsoft Project files.
-- Review parse warnings.
-- Generate MSPDI/XML export artifacts.
-- Reopen artifacts in Microsoft Project.
-- Confirm only approved leaf-task progress/actual fields are eligible for export.
-- Record the reopen and verification metadata in Shutdown Tracker without treating that as automated Project write-back.
-- Do not commit generated artifacts, screenshots, real Project files, or real schedule data.
-- The first synthetic Microsoft Project round-trip remains pending and must not be reported as passed until a human completes the evidence record.
+Automated MSPDI/XML generation tests do not replace human Microsoft Project verification.
+
+Use [Manual Microsoft Project Round-Trip Evidence](manual-microsoft-project-round-trip-evidence.md) for text-only evidence of representative reopen checks. The planner remains responsible for deciding whether a verified artifact is applied/saved into the master `.mpp`.
+
+Never commit real Project files, generated artifacts, screenshots, or confidential schedule data as round-trip evidence.
+
+## Import and snapshot tests
+
+Tests should verify:
+
+- source validation and storage boundaries;
+- immutable source/snapshot semantics;
+- imported task/resource/assignment/extended-attribute persistence;
+- parse warning/count handling;
+- snapshot review and lineage rules;
+- no API-side Project parsing when the worker owns that responsibility;
+- no automatic uncertain lineage remapping.
+
+## Progress/review/export tests
+
+As the corresponding features are implemented, tests should verify:
+
+- field progress does not bypass supervisor/planner review;
+- export eligibility remains limited to explicitly approved candidates;
+- summary-task and unsupported-field export attempts are rejected;
+- candidate/task/source/approval identities cannot be substituted or become stale before artifact generation;
+- export generation remains request-specific and allowlisted;
+- artifact metadata and verification state are auditable;
+- no endpoint or worker operation silently updates Microsoft Project.
+
+## Permission and audit tests
+
+Verify project-scoped authorization, least-privilege behavior, review/export authority, evidence access, delegation boundaries, and immutable audit records for material actions.
+
+Imported category/classification membership must never become an implicit permission grant.
+
+## Offline and sync tests
+
+Offline-capable field workflows should verify:
+
+- queued is visibly distinct from submitted/synced;
+- operations are idempotent/replay-safe;
+- retries are visible and recoverable;
+- Background Sync is not required for correctness;
+- conflicts do not silently discard field updates;
+- server acknowledgements are required before local work is represented as synced.
+
+## Worker handoff tests
+
+Use [Worker Handoff Queue Strategy](../architecture/worker-handoff-queue-strategy.md) when asynchronous handoff is introduced.
+
+Tests should preserve API ownership of workflow/audit state, worker ownership of file processing, retry idempotency, and the existing product status model. Transport/job states must not leak into product semantics without an explicit design change.
+
+## Object-storage tests
+
+Use [Object Storage Provider Strategy](../architecture/object-storage-provider-strategy.md). Provider tests must use synthetic bytes/IDs and isolated test storage or emulators. Never commit provider credentials, real Project files, evidence, or generated operational artifacts.
+
+## Seeded review/demo data
+
+Use [Seeded Review and Demo Data Strategy](seeded-review-demo-data-strategy.md). Seed data must be synthetic, disabled by default, reset-safe, and kept out of production migrations.
+
+## CI
+
+The GitHub Actions workflow under [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the repository CI entry point. It currently covers the Maven backend suite, frontend tests/builds, and clean-database migration validation.
+
+CI results and source code are the authority for the exact current test inventory.
+
+## Manual/E2E expansion
+
+As workflows become production-capable, add end-to-end coverage for representative import, execution, problem/action, evidence, handover, review, export, verification, and offline-sync paths. Keep schedule calculation, automatic Project movement, and uncontrolled write-back out of those workflows.

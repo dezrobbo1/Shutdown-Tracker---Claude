@@ -18,6 +18,8 @@ Bring PR #48 to an independently verified state where every automated export-int
 
 Do not assume the PR description or previous validation report is correct. Review the complete diff against `main`, trace the end-to-end authority chain, reproduce the important database and application guarantees, and make only the smallest corrections required by confirmed findings.
 
+Synchronize this branch with current `origin/main` using a normal merge commit while preserving main's repository cleanup, documentation consolidation, and Project Operational Mapping decisions. Preserve the completed export-integrity implementation, do not resurrect deliberately deleted placeholders or stale status documents, and do not restore a public standalone mark-generated route.
+
 The target authority chain is:
 
 ```text
@@ -34,6 +36,21 @@ authoritative export candidate
 
 An approval must authorize one exact execution fact for one project, accepted snapshot, imported task, field, normalized old value, normalized proposed value, source identity/version, candidate identity, and approval identity. It must not be reusable for another task, field, value, snapshot, project, or source version.
 
+## Required final-review corrections
+
+The final review must verify and, where confirmed, correct all of the following:
+
+- database-enforced current-policy export-batch immutability with a status-specific allowed-column delta for every permitted transition;
+- rejection of same-state business, lifecycle, provenance, metadata, artifact, failure, actor, or timestamp mutation;
+- immutable terminal policy-1 records and immutable approval, generation, Microsoft Project open, and verification facts once established;
+- collision-proof lifecycle metadata with caller-supplied values isolated beneath transition-specific `clientMetadata` and server-owned lifecycle provenance retained authoritatively;
+- authoritative Microsoft Project open actor/time retained through verification, with verification unable to rewrite generation or open provenance;
+- state-specific immutable candidate approval audit events for approval, rejection, correction requested, and supersession, while retaining exact candidate binding and deterministic event ordering;
+- deterministic real-PostgreSQL integration coverage through the actual Spring transaction proxy, JDBC repository mappings, JSONB lifecycle metadata, latest candidate-bound approval resolution, and HTTP worker-failure rollback;
+- documentation and fixture corrections for supported one-to-six fractional timestamp digits, a non-zero explicit offset in the planned manual Project test, accurate worker implementation status, and removal of any public standalone mark-generated route reference.
+
+V006 legacy history must remain readable, unversioned, unchanged, and frozen. Corrections to current-policy history use new or superseding records rather than rewriting established facts.
+
 ## Corrected implementation claims to verify
 
 The corrected branch must provide:
@@ -49,6 +66,10 @@ The corrected branch must provide:
 - a worker contract limited to `percent_complete`, `actual_start`, and `actual_finish`;
 - request-specific task and field allowlisting in generated MSPDI/XML;
 - a committed PostgreSQL validation suite for clean install, populated upgrades, integrity assertions, concurrency, and migration rollback;
+- status-specific policy-1 export-batch transition deltas and terminal-state immutability enforced at the PostgreSQL boundary;
+- protected, sectioned lifecycle provenance with authoritative generation, artifact, Project-open, and verification identity;
+- state-specific candidate approval audit event types;
+- real Spring/JDBC/PostgreSQL transaction integration tests, including a controlled HTTP worker failure that proves complete rollback and a later successful revalidation;
 - a 21-table V001–V007 baseline;
 - passing Java, TypeScript, frontend build, and migration validation.
 
@@ -99,6 +120,8 @@ Any failed line must block the complete batch.
 - Snapshot or task changes cannot invalidate reviewed authority after final validation and before generated state is committed.
 - Reversed multi-source contention has a documented outcome; deadlock retry may remain a follow-up only if integrity still fails closed.
 - Worker failure rolls back database lifecycle changes and does not falsely mark a batch generated.
+- Spring-managed transaction rollback is proven through the real JDBC repository and PostgreSQL schema rather than inferred from fake repositories or direct service construction.
+- A controlled worker HTTP failure after transaction entry leaves the batch approved and commits no generated timestamp, actor, URI/hash, generation provenance, or generation audit event; a later retry can revalidate.
 
 ### Historical compatibility
 
@@ -142,6 +165,9 @@ The committed validation suite and CI must reproduce:
 - populated V006-to-V007 upgrade preservation;
 - candidate, approval, and preview-line relationship enforcement;
 - candidate, approval, and line immutability;
+- same-state export-batch rewrite rejection and status-specific allowed-column deltas;
+- approval, generation, Project-open, and verification actor/time immutability;
+- generated URI/hash immutability, metadata-section protection, valid-transition piggyback rejection, and terminal-state immutability;
 - candidate uniqueness and field-authority enforcement;
 - accepted-snapshot and task/baseline drift rejection;
 - approval identity and state drift rejection;
@@ -150,6 +176,8 @@ The committed validation suite and CI must reproduce:
 - concurrent duplicate insertion;
 - approval changes versus approval and generation;
 - worker failure rollback;
+- real Spring transaction proxy and JDBC row-mapping coverage against PostgreSQL;
+- latest candidate-bound approval materialization and JSONB lifecycle metadata preservation;
 - an intentional late V007 failure leaving no partial migration objects or V006 business-data changes.
 
 Fake repository tests do not replace PostgreSQL evidence for constraints, triggers, foreign keys, locking, concurrency, or rollback.
@@ -208,6 +236,8 @@ npm run build
 bash scripts/db/validate-migrations.sh
 ```
 
+If the real Spring/PostgreSQL integration suite is not included in `mvn test`, run it explicitly. Record the final V007 SHA-256 whenever V007 changes.
+
 Also run or inspect the committed focused validation for:
 
 - authoritative candidate creation and immutability;
@@ -216,6 +246,10 @@ Also run or inspect the committed focused validation for:
 - value normalization;
 - snapshot, task identity, old-value, proposed-value, source, and approval drift;
 - policy-1 and legacy readability/freeze behavior;
+- policy-1 status-specific lifecycle immutability and protected metadata sections;
+- authoritative Project-open identity preserved through verification;
+- state-specific candidate approval audit events;
+- Spring/JDBC/PostgreSQL worker-failure rollback through the actual transaction proxy;
 - deterministic concurrency cases;
 - intentional late-migration rollback;
 - worker request deserialization;
