@@ -15,13 +15,16 @@ Do not assume access to earlier ChatGPT conversations, uploaded PDFs, ZIP files,
 
 ## Product authority and non-negotiable boundaries
 
-- Microsoft Project remains the schedule authority. Shutdown Tracker is the execution, review, evidence, handover, export-preparation, verification-metadata, and audit system.
+- Microsoft Project remains the schedule authority. Shutdown Tracker is the execution, review, evidence, handover, operational-mapping, export-preparation, verification-metadata, and audit system.
 - Do not implement CPM, critical-path or float calculation, resource levelling, recovery scheduling, schedule optimization, dependency-map scheduling, hidden recalculation, or automatic date movement.
 - Do not live-feed, silently update, or save the master `.mpp`. Do not write native `.mpp` files.
 - Controlled Project handoff uses reviewed MSPDI/XML artifacts. Artifact generation and verification metadata do not update Microsoft Project.
 - Field progress must pass through supervisor review, planner review, export eligibility, and export preview before artifact generation.
 - Initial export authority is limited to explicitly approved leaf-task execution facts. Summary-task actuals, planned dates, dependencies, constraints, calendars, baselines, resources, and scheduler logic are outside write authority.
 - Critical Work Packages and Critical Watchlists are configurable reporting constructs, not calculated critical-path features.
+- Project Operational Mapping may interpret imported fields, hierarchy, and resource-assignment metadata operationally, but imported source values remain immutable.
+- Project-derived category membership is not application authorization. Visibility/relevance, responsibility, update permission, review permission, and export authority remain separate.
+- Mapping revalidation must never silently remap an uncertain Project source after re-import.
 - Communications must start with structured domain records. Entity-linked Discussion may support those records later; do not introduce generic chat, channels, or private messaging as an operational source of truth.
 - Preserve append-only audit history and explicit approval, correction, rejection, and supersession semantics. Do not replace historical facts in place when a new event or version is required.
 
@@ -31,6 +34,9 @@ Relevant authority documents include:
 - [docs/adr/ADR-008-mvp-scope-boundary.md](docs/adr/ADR-008-mvp-scope-boundary.md)
 - [docs/adr/ADR-009-ux-ui-architecture.md](docs/adr/ADR-009-ux-ui-architecture.md)
 - [docs/adr/ADR-010-critical-work-package-reporting.md](docs/adr/ADR-010-critical-work-package-reporting.md)
+- [docs/adr/ADR-011-project-operational-mapping.md](docs/adr/ADR-011-project-operational-mapping.md)
+- [docs/product/project-operational-mapping.md](docs/product/project-operational-mapping.md)
+- [docs/architecture/project-operational-mapping-implementation.md](docs/architecture/project-operational-mapping-implementation.md)
 - [docs/product/task-progress-review-export-approval.md](docs/product/task-progress-review-export-approval.md)
 - [docs/product/communications-layer.md](docs/product/communications-layer.md)
 - [docs/product/offline-audit-sync-rules.md](docs/product/offline-audit-sync-rules.md)
@@ -43,6 +49,8 @@ Relevant authority documents include:
 - Keep the mobile top-level navigation fixed to My Work, Today, Problems, Evidence, and Sync.
 - Follow [docs/product/ux-anti-slop-rules.md](docs/product/ux-anti-slop-rules.md) and [docs/product/design-language-and-status-semantics.md](docs/product/design-language-and-status-semantics.md). Prefer narrow operational screens, realistic sanitized examples, limited semantic colours, and visible sync state. Avoid card walls, badge soup, marketing copy, scheduler visuals, and generic AI/copilot UI.
 - The API owns request/response workflows and persistence orchestration. Project parsing and artifact generation belong in the project worker; do not move parser execution into the API.
+- For Project Operational Mapping, the worker returns Project source facts/metadata only. The API owns Tracker category/profile meaning, validation decisions, resolved membership orchestration, Scope/Saved Views, authorization, and audit.
+- Implement Operational Mapping in vertical slices. The first coding slice is Source Catalogue only; do not jump straight to editable categories, broad frontend configuration, Saved Views, or automatic responsibility rules.
 - Keep schema changes in versioned SQL files under `infra/migrations`. Do not rewrite an already applied migration; add the next migration and validate the full sequence.
 - Use only synthetic or explicitly approved sanitized fixtures. Do not commit real schedules, real Project files, customer data, secrets, generated export artifacts, screenshots containing operational data, or unrelated binaries.
 
