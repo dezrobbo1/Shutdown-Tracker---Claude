@@ -102,6 +102,7 @@ The first text-only evidence record should use:
 - `evidence_id`: `synthetic-export-leaf-actuals-round-trip-001`
 - `fixture_or_source`: `synthetic-basic-wbs`
 - `expected_output_reference`: `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json`
+- offset-bearing value: synthetic task A1 `actual_start` = `2026-01-05T07:00:00+08:00`
 - `contains_real_project_data`: `false`
 - `generated_artifact_committed`: `false`
 

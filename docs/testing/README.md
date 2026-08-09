@@ -16,6 +16,8 @@ mvn test
 
 Backend tests should cover service/domain validation, persistence boundaries, API contracts, audit events, import/export handoffs, review/approval state transitions, and rejection of scheduler-like or uncontrolled write-back behavior.
 
+Persistence and transaction claims that depend on PostgreSQL must use real PostgreSQL, the real Spring transaction proxy, and the JDBC implementation rather than H2 or fake repositories. The export-integrity integration suite uses a uniquely named repository-local Docker container, applies V001-V007 through Flyway, exercises controlled local HTTP worker failure and rollback, and must clean up its exact container and temporary artifact storage on exit. Fake-repository tests remain useful unit evidence but are not PostgreSQL or transaction-boundary evidence.
+
 ### Frontend
 
 Run:
@@ -85,6 +87,8 @@ As the corresponding features are implemented, tests should verify:
 - candidate/task/source/approval identities cannot be substituted or become stale before artifact generation;
 - export generation remains request-specific and allowlisted;
 - artifact metadata and verification state are auditable;
+- policy-1 lifecycle facts and structured provenance cannot be rewritten or replaced by caller metadata;
+- Microsoft Project open and verification actor/time identity remains authoritative through terminal verification;
 - no endpoint or worker operation silently updates Microsoft Project.
 
 ## Permission and audit tests

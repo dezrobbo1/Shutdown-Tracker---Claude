@@ -218,7 +218,7 @@ Before candidate approval, preview materialization, batch approval, artifact gen
 ## Candidate value normalization
 
 - `percent_complete` is a whole number from 0 through 100. Equivalent inputs such as `75`, `75.0`, and `075` canonicalize to `75`; fractional values are rejected.
-- Proposed `actual_start` and `actual_finish` values require ISO-8601 minute- or second-precision values with an explicit offset and canonicalize to whole seconds. Omitted seconds become `:00`, all-zero fractional seconds canonicalize away, and non-zero fractions are rejected because the MSPDI writer does not preserve them. Canonicalization preserves the reviewed Microsoft Project local wall-clock component and emits one canonical offset form; the worker uses that local component without converting it to UTC. Offset-free and invalid values are rejected.
+- Proposed `actual_start` and `actual_finish` values require ISO-8601 minute- or second-precision values with an explicit offset and canonicalize to whole seconds. Omitted seconds become `:00`. A fractional component is accepted only when it contains one through six digits and every digit is zero; that zero-valued fraction canonicalizes away. Non-zero fractions and fractions outside the one-to-six-digit input range are rejected because the MSPDI writer does not preserve them. Canonicalization preserves the reviewed Microsoft Project local wall-clock component and emits one canonical offset form; the worker uses that local component without converting it to UTC. Offset-free and invalid values are rejected.
 - Captured imported `actual_start` and `actual_finish` baselines use a separate canonicalizer that preserves available microsecond precision for freshness comparison. Baseline values are not sent to the worker as proposed values.
 - `physical_percent_complete` may remain readable as internal or historical context, but it is never export eligible and never enters the worker contract or MSPDI/XML artifact.
 - For proposed export values, the API/database boundary and shared contract, worker, and XML checks enforce equivalent canonical rules. Imported actual baselines use the separate precision-preserving baseline canonicalizer.
@@ -308,11 +308,11 @@ Minimum audit events for this workflow:
 - `task_progress_correction_requested`;
 - `task_progress_rejected`;
 - `task_progress_superseded`;
-- `planner_review_candidate_created`;
-- `planner_progress_approved_for_export`;
-- `planner_progress_rejected`;
-- `progress_export_candidate_blocked`;
-- `progress_export_candidate_superseded`;
+- `export_candidate_created`;
+- `export_candidate_approved_for_export`;
+- `export_candidate_rejected`;
+- `export_candidate_correction_requested`;
+- `export_candidate_superseded`;
 - `export_preview_created`;
 - `export_batch_approved`;
 - `export_batch_rejected`;

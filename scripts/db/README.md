@@ -38,7 +38,8 @@ From the repository root:
 - Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
 - Verify the expected 21 baseline tables exist after migration.
 - Upgrade populated synthetic V006 history through V007 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
-- Exercise current policy-1 approval-neutral candidate creation, trusted fingerprints, separate exact candidate-bound approval history, candidate-ID-only preview lines, field and leaf authority, duplicates, sealing, immutable history, deterministic latest-event ordering, and baseline freshness.
+- Exercise current policy-1 approval-neutral candidate creation, trusted fingerprints, separate exact candidate-bound approval history, candidate-ID-only preview lines, field and leaf authority, duplicates, sealing, deterministic latest-event ordering, and baseline freshness.
+- Prove same-state lifecycle rewrite rejection; immutable approval/generation/open/verification actor and time facts; immutable artifact URI/hash; collision-proof sectioned metadata; transition piggyback rejection; authoritative Microsoft Project open identity; and terminal-state immutability.
 - Prove task mutation versus candidate approval, line-versus-seal, concurrent duplicate, approval versus batch approval/generation, snapshot/task mutation versus generation, worker-failure rollback, and stable reversed multi-source contention behavior with separately synchronized PostgreSQL sessions.
 - Intentionally fail V007 near the end of its transaction and verify that it leaves no partial V007 objects while V006 data remains intact.
 

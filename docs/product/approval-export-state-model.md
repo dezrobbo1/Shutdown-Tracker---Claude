@@ -84,14 +84,14 @@ Planner approval marks this progress as eligible for export preview. The master 
 
 | State | Meaning | Allowed next states |
 | --- | --- | --- |
-| `draft_preview` | Preview has been assembled but not submitted for approval. | `awaiting_approval`, `superseded` |
-| `awaiting_approval` | Preview is ready for Planner approval. | `approved`, `rejected`, `superseded` |
-| `approved` | Export batch has been approved for file generation. | `generated`, `superseded` |
-| `rejected` | Export batch is not approved. | `superseded` |
+| `draft_preview` | Preview has been assembled but not submitted for approval. | `awaiting_approval`, `approved`, `rejected`, `failed`, `superseded` |
+| `awaiting_approval` | Preview is ready for Planner approval. | `approved`, `rejected`, `failed`, `superseded` |
+| `approved` | Export batch has been approved for file generation. | `generated`, `failed`, `superseded` |
+| `rejected` | Export batch is not approved. | none |
 | `generated` | MSPDI/XML export artifact has been generated. | `opened_in_microsoft_project`, `failed`, `superseded` |
 | `opened_in_microsoft_project` | Planner has opened the artifact in Microsoft Project for manual verification. | `verified`, `failed`, `superseded` |
-| `verified` | Planner has confirmed the artifact opened and behaved as expected in Microsoft Project. | `superseded` |
-| `failed` | Generation or manual verification failed. | `superseded` |
+| `verified` | Planner has confirmed the artifact opened and behaved as expected in Microsoft Project. | none |
+| `failed` | Generation or manual verification failed. | none |
 | `superseded` | A later export batch replaces this batch for operational purposes. | none |
 
 Required copy sequence:
@@ -187,7 +187,10 @@ Never export from Shutdown Tracker:
 
 ## Immutability and Corrections
 
-- Export batches must be immutable once generated.
+- Policy-1 export batches allow only the explicit state transitions shown above. The one-time draft line-set seal is the only permitted same-state mutation.
+- Batch identity, preview creation, sealed membership, and every established approval, generation, artifact, Microsoft Project open, and verification fact are immutable.
+- Rejected, failed, superseded, and verified policy-1 batches are terminal and immutable.
+- Lifecycle metadata uses server-owned sections with caller data nested under `clientMetadata`; later transitions cannot replace earlier provenance.
 - Corrections create new records or superseding records, not destructive edits.
 - Generated export artifacts should remain linked to the approval record that produced them.
 - A failed or superseded export batch must remain visible in export history.
