@@ -11,11 +11,23 @@ public record ExportBatchGeneratedRequest(
         String exportFileHash,
         UUID generatedByUserId,
         String reason,
-        Map<String, Object> metadata
+        Map<String, Object> clientMetadata,
+        Map<String, Object> provenance
 ) {
     public ExportBatchGeneratedRequest {
         exportFileUri = requireText(exportFileUri, "exportFileUri is required.");
         exportFileHash = requireText(exportFileHash, "exportFileHash is required.");
-        metadata = immutableObjectMap(metadata, "metadata");
+        clientMetadata = immutableObjectMap(clientMetadata, "clientMetadata");
+        provenance = immutableObjectMap(provenance, "provenance");
+    }
+
+    public ExportBatchGeneratedRequest(
+            String exportFileUri,
+            String exportFileHash,
+            UUID generatedByUserId,
+            String reason,
+            Map<String, Object> clientMetadata
+    ) {
+        this(exportFileUri, exportFileHash, generatedByUserId, reason, clientMetadata, Map.of());
     }
 }

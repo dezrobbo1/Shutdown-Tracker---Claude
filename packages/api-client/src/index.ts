@@ -304,6 +304,8 @@ export type ExportPreviewBatchRecord = {
   approvedByUserId: string | null;
   generatedAt: string | null;
   generatedByUserId: string | null;
+  openedInMicrosoftProjectAt: string | null;
+  openedInMicrosoftProjectByUserId: string | null;
   verifiedAt: string | null;
   verifiedByUserId: string | null;
   exportFileUri: string | null;
@@ -314,6 +316,7 @@ export type ExportPreviewBatchRecord = {
   ineligibleLineCount: number;
   integrityPolicyVersion: number | null;
   lineSetSealed: boolean | null;
+  metadata: JsonObject;
 };
 
 export type ExportPreviewLineRecord = {

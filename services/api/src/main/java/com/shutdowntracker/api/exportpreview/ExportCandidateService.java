@@ -110,7 +110,7 @@ public class ExportCandidateService {
         auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
                 requiredProjectId,
                 AuditEventCategory.EXPORT,
-                AuditEventTypes.EXPORT_CANDIDATE_APPROVAL_RECORDED,
+                candidateApprovalAuditEventType(event.approvalState()),
                 "export_candidate",
                 requiredCandidateId,
                 "Authoritative export candidate",
@@ -158,5 +158,15 @@ public class ExportCandidateService {
         metadata.put("projectWriteBack", false);
         metadata.put("artifactGenerated", false);
         return metadata;
+    }
+
+    private String candidateApprovalAuditEventType(ApprovalState approvalState) {
+        return switch (approvalState) {
+            case APPROVED_FOR_EXPORT -> AuditEventTypes.EXPORT_CANDIDATE_APPROVED_FOR_EXPORT;
+            case REJECTED -> AuditEventTypes.EXPORT_CANDIDATE_REJECTED;
+            case CORRECTION_REQUESTED -> AuditEventTypes.EXPORT_CANDIDATE_CORRECTION_REQUESTED;
+            case SUPERSEDED -> AuditEventTypes.EXPORT_CANDIDATE_SUPERSEDED;
+            default -> AuditEventTypes.EXPORT_CANDIDATE_APPROVAL_RECORDED;
+        };
     }
 }

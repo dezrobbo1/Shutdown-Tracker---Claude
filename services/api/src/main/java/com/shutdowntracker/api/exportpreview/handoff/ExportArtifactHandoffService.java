@@ -78,7 +78,8 @@ public class ExportArtifactHandoffService {
                         workerResponse.exportFileHash(),
                         requiredRequest.generatedByUserId(),
                         reason(requiredRequest),
-                        generatedMetadata(requiredRequest, storageLocation, workerResponse)
+                        requiredRequest.metadata(),
+                        generationProvenance(storageLocation, workerResponse)
                 )
         );
 
@@ -154,24 +155,23 @@ public class ExportArtifactHandoffService {
         return GENERATED_MESSAGE;
     }
 
-    private Map<String, Object> generatedMetadata(
-            ExportArtifactGenerationRequest request,
+    private Map<String, Object> generationProvenance(
             ExportArtifactStorageLocation storageLocation,
             ProjectExportArtifactGenerationResponse workerResponse
     ) {
-        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        metadata.put("workerArtifactGenerated", true);
-        metadata.put("projectWriteBack", false);
-        metadata.put("artifactStorageManagedByApi", true);
-        metadata.put("artifactStorageKind", storageLocation.storageKind());
-        metadata.put("artifactStorageUri", storageLocation.storageUri());
-        metadata.put("artifactFilename", storageLocation.artifactFilename());
-        metadata.put("artifactFormat", workerResponse.artifactSummary().artifactFormat());
-        metadata.put("artifactTaskCount", workerResponse.artifactSummary().taskCount());
-        metadata.put("artifactExportedFieldCount", workerResponse.artifactSummary().exportedFieldCount());
-        metadata.put("artifactSizeBytes", workerResponse.artifactSummary().sizeBytes());
-        metadata.put("workerMessage", workerResponse.message());
-        return metadata;
+        Map<String, Object> provenance = new LinkedHashMap<>();
+        provenance.put("workerArtifactGenerated", true);
+        provenance.put("projectWriteBack", false);
+        provenance.put("artifactStorageManagedByApi", true);
+        provenance.put("artifactStorageKind", storageLocation.storageKind());
+        provenance.put("artifactStorageUri", storageLocation.storageUri());
+        provenance.put("artifactFilename", storageLocation.artifactFilename());
+        provenance.put("artifactFormat", workerResponse.artifactSummary().artifactFormat());
+        provenance.put("artifactTaskCount", workerResponse.artifactSummary().taskCount());
+        provenance.put("artifactExportedFieldCount", workerResponse.artifactSummary().exportedFieldCount());
+        provenance.put("artifactSizeBytes", workerResponse.artifactSummary().sizeBytes());
+        provenance.put("workerMessage", workerResponse.message());
+        return provenance;
     }
 
     private static class ExportTaskBuilder {

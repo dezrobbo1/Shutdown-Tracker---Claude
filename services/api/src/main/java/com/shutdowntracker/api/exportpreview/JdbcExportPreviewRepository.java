@@ -31,6 +31,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    eb.approved_by_user_id,
                    eb.generated_at,
                    eb.generated_by_user_id,
+                   eb.opened_in_microsoft_project_at,
+                   eb.opened_in_microsoft_project_by_user_id,
                    eb.verified_at,
                    eb.verified_by_user_id,
                    eb.export_file_uri,
@@ -38,6 +40,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                    eb.failure_reason,
                    eb.integrity_policy_version,
                    eb.line_set_sealed,
+                   eb.metadata,
                    CAST(COUNT(ebl.id) AS int) AS line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE ebl.is_export_eligible) AS int) AS eligible_line_count,
                    CAST(COUNT(ebl.id) FILTER (WHERE NOT ebl.is_export_eligible) AS int) AS ineligible_line_count
@@ -165,13 +168,16 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                          eb.approved_by_user_id,
                          eb.generated_at,
                          eb.generated_by_user_id,
+                         eb.opened_in_microsoft_project_at,
+                         eb.opened_in_microsoft_project_by_user_id,
                          eb.verified_at,
                          eb.verified_by_user_id,
                          eb.export_file_uri,
                          eb.export_file_hash,
                          eb.failure_reason,
                          eb.integrity_policy_version,
-                         eb.line_set_sealed
+                         eb.line_set_sealed,
+                         eb.metadata
                 """;
 
         return jdbcTemplate.query(
@@ -232,7 +238,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 SET status = CAST(:status AS export_batch_state),
                     approved_at = now(),
                     approved_by_user_id = :approvedByUserId,
-                    metadata = metadata || CAST(:metadata AS jsonb)
+                    metadata = CAST(:metadata AS jsonb)
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'draft_preview'
@@ -264,7 +270,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
         String sql = """
                 UPDATE export_batches
                 SET status = CAST(:status AS export_batch_state),
-                    metadata = metadata || CAST(:metadata AS jsonb)
+                    metadata = CAST(:metadata AS jsonb)
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'draft_preview'
@@ -301,7 +307,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                     generated_by_user_id = :generatedByUserId,
                     export_file_uri = :exportFileUri,
                     export_file_hash = :exportFileHash,
-                    metadata = metadata || CAST(:metadata AS jsonb)
+                    metadata = CAST(:metadata AS jsonb)
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'approved'
@@ -329,12 +335,15 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
     public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
             UUID projectId,
             UUID exportBatchId,
+            UUID openedByUserId,
             Map<String, Object> metadata
     ) {
         String sql = """
                 UPDATE export_batches
                 SET status = CAST(:status AS export_batch_state),
-                    metadata = metadata || CAST(:metadata AS jsonb)
+                    opened_in_microsoft_project_at = now(),
+                    opened_in_microsoft_project_by_user_id = :openedByUserId,
+                    metadata = CAST(:metadata AS jsonb)
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'generated'
@@ -347,6 +356,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 new MapSqlParameterSource()
                         .addValue("projectId", projectId)
                         .addValue("exportBatchId", exportBatchId)
+                        .addValue("openedByUserId", openedByUserId)
                         .addValue("status", ExportBatchState.OPENED_IN_MICROSOFT_PROJECT.databaseValue())
                         .addValue("integrityPolicyVersion", ExportIntegrityPolicy.CURRENT_VERSION)
                         .addValue("metadata", toJson(metadata)),
@@ -367,7 +377,7 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 SET status = CAST(:status AS export_batch_state),
                     verified_at = now(),
                     verified_by_user_id = :verifiedByUserId,
-                    metadata = metadata || CAST(:metadata AS jsonb)
+                    metadata = CAST(:metadata AS jsonb)
                 WHERE project_id = :projectId
                   AND id = :exportBatchId
                   AND status = 'opened_in_microsoft_project'
@@ -861,6 +871,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getObject("approved_by_user_id", UUID.class),
                 rs.getObject("generated_at", OffsetDateTime.class),
                 rs.getObject("generated_by_user_id", UUID.class),
+                rs.getObject("opened_in_microsoft_project_at", OffsetDateTime.class),
+                rs.getObject("opened_in_microsoft_project_by_user_id", UUID.class),
                 rs.getObject("verified_at", OffsetDateTime.class),
                 rs.getObject("verified_by_user_id", UUID.class),
                 rs.getString("export_file_uri"),
@@ -870,7 +882,8 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
                 rs.getInt("eligible_line_count"),
                 rs.getInt("ineligible_line_count"),
                 (Integer) rs.getObject("integrity_policy_version"),
-                (Boolean) rs.getObject("line_set_sealed")
+                (Boolean) rs.getObject("line_set_sealed"),
+                fromJson(rs.getString("metadata"))
         );
     }
 

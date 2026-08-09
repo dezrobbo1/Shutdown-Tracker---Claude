@@ -511,7 +511,9 @@ EXECUTE FUNCTION freeze_approval_record_history();
 
 ALTER TABLE export_batches
   ADD COLUMN integrity_policy_version INTEGER,
-  ADD COLUMN line_set_sealed BOOLEAN;
+  ADD COLUMN line_set_sealed BOOLEAN,
+  ADD COLUMN opened_in_microsoft_project_at TIMESTAMPTZ,
+  ADD COLUMN opened_in_microsoft_project_by_user_id UUID;
 
 ALTER TABLE export_batches
   ALTER COLUMN integrity_policy_version SET DEFAULT 1,
@@ -524,6 +526,18 @@ ALTER TABLE export_batches
     CHECK (
       (integrity_policy_version IS NULL AND line_set_sealed IS NULL)
       OR (integrity_policy_version = 1 AND line_set_sealed IS NOT NULL)
+    ),
+  ADD CONSTRAINT export_batches_opened_after_generated_check
+    CHECK (
+      generated_at IS NULL
+      OR opened_in_microsoft_project_at IS NULL
+      OR opened_in_microsoft_project_at >= generated_at
+    ),
+  ADD CONSTRAINT export_batches_verified_after_opened_check
+    CHECK (
+      opened_in_microsoft_project_at IS NULL
+      OR verified_at IS NULL
+      OR verified_at >= opened_in_microsoft_project_at
     ),
   ADD CONSTRAINT export_batches_line_identity_unique
     UNIQUE (id, project_id, project_snapshot_id, integrity_policy_version);
@@ -886,6 +900,13 @@ CREATE OR REPLACE FUNCTION enforce_export_batch_integrity_policy()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  transition_payload JSONB := '{}'::jsonb;
+  client_metadata JSONB := '{}'::jsonb;
+  transition_provenance JSONB := '{}'::jsonb;
+  transition_reason TEXT;
+  transition_actor_user_id UUID;
+  transition_at TIMESTAMPTZ := now();
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.integrity_policy_version IS DISTINCT FROM 1 THEN
@@ -895,6 +916,25 @@ BEGIN
     IF NEW.status IS DISTINCT FROM 'draft_preview'::export_batch_state
        OR NEW.line_set_sealed IS DISTINCT FROM false THEN
       RAISE EXCEPTION 'new export batches must begin as an unsealed draft preview'
+        USING ERRCODE = '23514';
+    END IF;
+    IF NEW.approved_at IS NOT NULL
+       OR NEW.approved_by_user_id IS NOT NULL
+       OR NEW.generated_at IS NOT NULL
+       OR NEW.generated_by_user_id IS NOT NULL
+       OR NEW.opened_in_microsoft_project_at IS NOT NULL
+       OR NEW.opened_in_microsoft_project_by_user_id IS NOT NULL
+       OR NEW.verified_at IS NOT NULL
+       OR NEW.verified_by_user_id IS NOT NULL
+       OR NEW.export_file_uri IS NOT NULL
+       OR NEW.export_file_hash IS NOT NULL
+       OR NEW.failure_reason IS NOT NULL
+       OR NEW.superseded_by_export_batch_id IS NOT NULL THEN
+      RAISE EXCEPTION 'new export batches cannot pre-populate lifecycle history'
+        USING ERRCODE = '23514';
+    END IF;
+    IF NEW.metadata IS NULL OR jsonb_typeof(NEW.metadata) IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'export batch client metadata must be a JSON object'
         USING ERRCODE = '23514';
     END IF;
     PERFORM ps.id
@@ -907,6 +947,13 @@ BEGIN
       RAISE EXCEPTION 'new export batches require an accepted project snapshot'
         USING ERRCODE = '23514';
     END IF;
+    NEW.preview_created_at := transition_at;
+    NEW.metadata := jsonb_build_object(
+      'preview', jsonb_build_object(
+        'createdAt', NEW.preview_created_at,
+        'clientMetadata', NEW.metadata
+      )
+    );
     RETURN NEW;
   END IF;
 
@@ -915,79 +962,353 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF NEW.integrity_policy_version IS DISTINCT FROM OLD.integrity_policy_version
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.integrity_policy_version IS DISTINCT FROM OLD.integrity_policy_version
      OR NEW.project_id IS DISTINCT FROM OLD.project_id
-     OR NEW.project_snapshot_id IS DISTINCT FROM OLD.project_snapshot_id THEN
-    RAISE EXCEPTION 'export batch policy, project, and snapshot identity are immutable'
+     OR NEW.project_snapshot_id IS DISTINCT FROM OLD.project_snapshot_id
+     OR NEW.preview_created_at IS DISTINCT FROM OLD.preview_created_at
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'export batch identity, policy, preview creation, and server creation facts are immutable'
       USING ERRCODE = '23514';
   END IF;
 
-  IF NEW.line_set_sealed IS DISTINCT FROM OLD.line_set_sealed THEN
-    IF NOT (
-      OLD.integrity_policy_version = 1
-      AND OLD.status = 'draft_preview'::export_batch_state
-      AND NEW.status = 'draft_preview'::export_batch_state
-      AND OLD.line_set_sealed = false
-      AND NEW.line_set_sealed = true
-    ) THEN
-      RAISE EXCEPTION 'export batch line set may only seal once while in draft preview'
-        USING ERRCODE = '23514';
-    END IF;
-    PERFORM validate_current_export_batch_integrity(
-      NEW.id,
-      NEW.project_id,
-      NEW.project_snapshot_id,
-      false
-    );
-  END IF;
-
-  IF NEW.status IS DISTINCT FROM OLD.status THEN
-    IF NOT (
-      (OLD.status = 'draft_preview'::export_batch_state AND NEW.status IN (
-        'awaiting_approval'::export_batch_state,
-        'approved'::export_batch_state,
-        'rejected'::export_batch_state,
-        'failed'::export_batch_state,
-        'superseded'::export_batch_state
-      ))
-      OR (OLD.status = 'awaiting_approval'::export_batch_state AND NEW.status IN (
-        'approved'::export_batch_state,
-        'rejected'::export_batch_state,
-        'failed'::export_batch_state,
-        'superseded'::export_batch_state
-      ))
-      OR (OLD.status = 'approved'::export_batch_state AND NEW.status IN (
-        'generated'::export_batch_state,
-        'failed'::export_batch_state,
-        'superseded'::export_batch_state
-      ))
-      OR (OLD.status = 'generated'::export_batch_state AND NEW.status IN (
-        'opened_in_microsoft_project'::export_batch_state,
-        'failed'::export_batch_state,
-        'superseded'::export_batch_state
-      ))
-      OR (OLD.status = 'opened_in_microsoft_project'::export_batch_state AND NEW.status IN (
-        'verified'::export_batch_state,
-        'failed'::export_batch_state,
-        'superseded'::export_batch_state
-      ))
-    ) THEN
-      RAISE EXCEPTION 'invalid current-policy export batch lifecycle transition'
-        USING ERRCODE = '23514';
-    END IF;
-
-    IF NEW.status IN ('approved'::export_batch_state, 'generated'::export_batch_state) THEN
-      IF NEW.line_set_sealed IS DISTINCT FROM true THEN
-        RAISE EXCEPTION 'export batch must have a sealed line set before approval or generation'
+  IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    IF NEW.line_set_sealed IS DISTINCT FROM OLD.line_set_sealed THEN
+      IF NOT (
+        OLD.integrity_policy_version = 1
+        AND OLD.status = 'draft_preview'::export_batch_state
+        AND OLD.line_set_sealed = false
+        AND NEW.line_set_sealed = true
+        AND NEW.approved_at IS NOT DISTINCT FROM OLD.approved_at
+        AND NEW.approved_by_user_id IS NOT DISTINCT FROM OLD.approved_by_user_id
+        AND NEW.generated_at IS NOT DISTINCT FROM OLD.generated_at
+        AND NEW.generated_by_user_id IS NOT DISTINCT FROM OLD.generated_by_user_id
+        AND NEW.opened_in_microsoft_project_at IS NOT DISTINCT FROM OLD.opened_in_microsoft_project_at
+        AND NEW.opened_in_microsoft_project_by_user_id IS NOT DISTINCT FROM OLD.opened_in_microsoft_project_by_user_id
+        AND NEW.verified_at IS NOT DISTINCT FROM OLD.verified_at
+        AND NEW.verified_by_user_id IS NOT DISTINCT FROM OLD.verified_by_user_id
+        AND NEW.export_file_uri IS NOT DISTINCT FROM OLD.export_file_uri
+        AND NEW.export_file_hash IS NOT DISTINCT FROM OLD.export_file_hash
+        AND NEW.failure_reason IS NOT DISTINCT FROM OLD.failure_reason
+        AND NEW.superseded_by_export_batch_id IS NOT DISTINCT FROM OLD.superseded_by_export_batch_id
+        AND NEW.metadata IS NOT DISTINCT FROM OLD.metadata
+      ) THEN
+        RAISE EXCEPTION 'export batch line set may only seal once without any unrelated mutation'
           USING ERRCODE = '23514';
       END IF;
       PERFORM validate_current_export_batch_integrity(
         NEW.id,
         NEW.project_id,
         NEW.project_snapshot_id,
-        true
+        false
       );
+      RETURN NEW;
     END IF;
+
+    IF NEW IS DISTINCT FROM OLD THEN
+      RAISE EXCEPTION 'same-state current-policy export batch history is immutable'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NOT (
+    (OLD.status = 'draft_preview'::export_batch_state AND NEW.status IN (
+      'awaiting_approval'::export_batch_state,
+      'approved'::export_batch_state,
+      'rejected'::export_batch_state,
+      'failed'::export_batch_state,
+      'superseded'::export_batch_state
+    ))
+    OR (OLD.status = 'awaiting_approval'::export_batch_state AND NEW.status IN (
+      'approved'::export_batch_state,
+      'rejected'::export_batch_state,
+      'failed'::export_batch_state,
+      'superseded'::export_batch_state
+    ))
+    OR (OLD.status = 'approved'::export_batch_state AND NEW.status IN (
+      'generated'::export_batch_state,
+      'failed'::export_batch_state,
+      'superseded'::export_batch_state
+    ))
+    OR (OLD.status = 'generated'::export_batch_state AND NEW.status IN (
+      'opened_in_microsoft_project'::export_batch_state,
+      'failed'::export_batch_state,
+      'superseded'::export_batch_state
+    ))
+    OR (OLD.status = 'opened_in_microsoft_project'::export_batch_state AND NEW.status IN (
+      'verified'::export_batch_state,
+      'failed'::export_batch_state,
+      'superseded'::export_batch_state
+    ))
+  ) THEN
+    RAISE EXCEPTION 'invalid current-policy export batch lifecycle transition'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.line_set_sealed IS DISTINCT FROM OLD.line_set_sealed THEN
+    RAISE EXCEPTION 'export batch status transitions cannot change sealed line identity'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.metadata IS DISTINCT FROM OLD.metadata THEN
+    transition_payload := COALESCE(NEW.metadata, '{}'::jsonb);
+  END IF;
+  IF jsonb_typeof(transition_payload) IS DISTINCT FROM 'object'
+     OR transition_payload - ARRAY[
+       'reason',
+       'clientMetadata',
+       'provenance',
+       'actorUserId'
+     ] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'export batch transition metadata accepts only reason, clientMetadata, provenance, and actorUserId inputs'
+      USING ERRCODE = '23514';
+  END IF;
+  IF transition_payload ? 'clientMetadata' THEN
+    IF jsonb_typeof(transition_payload -> 'clientMetadata') IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'export batch transition clientMetadata must be a JSON object'
+        USING ERRCODE = '23514';
+    END IF;
+    client_metadata := transition_payload -> 'clientMetadata';
+  END IF;
+  IF transition_payload ? 'provenance' THEN
+    IF jsonb_typeof(transition_payload -> 'provenance') IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'export batch transition provenance must be a JSON object'
+        USING ERRCODE = '23514';
+    END IF;
+    transition_provenance := transition_payload -> 'provenance';
+  END IF;
+  IF transition_payload ? 'reason'
+     AND jsonb_typeof(transition_payload -> 'reason') NOT IN ('string', 'null') THEN
+    RAISE EXCEPTION 'export batch transition reason must be text or null'
+      USING ERRCODE = '23514';
+  END IF;
+  transition_reason := transition_payload ->> 'reason';
+  IF transition_payload ? 'actorUserId'
+     AND jsonb_typeof(transition_payload -> 'actorUserId') NOT IN ('string', 'null') THEN
+    RAISE EXCEPTION 'export batch transition actorUserId must be a UUID string or null'
+      USING ERRCODE = '23514';
+  END IF;
+  IF transition_payload ->> 'actorUserId' IS NOT NULL THEN
+    BEGIN
+      transition_actor_user_id := (transition_payload ->> 'actorUserId')::UUID;
+    EXCEPTION
+      WHEN invalid_text_representation THEN
+        RAISE EXCEPTION 'export batch transition actorUserId must be a UUID string or null'
+          USING ERRCODE = '23514';
+    END;
+  END IF;
+
+  IF NEW.status = 'approved'::export_batch_state THEN
+    IF OLD.approved_at IS NOT NULL OR OLD.approved_by_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'export batch approval facts were already established'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.approved_at := transition_at;
+  ELSIF NEW.approved_at IS DISTINCT FROM OLD.approved_at
+        OR NEW.approved_by_user_id IS DISTINCT FROM OLD.approved_by_user_id THEN
+    RAISE EXCEPTION 'export batch approval facts may change only when entering approved state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF OLD.status = 'approved'::export_batch_state
+     AND NEW.status = 'generated'::export_batch_state THEN
+    IF OLD.generated_at IS NOT NULL
+       OR OLD.generated_by_user_id IS NOT NULL
+       OR OLD.export_file_uri IS NOT NULL
+       OR OLD.export_file_hash IS NOT NULL THEN
+      RAISE EXCEPTION 'export batch generation facts were already established'
+        USING ERRCODE = '23514';
+    END IF;
+    IF NEW.export_file_uri IS NULL OR btrim(NEW.export_file_uri) = ''
+       OR NEW.export_file_hash IS NULL
+       OR NEW.export_file_hash !~ '^[0-9a-f]{64}$' THEN
+      RAISE EXCEPTION 'generated export batches require an artifact URI and lowercase SHA-256 hash'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.generated_at := transition_at;
+  ELSIF NEW.generated_at IS DISTINCT FROM OLD.generated_at
+        OR NEW.generated_by_user_id IS DISTINCT FROM OLD.generated_by_user_id
+        OR NEW.export_file_uri IS DISTINCT FROM OLD.export_file_uri
+        OR NEW.export_file_hash IS DISTINCT FROM OLD.export_file_hash THEN
+    RAISE EXCEPTION 'export batch generation and artifact facts may change only when entering generated state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF OLD.status = 'generated'::export_batch_state
+     AND NEW.status = 'opened_in_microsoft_project'::export_batch_state THEN
+    IF OLD.opened_in_microsoft_project_at IS NOT NULL
+       OR OLD.opened_in_microsoft_project_by_user_id IS NOT NULL
+       OR NEW.opened_in_microsoft_project_by_user_id IS NULL THEN
+      RAISE EXCEPTION 'Microsoft Project open actor and time must be established exactly once'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.opened_in_microsoft_project_at := transition_at;
+  ELSIF NEW.opened_in_microsoft_project_at IS DISTINCT FROM OLD.opened_in_microsoft_project_at
+        OR NEW.opened_in_microsoft_project_by_user_id IS DISTINCT FROM OLD.opened_in_microsoft_project_by_user_id THEN
+    RAISE EXCEPTION 'Microsoft Project open facts may change only when entering opened state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF OLD.status = 'opened_in_microsoft_project'::export_batch_state
+     AND NEW.status = 'verified'::export_batch_state THEN
+    IF OLD.verified_at IS NOT NULL
+       OR OLD.verified_by_user_id IS NOT NULL
+       OR NEW.verified_by_user_id IS NULL THEN
+      RAISE EXCEPTION 'export verification actor and time must be established exactly once'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.verified_at := transition_at;
+  ELSIF NEW.verified_at IS DISTINCT FROM OLD.verified_at
+        OR NEW.verified_by_user_id IS DISTINCT FROM OLD.verified_by_user_id THEN
+    RAISE EXCEPTION 'export verification facts may change only when entering verified state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status = 'failed'::export_batch_state THEN
+    IF NEW.failure_reason IS NULL OR btrim(NEW.failure_reason) = '' THEN
+      RAISE EXCEPTION 'failed export batches require a failure reason'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF NEW.failure_reason IS DISTINCT FROM OLD.failure_reason THEN
+    RAISE EXCEPTION 'export batch failure information may change only when entering failed state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status = 'superseded'::export_batch_state THEN
+    IF NEW.superseded_by_export_batch_id IS NULL THEN
+      RAISE EXCEPTION 'superseded export batches require a superseding batch reference'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF NEW.superseded_by_export_batch_id IS DISTINCT FROM OLD.superseded_by_export_batch_id THEN
+    RAISE EXCEPTION 'export batch supersession information may change only when entering superseded state'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status IN (
+    'awaiting_approval'::export_batch_state,
+    'approved'::export_batch_state,
+    'rejected'::export_batch_state
+  ) AND NEW.line_set_sealed IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'export batch line set must be sealed before approval workflow transitions'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status = 'awaiting_approval'::export_batch_state THEN
+    IF transition_payload <> '{}'::jsonb THEN
+      RAISE EXCEPTION 'awaiting-approval transition does not accept lifecycle metadata changes'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata;
+  ELSIF NEW.status = 'approved'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb OR transition_actor_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'approval transition cannot author generation provenance or a separate actor override'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'approval', jsonb_build_object(
+        'approvedAt', NEW.approved_at,
+        'approvedByUserId', NEW.approved_by_user_id,
+        'reason', transition_reason,
+        'clientMetadata', client_metadata
+      )
+    );
+  ELSIF NEW.status = 'rejected'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb THEN
+      RAISE EXCEPTION 'rejection transition cannot author generation provenance'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'rejection', jsonb_build_object(
+        'rejectedAt', transition_at,
+        'rejectedByUserId', transition_actor_user_id,
+        'reason', transition_reason,
+        'clientMetadata', client_metadata
+      )
+    );
+  ELSIF NEW.status = 'generated'::export_batch_state THEN
+    IF transition_actor_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'generation transition cannot override the generated actor column through metadata'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'generation', jsonb_build_object(
+        'generatedAt', NEW.generated_at,
+        'generatedByUserId', NEW.generated_by_user_id,
+        'exportFileUri', NEW.export_file_uri,
+        'exportFileHash', NEW.export_file_hash,
+        'reason', transition_reason,
+        'clientMetadata', client_metadata,
+        'provenance', transition_provenance
+      )
+    );
+  ELSIF NEW.status = 'opened_in_microsoft_project'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb OR transition_actor_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'Microsoft Project open transition cannot override generation provenance or open actor through metadata'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'microsoftProjectOpen', jsonb_build_object(
+        'openedAt', NEW.opened_in_microsoft_project_at,
+        'openedByUserId', NEW.opened_in_microsoft_project_by_user_id,
+        'reason', transition_reason,
+        'clientMetadata', client_metadata
+      )
+    );
+  ELSIF NEW.status = 'verified'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb OR transition_actor_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'verification transition cannot override earlier provenance or the verification actor through metadata'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'verification', jsonb_build_object(
+        'verifiedAt', NEW.verified_at,
+        'verifiedByUserId', NEW.verified_by_user_id,
+        'reason', transition_reason,
+        'clientMetadata', client_metadata
+      )
+    );
+  ELSIF NEW.status = 'failed'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb
+       OR transition_actor_user_id IS NOT NULL
+       OR transition_reason IS NOT NULL THEN
+      RAISE EXCEPTION 'failure transition accepts only client metadata beside its authoritative failure reason'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'failure', jsonb_build_object(
+        'failedAt', transition_at,
+        'failureReason', NEW.failure_reason,
+        'clientMetadata', client_metadata
+      )
+    );
+  ELSIF NEW.status = 'superseded'::export_batch_state THEN
+    IF transition_provenance <> '{}'::jsonb
+       OR transition_actor_user_id IS NOT NULL
+       OR transition_reason IS NOT NULL THEN
+      RAISE EXCEPTION 'supersession transition accepts only client metadata beside its authoritative batch reference'
+        USING ERRCODE = '23514';
+    END IF;
+    NEW.metadata := OLD.metadata || jsonb_build_object(
+      'supersession', jsonb_build_object(
+        'supersededAt', transition_at,
+        'supersededByExportBatchId', NEW.superseded_by_export_batch_id,
+        'clientMetadata', client_metadata
+      )
+    );
+  END IF;
+
+  IF NEW.status IN ('approved'::export_batch_state, 'generated'::export_batch_state) THEN
+    IF NEW.line_set_sealed IS DISTINCT FROM true THEN
+      RAISE EXCEPTION 'export batch must have a sealed line set before approval or generation'
+        USING ERRCODE = '23514';
+    END IF;
+    PERFORM validate_current_export_batch_integrity(
+      NEW.id,
+      NEW.project_id,
+      NEW.project_snapshot_id,
+      true
+    );
   END IF;
 
   RETURN NEW;
@@ -1352,6 +1673,12 @@ COMMENT ON COLUMN export_batches.integrity_policy_version
 
 COMMENT ON COLUMN export_batches.line_set_sealed
   IS 'Current-policy preview membership seal; legacy batches remain null and new batches seal once.';
+
+COMMENT ON COLUMN export_batches.opened_in_microsoft_project_at
+  IS 'Server-owned time when a current-policy generated artifact was recorded as manually opened in Microsoft Project.';
+
+COMMENT ON COLUMN export_batches.opened_in_microsoft_project_by_user_id
+  IS 'Authoritative user identity that manually opened the current-policy artifact in Microsoft Project.';
 
 COMMENT ON COLUMN export_batch_lines.integrity_policy_version
   IS 'V006 and earlier lines remain null/readable; every new line uses current policy version 1.';

@@ -57,6 +57,7 @@ public interface ExportPreviewRepository {
     Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
             UUID projectId,
             UUID exportBatchId,
+            UUID openedByUserId,
             Map<String, Object> metadata
     );
 

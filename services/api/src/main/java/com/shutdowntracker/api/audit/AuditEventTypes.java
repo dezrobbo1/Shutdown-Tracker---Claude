@@ -10,6 +10,10 @@ public final class AuditEventTypes {
     public static final String REIMPORT_LINEAGE_LINK_REJECTED = "reimport_lineage_link_rejected";
     public static final String EXPORT_CANDIDATE_CREATED = "export_candidate_created";
     public static final String EXPORT_CANDIDATE_APPROVAL_RECORDED = "export_candidate_approval_recorded";
+    public static final String EXPORT_CANDIDATE_APPROVED_FOR_EXPORT = "export_candidate_approved_for_export";
+    public static final String EXPORT_CANDIDATE_REJECTED = "export_candidate_rejected";
+    public static final String EXPORT_CANDIDATE_CORRECTION_REQUESTED = "export_candidate_correction_requested";
+    public static final String EXPORT_CANDIDATE_SUPERSEDED = "export_candidate_superseded";
     public static final String EXPORT_PREVIEW_CREATED = "export_preview_created";
     public static final String EXPORT_BATCH_APPROVED = "export_batch_approved";
     public static final String EXPORT_BATCH_REJECTED = "export_batch_rejected";

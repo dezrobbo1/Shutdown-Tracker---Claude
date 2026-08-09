@@ -170,7 +170,7 @@ public class ExportPreviewService {
                             requiredProjectId,
                             requiredExportBatchId,
                             requiredRequest.reviewedByUserId(),
-                            decisionMetadata(requiredRequest)
+                            approvalTransitionMetadata(requiredRequest)
                     )
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.CONFLICT,
@@ -213,7 +213,7 @@ public class ExportPreviewService {
         requireSealedLineSet(existing);
 
         ExportPreviewBatchRecord updated = repository
-                .rejectBatch(requiredProjectId, requiredExportBatchId, decisionMetadata(requiredRequest))
+                .rejectBatch(requiredProjectId, requiredExportBatchId, rejectionTransitionMetadata(requiredRequest))
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Export batch rejection could not be recorded because the batch is no longer draft preview."
@@ -327,6 +327,7 @@ public class ExportPreviewService {
                 .markBatchOpenedInMicrosoftProject(
                         requiredProjectId,
                         requiredExportBatchId,
+                        requiredRequest.openedByUserId(),
                         openedInMicrosoftProjectMetadata(requiredRequest)
                 )
                 .orElseThrow(() -> new ResponseStatusException(
@@ -780,56 +781,43 @@ public class ExportPreviewService {
         return metadata;
     }
 
-    private Map<String, Object> decisionMetadata(ExportBatchDecisionRequest request) {
-        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        if (request.reviewedByUserId() != null) {
-            metadata.put("reviewedByUserId", request.reviewedByUserId().toString());
-        }
-        if (request.reason() != null && !request.reason().isBlank()) {
-            metadata.put("reason", request.reason());
-        }
-        metadata.put("projectWriteBack", false);
-        return metadata;
+    private Map<String, Object> approvalTransitionMetadata(ExportBatchDecisionRequest request) {
+        return transitionMetadata(request.reason(), request.metadata(), Map.of(), null);
+    }
+
+    private Map<String, Object> rejectionTransitionMetadata(ExportBatchDecisionRequest request) {
+        return transitionMetadata(request.reason(), request.metadata(), Map.of(), request.reviewedByUserId());
     }
 
     private Map<String, Object> generatedMetadata(ExportBatchGeneratedRequest request) {
-        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        if (request.generatedByUserId() != null) {
-            metadata.put("generatedByUserId", request.generatedByUserId().toString());
-        }
-        if (request.reason() != null && !request.reason().isBlank()) {
-            metadata.put("reason", request.reason());
-        }
-        metadata.put("exportFileUri", request.exportFileUri());
-        metadata.put("exportFileHash", request.exportFileHash());
-        metadata.put("artifactGenerated", true);
-        metadata.put("projectWriteBack", false);
-        return metadata;
+        return transitionMetadata(request.reason(), request.clientMetadata(), request.provenance(), null);
     }
 
     private Map<String, Object> openedInMicrosoftProjectMetadata(ExportBatchProjectOpenRequest request) {
-        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        metadata.put("openedByUserId", request.openedByUserId().toString());
-        if (request.reason() != null && !request.reason().isBlank()) {
-            metadata.put("reason", request.reason());
-        }
-        metadata.put("artifactGenerated", true);
-        metadata.put("openedInMicrosoftProject", true);
-        metadata.put("artifactVerified", false);
-        metadata.put("projectWriteBack", false);
-        return metadata;
+        return transitionMetadata(request.reason(), request.metadata(), Map.of(), null);
     }
 
     private Map<String, Object> verificationMetadata(ExportBatchVerificationRequest request) {
-        Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        metadata.put("verifiedByUserId", request.verifiedByUserId().toString());
-        if (request.reason() != null && !request.reason().isBlank()) {
-            metadata.put("reason", request.reason());
+        return transitionMetadata(request.reason(), request.metadata(), Map.of(), null);
+    }
+
+    private Map<String, Object> transitionMetadata(
+            String reason,
+            Map<String, Object> clientMetadata,
+            Map<String, Object> provenance,
+            UUID actorUserId
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (reason != null && !reason.isBlank()) {
+            metadata.put("reason", reason);
         }
-        metadata.put("artifactGenerated", true);
-        metadata.put("openedInMicrosoftProject", true);
-        metadata.put("artifactVerified", true);
-        metadata.put("projectWriteBack", false);
+        metadata.put("clientMetadata", clientMetadata);
+        if (!provenance.isEmpty()) {
+            metadata.put("provenance", provenance);
+        }
+        if (actorUserId != null) {
+            metadata.put("actorUserId", actorUserId.toString());
+        }
         return metadata;
     }
 
@@ -885,6 +873,12 @@ public class ExportPreviewService {
         if (batch.exportFileHash() != null) {
             summary.put("exportFileHash", batch.exportFileHash());
         }
+        if (batch.openedInMicrosoftProjectAt() != null) {
+            summary.put("openedInMicrosoftProjectAt", batch.openedInMicrosoftProjectAt().toString());
+        }
+        if (batch.openedInMicrosoftProjectByUserId() != null) {
+            summary.put("openedInMicrosoftProjectByUserId", batch.openedInMicrosoftProjectByUserId().toString());
+        }
         if (batch.verifiedAt() != null) {
             summary.put("verifiedAt", batch.verifiedAt().toString());
         }
@@ -911,6 +905,15 @@ public class ExportPreviewService {
         }
         if (detail.batch().exportFileHash() != null) {
             metadata.put("exportFileHash", detail.batch().exportFileHash());
+        }
+        if (detail.batch().openedInMicrosoftProjectAt() != null) {
+            metadata.put("openedInMicrosoftProjectAt", detail.batch().openedInMicrosoftProjectAt().toString());
+        }
+        if (detail.batch().openedInMicrosoftProjectByUserId() != null) {
+            metadata.put(
+                    "openedInMicrosoftProjectByUserId",
+                    detail.batch().openedInMicrosoftProjectByUserId().toString()
+            );
         }
         if (detail.batch().verifiedAt() != null) {
             metadata.put("verifiedAt", detail.batch().verifiedAt().toString());
