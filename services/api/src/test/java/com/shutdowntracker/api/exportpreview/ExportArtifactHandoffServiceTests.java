@@ -455,6 +455,7 @@ class ExportArtifactHandoffServiceTests {
         public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
                 UUID projectId,
                 UUID exportBatchId,
+                UUID openedByUserId,
                 Map<String, Object> metadata
         ) {
             throw new UnsupportedOperationException("not needed");

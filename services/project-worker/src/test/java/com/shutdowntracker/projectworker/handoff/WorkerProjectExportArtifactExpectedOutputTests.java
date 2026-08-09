@@ -95,6 +95,10 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(expected.get("synthetic_or_sanitized")).isEqualTo("synthetic");
         assertThat(expected.get("contains_real_project_data")).isEqualTo(Boolean.FALSE);
         assertThat(expected.get("generated_artifact_committed")).isEqualTo(Boolean.FALSE);
+        assertThat(objectList(expected.get("expected_tasks")).stream()
+                .flatMap(task -> map(task.get("expected_fields")).values().stream())
+                .map(String::valueOf))
+                .anyMatch(value -> value.endsWith("+08:00"));
         assertThat(stringList(expected.get("excluded_scope")))
                 .contains(
                         "summary task exports",

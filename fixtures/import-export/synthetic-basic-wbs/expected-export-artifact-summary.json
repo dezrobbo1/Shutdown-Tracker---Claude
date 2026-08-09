@@ -25,7 +25,7 @@
       "leaf_task": true,
       "expected_fields": {
         "percent_complete": 75,
-        "actual_start": "2026-01-05T07:00:00Z"
+        "actual_start": "2026-01-05T07:00:00+08:00"
       }
     },
     {

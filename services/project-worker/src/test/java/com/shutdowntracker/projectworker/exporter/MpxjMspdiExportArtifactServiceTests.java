@@ -223,6 +223,13 @@ class MpxjMspdiExportArtifactServiceTests {
         ))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Project date-time values support whole-second precision.");
+
+        assertThatThrownBy(() -> new ProjectExportArtifactFieldValue(
+                ProjectExportArtifactField.ACTUAL_FINISH,
+                "2026-01-05T16:00:00.0000000+08:00"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Project date-time value must be an ISO-8601 offset date-time.");
     }
 
     @Test

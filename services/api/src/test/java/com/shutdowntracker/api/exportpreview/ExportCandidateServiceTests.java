@@ -14,7 +14,11 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -78,15 +82,19 @@ class ExportCandidateServiceTests {
                 .hasMessageContaining("matching imported task");
     }
 
-    @Test
-    void recordsApprovalAsASeparateCandidateBoundEvent() {
+    @ParameterizedTest
+    @MethodSource("stateSpecificApprovalAuditEvents")
+    void recordsApprovalAsASeparateCandidateBoundStateSpecificEvent(
+            ApprovalState approvalState,
+            String expectedAuditEventType
+    ) {
         UUID projectId = UUID.randomUUID();
         UUID candidateId = UUID.randomUUID();
         ExportPreviewRepository repository = mock(ExportPreviewRepository.class);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportCandidateService service = new ExportCandidateService(repository, audit);
         ExportCandidateApprovalEventRequest request = new ExportCandidateApprovalEventRequest(
-                ApprovalState.APPROVED_FOR_EXPORT,
+                approvalState,
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                 UUID.randomUUID(),
                 OffsetDateTime.parse("2026-01-01T08:00:00Z"),
@@ -99,7 +107,7 @@ class ExportCandidateServiceTests {
                 UUID.randomUUID(),
                 candidateId,
                 ExportIntegrityPolicy.CURRENT_VERSION,
-                ApprovalState.APPROVED_FOR_EXPORT,
+                approvalState,
                 null,
                 request.requestedAt(),
                 request.reviewedByUserId(),
@@ -114,9 +122,9 @@ class ExportCandidateServiceTests {
         ExportCandidateApprovalEventRecord created = service.recordApprovalEvent(projectId, candidateId, request);
 
         assertThat(created.authoritativeExportCandidateId()).isEqualTo(candidateId);
-        assertThat(created.approvalState()).isEqualTo(ApprovalState.APPROVED_FOR_EXPORT);
+        assertThat(created.approvalState()).isEqualTo(approvalState);
         assertThat(audit.singleEvent().eventType())
-                .isEqualTo(AuditEventTypes.EXPORT_CANDIDATE_APPROVAL_RECORDED);
+                .isEqualTo(expectedAuditEventType);
     }
 
     @Test
@@ -157,6 +165,21 @@ class ExportCandidateServiceTests {
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                 "Synthetic reason",
                 Map.of("source", "synthetic-test")
+        );
+    }
+
+    private static Stream<Arguments> stateSpecificApprovalAuditEvents() {
+        return Stream.of(
+                Arguments.of(
+                        ApprovalState.APPROVED_FOR_EXPORT,
+                        AuditEventTypes.EXPORT_CANDIDATE_APPROVED_FOR_EXPORT
+                ),
+                Arguments.of(ApprovalState.REJECTED, AuditEventTypes.EXPORT_CANDIDATE_REJECTED),
+                Arguments.of(
+                        ApprovalState.CORRECTION_REQUESTED,
+                        AuditEventTypes.EXPORT_CANDIDATE_CORRECTION_REQUESTED
+                ),
+                Arguments.of(ApprovalState.SUPERSEDED, AuditEventTypes.EXPORT_CANDIDATE_SUPERSEDED)
         );
     }
 

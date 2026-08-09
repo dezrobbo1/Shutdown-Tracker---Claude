@@ -68,6 +68,27 @@ BEGIN
   END IF;
 
   IF (SELECT count(*)
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'export_batches'
+        AND column_name IN (
+          'opened_in_microsoft_project_at',
+          'opened_in_microsoft_project_by_user_id'
+        )) <> 2 THEN
+    RAISE EXCEPTION 'Authoritative Microsoft Project open columns are missing';
+  END IF;
+
+  IF (SELECT count(*)
+      FROM pg_constraint
+      WHERE connamespace = 'public'::regnamespace
+        AND conname IN (
+          'export_batches_opened_after_generated_check',
+          'export_batches_verified_after_opened_check'
+        )) <> 2 THEN
+    RAISE EXCEPTION 'Microsoft Project open/verification ordering constraints are missing';
+  END IF;
+
+  IF (SELECT count(*)
       FROM pg_proc
       WHERE pronamespace = 'public'::regnamespace
         AND proname IN (

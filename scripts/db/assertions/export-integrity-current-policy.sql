@@ -917,6 +917,290 @@ SELECT validation.expect_failure_after(
   'fresh export preview'
 );
 
+-- Lifecycle history and metadata provenance are database-owned and append-only.
+SELECT validation.create_candidate('20000000-0000-0000-0000-000000000235', '20000000-0000-0000-0000-000000000102', 'percent_complete', '41', 'Lifecycle immutability candidate');
+SELECT validation.create_approval('20000000-0000-0000-0000-000000000336', '20000000-0000-0000-0000-000000000235', 'approved_for_export', 'Lifecycle immutability approval');
+SELECT validation.create_batch('20000000-0000-0000-0000-000000000529');
+SELECT validation.insert_candidate_line('20000000-0000-0000-0000-000000000629', '20000000-0000-0000-0000-000000000529', '20000000-0000-0000-0000-000000000235');
+
+SELECT validation.expect_failure(
+  'same-state draft metadata rewrite',
+  $$UPDATE export_batches
+    SET metadata = jsonb_build_object('preview', jsonb_build_object('createdAt', 'client-rewrite'))
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+SELECT validation.expect_failure(
+  'line sealing with unrelated lifecycle mutation',
+  $$UPDATE export_batches
+    SET line_set_sealed = true,
+        approved_by_user_id = '20000000-0000-0000-0000-000000000901'
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'without any unrelated mutation'
+);
+
+UPDATE export_batches
+SET line_set_sealed = true
+WHERE id = '20000000-0000-0000-0000-000000000529';
+
+UPDATE export_batches
+SET status = 'approved',
+    approved_at = '1999-01-01T00:00:00Z',
+    approved_by_user_id = '20000000-0000-0000-0000-000000000901',
+    metadata = jsonb_build_object(
+      'reason', 'Approved after explicit review',
+      'clientMetadata', jsonb_build_object(
+        'approvedAt', 'client-collision',
+        'approvedByUserId', 'client-collision',
+        'preview', 'client-collision'
+      )
+    )
+WHERE id = '20000000-0000-0000-0000-000000000529';
+
+SELECT validation.assert_true(
+  (SELECT approved_at <> '1999-01-01T00:00:00Z'::timestamptz
+       AND approved_by_user_id = '20000000-0000-0000-0000-000000000901'
+       AND metadata #>> '{approval,approvedByUserId}' = '20000000-0000-0000-0000-000000000901'
+       AND metadata #>> '{approval,clientMetadata,approvedAt}' = 'client-collision'
+       AND metadata #>> '{approval,clientMetadata,approvedByUserId}' = 'client-collision'
+       AND metadata #>> '{approval,clientMetadata,preview}' = 'client-collision'
+       AND metadata ? 'preview'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000529'),
+  'Approval must preserve authoritative columns and nest colliding client metadata'
+);
+
+SELECT validation.expect_failure(
+  'approval actor and time same-state rewrite',
+  $$UPDATE export_batches
+    SET approved_at = approved_at + interval '1 second',
+        approved_by_user_id = '20000000-0000-0000-0000-000000000902'
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+SELECT validation.expect_failure(
+  'approval metadata section replacement',
+  $$UPDATE export_batches
+    SET metadata = jsonb_build_object(
+      'approval', jsonb_build_object('approvedByUserId', 'client-replacement')
+    )
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+SELECT validation.expect_failure(
+  'approval rewrite piggybacked on generated transition',
+  $$UPDATE export_batches
+    SET status = 'generated',
+        approved_at = approved_at + interval '1 second',
+        generated_at = '1999-01-01T00:00:00Z',
+        generated_by_user_id = '20000000-0000-0000-0000-000000000903',
+        export_file_uri = 'validation://synthetic/piggyback.xml',
+        export_file_hash = repeat('a', 64),
+        metadata = jsonb_build_object('clientMetadata', jsonb_build_object('attempt', 'piggyback'))
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'approval facts'
+);
+
+UPDATE export_batches
+SET status = 'generated',
+    generated_at = '1999-01-01T00:00:00Z',
+    generated_by_user_id = '20000000-0000-0000-0000-000000000903',
+    export_file_uri = 'validation://synthetic/lifecycle.xml',
+    export_file_hash = repeat('b', 64),
+    metadata = jsonb_build_object(
+      'reason', 'Worker artifact persisted',
+      'clientMetadata', jsonb_build_object(
+        'generatedAt', 'client-collision',
+        'exportFileUri', 'client-collision',
+        'provenance', 'client-collision'
+      ),
+      'provenance', jsonb_build_object(
+        'worker', 'python-worker',
+        'artifactDigestSource', 'server-storage'
+      )
+    )
+WHERE id = '20000000-0000-0000-0000-000000000529';
+
+SELECT validation.assert_true(
+  (SELECT generated_at <> '1999-01-01T00:00:00Z'::timestamptz
+       AND generated_by_user_id = '20000000-0000-0000-0000-000000000903'
+       AND export_file_uri = 'validation://synthetic/lifecycle.xml'
+       AND export_file_hash = repeat('b', 64)
+       AND metadata #>> '{generation,generatedByUserId}' = '20000000-0000-0000-0000-000000000903'
+       AND metadata #>> '{generation,clientMetadata,generatedAt}' = 'client-collision'
+       AND metadata #>> '{generation,clientMetadata,exportFileUri}' = 'client-collision'
+       AND metadata #>> '{generation,clientMetadata,provenance}' = 'client-collision'
+       AND metadata #>> '{generation,provenance,worker}' = 'python-worker'
+       AND metadata #>> '{generation,provenance,artifactDigestSource}' = 'server-storage'
+       AND metadata ? 'approval'
+       AND metadata ? 'preview'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000529'),
+  'Generation must preserve authoritative artifact facts, server provenance, and earlier lifecycle sections'
+);
+
+SELECT validation.expect_failure(
+  'generated URI hash actor and time rewrite',
+  $$UPDATE export_batches
+    SET generated_at = generated_at + interval '1 second',
+        generated_by_user_id = '20000000-0000-0000-0000-000000000904',
+        export_file_uri = 'validation://synthetic/rewrite.xml',
+        export_file_hash = repeat('c', 64)
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+UPDATE export_batches
+SET status = 'opened_in_microsoft_project',
+    opened_in_microsoft_project_at = '1999-01-01T00:00:00Z',
+    opened_in_microsoft_project_by_user_id = '20000000-0000-0000-0000-000000000905',
+    metadata = jsonb_build_object(
+      'reason', 'Opened manually in Microsoft Project',
+      'clientMetadata', jsonb_build_object(
+        'openedAt', 'client-collision',
+        'openedByUserId', 'client-collision',
+        'generation', 'client-collision'
+      )
+    )
+WHERE id = '20000000-0000-0000-0000-000000000529';
+
+SELECT validation.assert_true(
+  (SELECT opened_in_microsoft_project_at <> '1999-01-01T00:00:00Z'::timestamptz
+       AND opened_in_microsoft_project_at >= generated_at
+       AND opened_in_microsoft_project_by_user_id = '20000000-0000-0000-0000-000000000905'
+       AND metadata #>> '{microsoftProjectOpen,openedByUserId}' = '20000000-0000-0000-0000-000000000905'
+       AND metadata #>> '{microsoftProjectOpen,clientMetadata,openedAt}' = 'client-collision'
+       AND metadata #>> '{microsoftProjectOpen,clientMetadata,openedByUserId}' = 'client-collision'
+       AND metadata #>> '{microsoftProjectOpen,clientMetadata,generation}' = 'client-collision'
+       AND metadata ? 'generation'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000529'),
+  'Microsoft Project open must use authoritative columns without replacing generation provenance'
+);
+
+SELECT validation.expect_failure(
+  'Microsoft Project open actor and time rewrite',
+  $$UPDATE export_batches
+    SET opened_in_microsoft_project_at = opened_in_microsoft_project_at + interval '1 second',
+        opened_in_microsoft_project_by_user_id = '20000000-0000-0000-0000-000000000906'
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+UPDATE export_batches
+SET status = 'verified',
+    verified_at = '1999-01-01T00:00:00Z',
+    verified_by_user_id = '20000000-0000-0000-0000-000000000907',
+    metadata = jsonb_build_object(
+      'reason', 'Manual round-trip verification passed',
+      'clientMetadata', jsonb_build_object(
+        'verifiedAt', 'client-collision',
+        'verifiedByUserId', 'client-collision',
+        'microsoftProjectOpen', 'client-collision'
+      )
+    )
+WHERE id = '20000000-0000-0000-0000-000000000529';
+
+SELECT validation.assert_true(
+  (SELECT verified_at <> '1999-01-01T00:00:00Z'::timestamptz
+       AND verified_at >= opened_in_microsoft_project_at
+       AND verified_by_user_id = '20000000-0000-0000-0000-000000000907'
+       AND metadata #>> '{verification,verifiedByUserId}' = '20000000-0000-0000-0000-000000000907'
+       AND metadata #>> '{verification,clientMetadata,verifiedAt}' = 'client-collision'
+       AND metadata #>> '{verification,clientMetadata,verifiedByUserId}' = 'client-collision'
+       AND metadata #>> '{verification,clientMetadata,microsoftProjectOpen}' = 'client-collision'
+       AND metadata ? 'approval'
+       AND metadata ? 'generation'
+       AND metadata ? 'microsoftProjectOpen'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000529'),
+  'Verification must use authoritative columns and retain the full lifecycle provenance chain'
+);
+
+SELECT validation.expect_failure(
+  'verification actor and time rewrite',
+  $$UPDATE export_batches
+    SET verified_at = verified_at + interval '1 second',
+        verified_by_user_id = '20000000-0000-0000-0000-000000000908'
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'same-state'
+);
+
+SELECT validation.expect_failure(
+  'verified terminal lifecycle transition',
+  $$UPDATE export_batches
+    SET status = 'failed', failure_reason = 'Must remain verified'
+    WHERE id = '20000000-0000-0000-0000-000000000529'$$,
+  '23514',
+  'invalid current-policy export batch lifecycle transition'
+);
+
+SELECT validation.create_batch('20000000-0000-0000-0000-000000000530');
+UPDATE export_batches
+SET status = 'failed',
+    failure_reason = 'Synthetic controlled failure',
+    metadata = jsonb_build_object(
+      'clientMetadata', jsonb_build_object('failureReason', 'client-collision')
+    )
+WHERE id = '20000000-0000-0000-0000-000000000530';
+
+SELECT validation.assert_true(
+  (SELECT failure_reason = 'Synthetic controlled failure'
+       AND metadata #>> '{failure,failureReason}' = 'Synthetic controlled failure'
+       AND metadata #>> '{failure,clientMetadata,failureReason}' = 'client-collision'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000530'),
+  'Failure reason must remain authoritative while colliding caller metadata is nested'
+);
+
+SELECT validation.expect_failure(
+  'failed terminal reason rewrite',
+  $$UPDATE export_batches
+    SET failure_reason = 'Rewritten failure', metadata = '{}'::jsonb
+    WHERE id = '20000000-0000-0000-0000-000000000530'$$,
+  '23514',
+  'same-state'
+);
+
+SELECT validation.create_batch('20000000-0000-0000-0000-000000000531');
+SELECT validation.create_batch('20000000-0000-0000-0000-000000000532');
+UPDATE export_batches
+SET status = 'superseded',
+    superseded_by_export_batch_id = '20000000-0000-0000-0000-000000000532',
+    metadata = jsonb_build_object(
+      'clientMetadata', jsonb_build_object('supersededByExportBatchId', 'client-collision')
+    )
+WHERE id = '20000000-0000-0000-0000-000000000531';
+
+SELECT validation.assert_true(
+  (SELECT superseded_by_export_batch_id = '20000000-0000-0000-0000-000000000532'
+       AND metadata #>> '{supersession,supersededByExportBatchId}' = '20000000-0000-0000-0000-000000000532'
+       AND metadata #>> '{supersession,clientMetadata,supersededByExportBatchId}' = 'client-collision'
+   FROM export_batches
+   WHERE id = '20000000-0000-0000-0000-000000000531'),
+  'Superseding batch identity must remain authoritative while colliding caller metadata is nested'
+);
+
+SELECT validation.expect_failure(
+  'superseded terminal identity rewrite',
+  $$UPDATE export_batches
+    SET superseded_by_export_batch_id = '20000000-0000-0000-0000-000000000530'
+    WHERE id = '20000000-0000-0000-0000-000000000531'$$,
+  '23514',
+  'same-state'
+);
+
 -- Concurrency fixtures. The runner exercises these in separate sessions.
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000240', '20000000-0000-0000-0000-000000000101', 'actual_finish', '2026-07-18T19:00+08', 'Line/seal candidate');
 SELECT validation.create_candidate('20000000-0000-0000-0000-000000000241', '20000000-0000-0000-0000-000000000102', 'percent_complete', '45', 'Duplicate holder candidate');

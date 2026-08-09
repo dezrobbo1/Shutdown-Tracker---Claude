@@ -1473,6 +1473,7 @@ class ExportPreviewServiceTests {
         public Optional<ExportPreviewBatchRecord> markBatchOpenedInMicrosoftProject(
                 UUID projectId,
                 UUID exportBatchId,
+                UUID openedByUserId,
                 Map<String, Object> metadata
         ) {
             if (status != ExportBatchState.GENERATED) {
