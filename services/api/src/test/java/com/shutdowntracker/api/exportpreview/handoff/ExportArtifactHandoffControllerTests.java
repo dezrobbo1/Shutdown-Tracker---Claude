@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.actor.ActorResolver;
+import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
 import com.shutdowntracker.api.exportpreview.ApprovalState;
 import com.shutdowntracker.api.exportpreview.ExportBatchState;
 import com.shutdowntracker.api.exportpreview.ExportPreviewBatchRecord;
@@ -20,14 +23,31 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ExportArtifactHandoffController.class)
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
+@Import({ActorWebMvcConfiguration.class, ExportArtifactHandoffControllerTests.StubActorConfiguration.class})
 class ExportArtifactHandoffControllerTests {
+
+    private static final Actor ACTOR =
+            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
+
+    /** Controller slice tests assert routing and delegation; header parsing is covered by the resolver tests. */
+    @TestConfiguration
+    static class StubActorConfiguration {
+
+        @Bean
+        ActorResolver actorResolver() {
+            return request -> ACTOR;
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -40,7 +60,7 @@ class ExportArtifactHandoffControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportArtifactGenerationResponse response = response(projectId, exportBatchId);
-        when(service.generateArtifact(any(UUID.class), any(UUID.class), any(ExportArtifactGenerationRequest.class)))
+        when(service.generateArtifact(any(UUID.class), any(UUID.class), any(Actor.class), any(ExportArtifactGenerationRequest.class)))
                 .thenReturn(response);
 
         mockMvc.perform(post(
@@ -59,7 +79,7 @@ class ExportArtifactHandoffControllerTests {
                 .andExpect(jsonPath("$.workerResponse.artifactSummary.artifactFormat").value("mspdi_xml"))
                 .andExpect(jsonPath("$.message").value(response.message()));
 
-        verify(service).generateArtifact(any(UUID.class), any(UUID.class), any(ExportArtifactGenerationRequest.class));
+        verify(service).generateArtifact(any(UUID.class), any(UUID.class), any(Actor.class), any(ExportArtifactGenerationRequest.class));
     }
 
     private ExportArtifactGenerationResponse response(UUID projectId, UUID exportBatchId) {

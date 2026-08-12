@@ -3,6 +3,7 @@ package com.shutdowntracker.api.exportpreview;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventTypes;
 import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
@@ -20,6 +21,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 class ExportPreviewServiceTests {
 
+    private static final Actor ACTOR =
+            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
+
+
     @Test
     void createsDraftPreviewWithEligibleApprovedLeafTaskLine() {
         UUID projectId = UUID.randomUUID();
@@ -27,7 +32,7 @@ class ExportPreviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
 
-        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail detail = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 Map.of("source", "synthetic-export-preview")
@@ -66,7 +71,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
 
-        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail detail = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
                 null
@@ -84,7 +89,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
 
-        ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail detail = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.awaitingReviewSourceEntityId, "actual_start", "2026-01-01T08:00:00Z")),
                 null
@@ -101,7 +106,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
                 null
@@ -122,7 +127,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
@@ -131,12 +136,13 @@ class ExportPreviewServiceTests {
         ExportPreviewDetail detail = service.approveBatch(
                 projectId,
                 created.batch().id(),
-                new ExportBatchDecisionRequest(reviewerId, "Synthetic approval", Map.of("review", "local"))
+                ACTOR,
+                new ExportBatchDecisionRequest("Synthetic approval", Map.of("review", "local"))
         );
         AuditEventCreateRequest event = audit.events().getLast();
 
         assertThat(detail.batch().status()).isEqualTo(ExportBatchState.APPROVED);
-        assertThat(detail.batch().approvedByUserId()).isEqualTo(reviewerId);
+        assertThat(detail.batch().approvedByUserId()).isEqualTo(ACTOR.userId());
         assertThat(detail.batch().approvedAt()).isNotNull();
         assertThat(detail.message()).contains("No file was generated");
         assertThat(event.eventType()).isEqualTo(AuditEventTypes.EXPORT_BATCH_APPROVED);
@@ -154,7 +160,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
                 null
@@ -163,7 +169,8 @@ class ExportPreviewServiceTests {
         ExportPreviewDetail detail = service.rejectBatch(
                 projectId,
                 created.batch().id(),
-                new ExportBatchDecisionRequest(null, "Synthetic rejection", null)
+                ACTOR,
+                new ExportBatchDecisionRequest("Synthetic rejection", null)
         );
         AuditEventCreateRequest event = audit.events().getLast();
 
@@ -184,24 +191,23 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
                 null
         ));
-        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), ACTOR, null);
 
-        ExportPreviewDetail detail = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+        ExportPreviewDetail detail = service.markGenerated(projectId, approved.batch().id(), ACTOR, new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 "sha256:synthetic",
-                generatedByUserId,
                 "Synthetic worker artifact recorded",
                 Map.of("source", "worker-spike")
         ));
         AuditEventCreateRequest event = audit.events().getLast();
 
         assertThat(detail.batch().status()).isEqualTo(ExportBatchState.GENERATED);
-        assertThat(detail.batch().generatedByUserId()).isEqualTo(generatedByUserId);
+        assertThat(detail.batch().generatedByUserId()).isEqualTo(ACTOR.userId());
         assertThat(detail.batch().generatedAt()).isNotNull();
         assertThat(detail.batch().exportFileUri()).isEqualTo("object://synthetic/export-batches/export-1.mspdi.xml");
         assertThat(detail.batch().exportFileHash()).isEqualTo("sha256:synthetic");
@@ -224,16 +230,15 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "physical_percent_complete", "75")),
                 null
         ));
-        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
-        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), ACTOR, null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), ACTOR, new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 "sha256:synthetic",
-                UUID.randomUUID(),
                 "Synthetic worker artifact recorded",
                 null
         ));
@@ -241,8 +246,8 @@ class ExportPreviewServiceTests {
         ExportPreviewDetail detail = service.markOpenedInMicrosoftProject(
                 projectId,
                 generated.batch().id(),
+                ACTOR,
                 new ExportBatchProjectOpenRequest(
-                        openedByUserId,
                         "Synthetic Microsoft Project reopen",
                         Map.of("review", "manual-smoke")
                 )
@@ -273,30 +278,30 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
         ));
-        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
-        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), ACTOR, null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), ACTOR, new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 "sha256:synthetic",
-                UUID.randomUUID(),
                 "Synthetic worker artifact recorded",
                 null
         ));
         ExportPreviewDetail opened = service.markOpenedInMicrosoftProject(
                 projectId,
                 generated.batch().id(),
-                new ExportBatchProjectOpenRequest(UUID.randomUUID(), "Synthetic Microsoft Project reopen", null)
+                ACTOR,
+                new ExportBatchProjectOpenRequest("Synthetic Microsoft Project reopen", null)
         );
 
         ExportPreviewDetail detail = service.verifyBatch(
                 projectId,
                 opened.batch().id(),
+                ACTOR,
                 new ExportBatchVerificationRequest(
-                        verifiedByUserId,
                         "Synthetic manual verification complete",
                         Map.of("review", "manual-smoke")
                 )
@@ -304,7 +309,7 @@ class ExportPreviewServiceTests {
         AuditEventCreateRequest event = audit.events().getLast();
 
         assertThat(detail.batch().status()).isEqualTo(ExportBatchState.VERIFIED);
-        assertThat(detail.batch().verifiedByUserId()).isEqualTo(verifiedByUserId);
+        assertThat(detail.batch().verifiedByUserId()).isEqualTo(ACTOR.userId());
         assertThat(detail.batch().verifiedAt()).isNotNull();
         assertThat(detail.message()).contains("manually verified after Microsoft Project reopen");
         assertThat(detail.message()).contains("No Microsoft Project write-back was run");
@@ -312,7 +317,7 @@ class ExportPreviewServiceTests {
         assertThat(event.oldValueSummary()).containsEntry("status", "opened_in_microsoft_project");
         assertThat(event.newValueSummary())
                 .containsEntry("status", "verified")
-                .containsEntry("verifiedByUserId", verifiedByUserId.toString());
+                .containsEntry("verifiedByUserId", ACTOR.userId().toString());
         assertThat(event.metadata())
                 .containsEntry("artifactGenerated", true)
                 .containsEntry("openedInMicrosoftProject", true)
@@ -326,7 +331,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
@@ -335,7 +340,8 @@ class ExportPreviewServiceTests {
         assertThatThrownBy(() -> service.markOpenedInMicrosoftProject(
                 projectId,
                 created.batch().id(),
-                new ExportBatchProjectOpenRequest(UUID.randomUUID(), "Synthetic Microsoft Project reopen", null)
+                ACTOR,
+                new ExportBatchProjectOpenRequest("Synthetic Microsoft Project reopen", null)
         ))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
@@ -349,16 +355,15 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
         ));
-        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), null);
-        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), new ExportBatchGeneratedRequest(
+        ExportPreviewDetail approved = service.approveBatch(projectId, created.batch().id(), ACTOR, null);
+        ExportPreviewDetail generated = service.markGenerated(projectId, approved.batch().id(), ACTOR, new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 "sha256:synthetic",
-                UUID.randomUUID(),
                 "Synthetic worker artifact recorded",
                 null
         ));
@@ -366,8 +371,8 @@ class ExportPreviewServiceTests {
         assertThatThrownBy(() -> service.verifyBatch(
                 projectId,
                 generated.batch().id(),
+                ACTOR,
                 new ExportBatchVerificationRequest(
-                        UUID.randomUUID(),
                         "Synthetic manual verification complete",
                         null
                 )
@@ -384,13 +389,13 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
                 null
         ));
 
-        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), null))
+        assertThatThrownBy(() -> service.approveBatch(projectId, created.batch().id(), ACTOR, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only export batches with at least one eligible line can be approved.");
@@ -403,16 +408,15 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
-        ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
+        ExportPreviewDetail created = service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
         ));
 
-        assertThatThrownBy(() -> service.markGenerated(projectId, created.batch().id(), new ExportBatchGeneratedRequest(
+        assertThatThrownBy(() -> service.markGenerated(projectId, created.batch().id(), ACTOR, new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 "sha256:synthetic",
-                null,
                 null,
                 null
         )))
@@ -429,7 +433,7 @@ class ExportPreviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
 
-        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+        assertThatThrownBy(() -> service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(UUID.randomUUID(), repository.approvedSourceEntityId, "percent_complete", "50")),
                 null
@@ -448,7 +452,7 @@ class ExportPreviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ExportPreviewService service = new ExportPreviewService(repository, audit);
 
-        assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
+        assertThatThrownBy(() -> service.createPreview(projectId, ACTOR, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
                 null

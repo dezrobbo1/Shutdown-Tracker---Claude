@@ -2,6 +2,7 @@ package com.shutdowntracker.api.exportpreview;
 
 import static com.shutdowntracker.api.exportpreview.ExportPreviewRecordValidation.requireNonNull;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
@@ -44,8 +45,9 @@ public class ExportPreviewService {
     }
 
     @Transactional
-    public ExportPreviewDetail createPreview(UUID projectId, ExportPreviewCreateRequest request) {
+    public ExportPreviewDetail createPreview(UUID projectId, Actor actor, ExportPreviewCreateRequest request) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
         ExportPreviewCreateRequest requiredRequest = requireNonNull(request, "request is required.");
 
         ExportPreviewBatchRecord batch;
@@ -69,8 +71,11 @@ public class ExportPreviewService {
         }
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
-        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+        auditEventRecorder.record(AuditEventCreateRequest.userEvent(
                 requiredProjectId,
+                requiredActor.userId(),
+                requiredActor.displayName(),
+                requiredActor.role(),
                 AuditEventCategory.EXPORT,
                 AuditEventTypes.EXPORT_PREVIEW_CREATED,
                 "export_batch",
@@ -96,10 +101,12 @@ public class ExportPreviewService {
     public ExportPreviewDetail approveBatch(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportBatchDecisionRequest request
     ) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
         ExportBatchDecisionRequest requiredRequest = request == null ? ExportBatchDecisionRequest.empty() : request;
         ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
 
@@ -120,8 +127,8 @@ public class ExportPreviewService {
                 .approveBatch(
                         requiredProjectId,
                         requiredExportBatchId,
-                        requiredRequest.reviewedByUserId(),
-                        decisionMetadata(requiredRequest)
+                        requiredActor.userId(),
+                        decisionMetadata(requiredActor, requiredRequest)
                 )
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
@@ -131,6 +138,7 @@ public class ExportPreviewService {
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), APPROVED_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
+                requiredActor,
                 existing,
                 detail,
                 AuditEventTypes.EXPORT_BATCH_APPROVED,
@@ -144,10 +152,12 @@ public class ExportPreviewService {
     public ExportPreviewDetail rejectBatch(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportBatchDecisionRequest request
     ) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
         ExportBatchDecisionRequest requiredRequest = request == null ? ExportBatchDecisionRequest.empty() : request;
         ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
 
@@ -159,7 +169,7 @@ public class ExportPreviewService {
         }
 
         ExportPreviewBatchRecord updated = repository
-                .rejectBatch(requiredProjectId, requiredExportBatchId, decisionMetadata(requiredRequest))
+                .rejectBatch(requiredProjectId, requiredExportBatchId, decisionMetadata(requiredActor, requiredRequest))
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Export batch rejection could not be recorded because the batch is no longer draft preview."
@@ -168,6 +178,7 @@ public class ExportPreviewService {
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), REJECTED_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
+                requiredActor,
                 existing,
                 detail,
                 AuditEventTypes.EXPORT_BATCH_REJECTED,
@@ -181,10 +192,12 @@ public class ExportPreviewService {
     public ExportPreviewDetail markGenerated(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportBatchGeneratedRequest request
     ) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
         ExportBatchGeneratedRequest requiredRequest = requireNonNull(request, "request is required.");
         ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
 
@@ -201,8 +214,8 @@ public class ExportPreviewService {
                         requiredExportBatchId,
                         requiredRequest.exportFileUri(),
                         requiredRequest.exportFileHash(),
-                        requiredRequest.generatedByUserId(),
-                        generatedMetadata(requiredRequest)
+                        requiredActor.userId(),
+                        generatedMetadata(requiredActor, requiredRequest)
                 )
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
@@ -212,6 +225,7 @@ public class ExportPreviewService {
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), GENERATED_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
+                requiredActor,
                 existing,
                 detail,
                 AuditEventTypes.EXPORT_FILE_GENERATED,
@@ -225,11 +239,14 @@ public class ExportPreviewService {
     public ExportPreviewDetail markOpenedInMicrosoftProject(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportBatchProjectOpenRequest request
     ) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
-        ExportBatchProjectOpenRequest requiredRequest = requireNonNull(request, "request is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
+        ExportBatchProjectOpenRequest requiredRequest =
+                request == null ? ExportBatchProjectOpenRequest.empty() : request;
         ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
 
         if (existing.status() != ExportBatchState.GENERATED) {
@@ -243,7 +260,7 @@ public class ExportPreviewService {
                 .markBatchOpenedInMicrosoftProject(
                         requiredProjectId,
                         requiredExportBatchId,
-                        openedInMicrosoftProjectMetadata(requiredRequest)
+                        openedInMicrosoftProjectMetadata(requiredActor, requiredRequest)
                 )
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
@@ -253,6 +270,7 @@ public class ExportPreviewService {
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), OPENED_IN_PROJECT_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
+                requiredActor,
                 existing,
                 detail,
                 AuditEventTypes.EXPORT_FILE_OPENED_IN_MICROSOFT_PROJECT,
@@ -267,11 +285,14 @@ public class ExportPreviewService {
     public ExportPreviewDetail verifyBatch(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportBatchVerificationRequest request
     ) {
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
-        ExportBatchVerificationRequest requiredRequest = requireNonNull(request, "request is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
+        ExportBatchVerificationRequest requiredRequest =
+                request == null ? ExportBatchVerificationRequest.empty() : request;
         ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
 
         if (existing.status() != ExportBatchState.OPENED_IN_MICROSOFT_PROJECT) {
@@ -285,8 +306,8 @@ public class ExportPreviewService {
                 .markBatchVerified(
                         requiredProjectId,
                         requiredExportBatchId,
-                        requiredRequest.verifiedByUserId(),
-                        verificationMetadata(requiredRequest)
+                        requiredActor.userId(),
+                        verificationMetadata(requiredActor, requiredRequest)
                 )
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
@@ -296,6 +317,7 @@ public class ExportPreviewService {
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), VERIFIED_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
+                requiredActor,
                 existing,
                 detail,
                 AuditEventTypes.EXPORT_FILE_VERIFIED,
@@ -359,11 +381,9 @@ public class ExportPreviewService {
         return metadata;
     }
 
-    private Map<String, Object> decisionMetadata(ExportBatchDecisionRequest request) {
+    private Map<String, Object> decisionMetadata(Actor actor, ExportBatchDecisionRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        if (request.reviewedByUserId() != null) {
-            metadata.put("reviewedByUserId", request.reviewedByUserId().toString());
-        }
+        metadata.put("reviewedByUserId", actor.userId().toString());
         if (request.reason() != null && !request.reason().isBlank()) {
             metadata.put("reason", request.reason());
         }
@@ -371,11 +391,9 @@ public class ExportPreviewService {
         return metadata;
     }
 
-    private Map<String, Object> generatedMetadata(ExportBatchGeneratedRequest request) {
+    private Map<String, Object> generatedMetadata(Actor actor, ExportBatchGeneratedRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        if (request.generatedByUserId() != null) {
-            metadata.put("generatedByUserId", request.generatedByUserId().toString());
-        }
+        metadata.put("generatedByUserId", actor.userId().toString());
         if (request.reason() != null && !request.reason().isBlank()) {
             metadata.put("reason", request.reason());
         }
@@ -386,9 +404,9 @@ public class ExportPreviewService {
         return metadata;
     }
 
-    private Map<String, Object> openedInMicrosoftProjectMetadata(ExportBatchProjectOpenRequest request) {
+    private Map<String, Object> openedInMicrosoftProjectMetadata(Actor actor, ExportBatchProjectOpenRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        metadata.put("openedByUserId", request.openedByUserId().toString());
+        metadata.put("openedByUserId", actor.userId().toString());
         if (request.reason() != null && !request.reason().isBlank()) {
             metadata.put("reason", request.reason());
         }
@@ -399,9 +417,9 @@ public class ExportPreviewService {
         return metadata;
     }
 
-    private Map<String, Object> verificationMetadata(ExportBatchVerificationRequest request) {
+    private Map<String, Object> verificationMetadata(Actor actor, ExportBatchVerificationRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>(request.metadata());
-        metadata.put("verifiedByUserId", request.verifiedByUserId().toString());
+        metadata.put("verifiedByUserId", actor.userId().toString());
         if (request.reason() != null && !request.reason().isBlank()) {
             metadata.put("reason", request.reason());
         }
@@ -421,17 +439,19 @@ public class ExportPreviewService {
 
     private void recordExportBatchAudit(
             UUID projectId,
+            Actor actor,
             ExportPreviewBatchRecord existing,
             ExportPreviewDetail detail,
             String eventType,
             String message,
             boolean artifactGenerated
     ) {
-        recordExportBatchAudit(projectId, existing, detail, eventType, message, artifactGenerated, Map.of());
+        recordExportBatchAudit(projectId, actor, existing, detail, eventType, message, artifactGenerated, Map.of());
     }
 
     private void recordExportBatchAudit(
             UUID projectId,
+            Actor actor,
             ExportPreviewBatchRecord existing,
             ExportPreviewDetail detail,
             String eventType,
@@ -439,8 +459,11 @@ public class ExportPreviewService {
             boolean artifactGenerated,
             Map<String, Object> metadataOverrides
     ) {
-        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+        auditEventRecorder.record(AuditEventCreateRequest.userEvent(
                 projectId,
+                actor.userId(),
+                actor.displayName(),
+                actor.role(),
                 AuditEventCategory.EXPORT,
                 eventType,
                 "export_batch",

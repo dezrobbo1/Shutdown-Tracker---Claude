@@ -260,8 +260,12 @@ export type ExportPreviewDetail = {
   message: string;
 };
 
+/**
+ * Actor identity is deliberately absent from every request body below. The API attributes approval,
+ * generation, Microsoft Project open, and verification to the authenticated request actor, never to a
+ * caller-supplied user id. Send the actor via `actorHeaders` on the client options.
+ */
 export type ExportBatchDecisionRequest = {
-  reviewedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -269,19 +273,16 @@ export type ExportBatchDecisionRequest = {
 export type ExportBatchGeneratedRequest = {
   exportFileUri: string;
   exportFileHash: string;
-  generatedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
 
 export type ExportBatchProjectOpenRequest = {
-  openedByUserId: string;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
 
 export type ExportBatchVerificationRequest = {
-  verifiedByUserId: string;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -306,7 +307,6 @@ export type ProjectExportArtifactGenerationResponse = {
 };
 
 export type ExportArtifactGenerationRequest = {
-  generatedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -355,6 +355,12 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export type ShutdownTrackerApiClientOptions = {
   baseUrl?: string;
   fetchImpl?: FetchLike;
+  /**
+   * Headers sent with every request, used to carry the authenticated actor.
+   *
+   * The API rejects operations that must be attributed to a user when no actor reaches it.
+   */
+  headers?: Record<string, string>;
 };
 
 export class ShutdownTrackerApiError extends Error {
@@ -372,6 +378,7 @@ export class ShutdownTrackerApiError extends Error {
 export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClientOptions = {}) {
   const transport = options.fetchImpl ?? defaultFetch();
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? "");
+  const defaultHeaders = options.headers ?? {};
 
   return {
     sourceFiles: {
@@ -382,7 +389,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         } else {
           formData.append("file", file);
         }
-        return requestJson<SourceFileUploadResponse>(transport, baseUrl, sourceFilesPath(projectId), {
+        return requestJson<SourceFileUploadResponse>(transport, baseUrl, defaultHeaders, sourceFilesPath(projectId), {
           method: "POST",
           formData
         });
@@ -393,19 +400,21 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportBatchParseHandoffResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importBatchPath(projectId, importBatchId, "request-parse-summary"),
           { method: "POST" }
         )
     },
     importReview: {
       listSnapshots: (projectId: string) =>
-        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, importReviewPath(projectId, "snapshots")),
+        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "snapshots")),
       getSnapshot: (projectId: string, snapshotId: string) =>
-        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, importReviewPath(projectId, `snapshots/${snapshotId}`)),
+        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, `snapshots/${snapshotId}`)),
       acceptSnapshot: (projectId: string, snapshotId: string) =>
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/accept`),
           { method: "POST" }
         ),
@@ -413,6 +422,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/reject`),
           { method: "POST" }
         )
@@ -422,11 +432,12 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageRecord[]>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, "lineage-links"),
           { query: { previousSnapshotId, currentSnapshotId } }
         ),
       createSuggested: (projectId: string, request: TaskLineageCreateRequest) =>
-        requestJson<TaskLineageRecord>(transport, baseUrl, importReviewPath(projectId, "lineage-links"), {
+        requestJson<TaskLineageRecord>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "lineage-links"), {
           method: "POST",
           body: request
         }),
@@ -434,6 +445,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/accept`),
           { method: "POST" }
         ),
@@ -441,25 +453,26 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/reject`),
           { method: "POST" }
         )
     },
     exportPreview: {
       create: (projectId: string, request: ExportPreviewCreateRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId), {
           method: "POST",
           body: request
         }),
       get: (projectId: string, exportBatchId: string) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, exportBatchId)),
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, exportBatchId)),
       approve: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
           method: "POST",
           body: request
         }),
       reject: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
           method: "POST",
           body: request
         }),
@@ -467,6 +480,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/mark-generated`),
           { method: "POST", body: request }
         ),
@@ -474,6 +488,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/mark-opened-in-microsoft-project`),
           { method: "POST", body: request }
         ),
@@ -481,6 +496,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/verify`),
           { method: "POST", body: request }
         ),
@@ -488,6 +504,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportArtifactGenerationResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/generate-artifact`),
           { method: "POST", body: request ?? {} }
         )
@@ -500,16 +517,20 @@ type RequestOptions = {
   body?: unknown;
   formData?: FormData;
   query?: Record<string, string>;
+  headers?: Record<string, string>;
 };
 
 async function requestJson<T>(
   fetchImpl: FetchLike,
   baseUrl: string,
+  defaultHeaders: Record<string, string>,
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: "application/json"
+    Accept: "application/json",
+    ...defaultHeaders,
+    ...(options.headers ?? {})
   };
   let body: BodyInit | undefined;
 

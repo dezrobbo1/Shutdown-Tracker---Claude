@@ -20,6 +20,12 @@ management:
 shutdown-tracker:
   persistence:
     enabled: false
+  actor:
+    trusted-header:
+      # Disabled by default and fails closed: operations that must be attributed to a user return 401.
+      # Enable ONLY behind a gateway that authenticates the user and overwrites these headers on every
+      # inbound request. See docs/security/authorization-model.md.
+      enabled: ${SHUTDOWN_TRACKER_ACTOR_TRUSTED_HEADER_ENABLED:false}
   source-file-validation:
     max-size-bytes: 52428800
   source-file-storage:

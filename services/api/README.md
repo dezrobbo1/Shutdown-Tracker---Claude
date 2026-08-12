@@ -320,3 +320,13 @@ mvn -pl services/api test
 mvn -pl services/api spring-boot:run -Dspring-boot.run.profiles=local
 mvn -pl services/api spring-boot:run -Dspring-boot.run.profiles=review
 ```
+
+## Actor Authentication Seam
+
+Operations that must be attributed to a person take their actor from the request, never from the request body. `approvedByUserId`, `generatedByUserId`, `openedByUserId`, and `verifiedByUserId` are no longer accepted in payloads.
+
+`ActorResolver` is the single seam where identity enters the API. A controller declares an `Actor` parameter to mark an endpoint as requiring an authenticated user. `TrustedHeaderActorResolver` is the interim implementation and reads `X-Shutdown-Tracker-Actor-Id` (a UUID, required), `X-Shutdown-Tracker-Actor-Role`, and `X-Shutdown-Tracker-Actor-Name`.
+
+It is disabled by default and fails closed, returning 401. Enable `shutdown-tracker.actor.trusted-header.enabled` only behind a gateway that authenticates the user and overwrites those headers on every inbound request.
+
+Role is recorded in audit for traceability but is not yet enforced as authorization. See [docs/security/authorization-model.md](../../docs/security/authorization-model.md).

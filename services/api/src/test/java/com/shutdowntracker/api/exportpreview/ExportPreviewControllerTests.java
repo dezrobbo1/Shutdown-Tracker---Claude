@@ -9,20 +9,40 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.actor.ActorResolver;
+import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ExportPreviewController.class)
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
+@Import({ActorWebMvcConfiguration.class, ExportPreviewControllerTests.StubActorConfiguration.class})
 class ExportPreviewControllerTests {
+
+    private static final Actor ACTOR =
+            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
+
+    /** Controller slice tests assert routing and delegation; header parsing is covered by the resolver tests. */
+    @TestConfiguration
+    static class StubActorConfiguration {
+
+        @Bean
+        ActorResolver actorResolver() {
+            return request -> ACTOR;
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -37,7 +57,7 @@ class ExportPreviewControllerTests {
         UUID importedTaskId = UUID.randomUUID();
         UUID sourceEntityId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, snapshotId, true);
-        when(service.createPreview(eq(projectId), any(ExportPreviewCreateRequest.class))).thenReturn(detail);
+        when(service.createPreview(eq(projectId), eq(ACTOR), any(ExportPreviewCreateRequest.class))).thenReturn(detail);
 
         String body = """
                 {
@@ -68,7 +88,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.lines[0].exportEligible").value(true))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).createPreview(eq(projectId), any(ExportPreviewCreateRequest.class));
+        verify(service).createPreview(eq(projectId), eq(ACTOR), any(ExportPreviewCreateRequest.class));
     }
 
     @Test
@@ -94,7 +114,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.APPROVED);
-        when(service.approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
+        when(service.approveBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/approve", projectId, exportBatchId)
@@ -108,7 +128,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.status").value("APPROVED"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
+        verify(service).approveBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class));
     }
 
     @Test
@@ -116,7 +136,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), false, ExportBatchState.REJECTED);
-        when(service.rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
+        when(service.rejectBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/reject", projectId, exportBatchId)
@@ -130,7 +150,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.status").value("REJECTED"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
+        verify(service).rejectBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class));
     }
 
     @Test
@@ -138,7 +158,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.GENERATED);
-        when(service.markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class)))
+        when(service.markGenerated(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchGeneratedRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated", projectId, exportBatchId)
@@ -156,7 +176,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.exportFileHash").value("sha256:synthetic"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).markGenerated(eq(projectId), eq(exportBatchId), any(ExportBatchGeneratedRequest.class));
+        verify(service).markGenerated(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchGeneratedRequest.class));
     }
 
     @Test
@@ -172,6 +192,7 @@ class ExportPreviewControllerTests {
         when(service.markOpenedInMicrosoftProject(
                 eq(projectId),
                 eq(exportBatchId),
+                eq(ACTOR),
                 any(ExportBatchProjectOpenRequest.class)
         )).thenReturn(detail);
 
@@ -196,6 +217,7 @@ class ExportPreviewControllerTests {
         verify(service).markOpenedInMicrosoftProject(
                 eq(projectId),
                 eq(exportBatchId),
+                eq(ACTOR),
                 any(ExportBatchProjectOpenRequest.class)
         );
     }
@@ -205,7 +227,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.VERIFIED);
-        when(service.verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class)))
+        when(service.verifyBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchVerificationRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/verify", projectId, exportBatchId)
@@ -222,7 +244,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.verifiedByUserId").value("22222222-2222-2222-2222-222222222222"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class));
+        verify(service).verifyBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchVerificationRequest.class));
     }
 
     private ExportPreviewDetail detail(UUID projectId, UUID snapshotId, boolean eligible) {

@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.exportpreview.handoff;
 
+import com.shutdowntracker.api.actor.Actor;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -27,8 +28,9 @@ public class ExportArtifactHandoffController {
     public ExportArtifactGenerationResponse generateArtifact(
             @PathVariable UUID projectId,
             @PathVariable UUID exportBatchId,
+            Actor actor,
             @RequestBody(required = false) ExportArtifactGenerationRequest request
     ) {
-        return service.generateArtifact(projectId, exportBatchId, request);
+        return service.generateArtifact(projectId, exportBatchId, actor, request);
     }
 }

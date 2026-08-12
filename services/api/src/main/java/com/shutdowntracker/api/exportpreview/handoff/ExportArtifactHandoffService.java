@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.exportpreview.handoff;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.exportpreview.ExportBatchGeneratedRequest;
 import com.shutdowntracker.api.exportpreview.ExportBatchState;
 import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
@@ -57,10 +58,12 @@ public class ExportArtifactHandoffService {
     public ExportArtifactGenerationResponse generateArtifact(
             UUID projectId,
             UUID exportBatchId,
+            Actor actor,
             ExportArtifactGenerationRequest request
     ) {
         UUID requiredProjectId = Objects.requireNonNull(projectId, "projectId is required.");
         UUID requiredExportBatchId = Objects.requireNonNull(exportBatchId, "exportBatchId is required.");
+        Actor requiredActor = Objects.requireNonNull(actor, "actor is required.");
         ExportArtifactGenerationRequest requiredRequest = request == null
                 ? ExportArtifactGenerationRequest.empty()
                 : request;
@@ -83,10 +86,10 @@ public class ExportArtifactHandoffService {
         ExportPreviewDetail generatedPreview = exportPreviewService.markGenerated(
                 requiredProjectId,
                 requiredExportBatchId,
+                requiredActor,
                 new ExportBatchGeneratedRequest(
                         workerResponse.exportFileUri(),
                         workerResponse.exportFileHash(),
-                        requiredRequest.generatedByUserId(),
                         reason(requiredRequest),
                         generatedMetadata(requiredRequest, storageLocation, workerResponse)
                 )

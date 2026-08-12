@@ -3,10 +3,11 @@ package com.shutdowntracker.api.exportpreview.handoff;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
+/**
+ * Generating identity is deliberately absent: it comes from the authenticated request actor, not the body.
+ */
 public record ExportArtifactGenerationRequest(
-        UUID generatedByUserId,
         String reason,
         Map<String, Object> metadata
 ) {
@@ -15,7 +16,7 @@ public record ExportArtifactGenerationRequest(
     }
 
     public static ExportArtifactGenerationRequest empty() {
-        return new ExportArtifactGenerationRequest(null, null, null);
+        return new ExportArtifactGenerationRequest(null, null);
     }
 
     private static Map<String, Object> immutableObjectMap(Map<String, Object> value) {

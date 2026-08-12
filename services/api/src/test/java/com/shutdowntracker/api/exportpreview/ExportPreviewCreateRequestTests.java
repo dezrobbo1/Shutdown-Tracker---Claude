@@ -76,7 +76,7 @@ class ExportPreviewCreateRequestTests {
 
     @Test
     void defaultsExportBatchDecisionMetadataToEmptyObject() {
-        ExportBatchDecisionRequest request = new ExportBatchDecisionRequest(UUID.randomUUID(), "Synthetic reason", null);
+        ExportBatchDecisionRequest request = new ExportBatchDecisionRequest("Synthetic reason", null);
 
         assertThat(request.metadata()).isEmpty();
     }
@@ -86,7 +86,6 @@ class ExportPreviewCreateRequestTests {
         assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
                 "",
                 "sha256:synthetic",
-                UUID.randomUUID(),
                 "Synthetic reason",
                 null
         ))
@@ -96,7 +95,6 @@ class ExportPreviewCreateRequestTests {
         assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 " ",
-                UUID.randomUUID(),
                 "Synthetic reason",
                 null
         ))
@@ -105,25 +103,21 @@ class ExportPreviewCreateRequestTests {
     }
 
     @Test
-    void rejectsProjectOpenRequestWithoutActor() {
-        assertThatThrownBy(() -> new ExportBatchProjectOpenRequest(
-                null,
-                "Synthetic Microsoft Project reopen",
-                null
-        ))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("openedByUserId is required.");
+    void projectOpenRequestCarriesNoActorIdentity() {
+        ExportBatchProjectOpenRequest request =
+                new ExportBatchProjectOpenRequest("Synthetic Microsoft Project reopen", null);
+
+        assertThat(request.reason()).isEqualTo("Synthetic Microsoft Project reopen");
+        assertThat(request.metadata()).isEmpty();
     }
 
     @Test
-    void rejectsVerificationRequestWithoutActor() {
-        assertThatThrownBy(() -> new ExportBatchVerificationRequest(
-                null,
-                "Synthetic manual verification complete",
-                null
-        ))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("verifiedByUserId is required.");
+    void verificationRequestCarriesNoActorIdentity() {
+        ExportBatchVerificationRequest request =
+                new ExportBatchVerificationRequest("Synthetic manual verification complete", null);
+
+        assertThat(request.reason()).isEqualTo("Synthetic manual verification complete");
+        assertThat(request.metadata()).isEmpty();
     }
 
     private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {

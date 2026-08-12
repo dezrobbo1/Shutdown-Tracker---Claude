@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.exportpreview.handoff.DisconnectedProjectExportArtifactJobClient;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationRequest;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationResponse;
@@ -30,19 +31,22 @@ import org.springframework.web.server.ResponseStatusException;
 
 class ExportArtifactHandoffServiceTests {
 
+    private static final Actor ACTOR =
+            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
+
+
     @Test
     void generatesWorkerArtifactForApprovedEligibleLeafLinesAndRecordsMetadata() {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
         CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
         CapturingExportArtifactStorage storage = new CapturingExportArtifactStorage();
         ExportArtifactHandoffService service = service(repository, client, storage);
-        UUID generatedByUserId = UUID.randomUUID();
 
         ExportArtifactGenerationResponse response = service.generateArtifact(
                 repository.projectId,
                 repository.exportBatchId,
+                ACTOR,
                 new ExportArtifactGenerationRequest(
-                        generatedByUserId,
                         "Synthetic worker generation",
                         Map.of("requestedBy", "test")
                 )
@@ -62,7 +66,7 @@ class ExportArtifactHandoffServiceTests {
         assertThat(client.request.artifactRequest().tasks().getFirst().microsoftProjectTaskId()).isEqualTo("1");
         assertThat(client.request.artifactRequest().tasks().getFirst().fieldValues()).hasSize(2);
         assertThat(response.exportPreview().batch().status()).isEqualTo(ExportBatchState.GENERATED);
-        assertThat(response.exportPreview().batch().generatedByUserId()).isEqualTo(generatedByUserId);
+        assertThat(response.exportPreview().batch().generatedByUserId()).isEqualTo(ACTOR.userId());
         assertThat(response.exportPreview().batch().exportFileUri()).isEqualTo(storage.location.storageUri());
         assertThat(response.exportPreview().batch().exportFileHash()).isEqualTo(client.response.exportFileHash());
         assertThat(response.message()).contains("No Microsoft Project write-back");
@@ -75,7 +79,7 @@ class ExportArtifactHandoffServiceTests {
         CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
         ExportArtifactHandoffService service = service(repository, client);
 
-        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, null))
+        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, ACTOR, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only approved export batches can request worker artifact generation.");
@@ -89,7 +93,7 @@ class ExportArtifactHandoffServiceTests {
         CapturingProjectExportArtifactJobClient client = new CapturingProjectExportArtifactJobClient();
         ExportArtifactHandoffService service = service(repository, client);
 
-        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, null))
+        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, ACTOR, null))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Imported task external UID is required for export artifacts.");
@@ -103,7 +107,7 @@ class ExportArtifactHandoffServiceTests {
         client.mismatchedUri = true;
         ExportArtifactHandoffService service = service(repository, client);
 
-        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, null))
+        assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, ACTOR, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Worker export artifact response did not match the reserved storage URI.");
         assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);

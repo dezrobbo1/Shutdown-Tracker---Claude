@@ -51,11 +51,9 @@ describe("shutdown tracker api client", () => {
       exportFileHash: "sha256:synthetic"
     });
     await client.exportPreview.markOpenedInMicrosoftProject("project-a", "batch-a", {
-      openedByUserId: "user-a",
       reason: "Synthetic Microsoft Project reopen"
     });
     await client.exportPreview.verify("project-a", "batch-a", {
-      verifiedByUserId: "user-b",
       reason: "Synthetic manual verification complete"
     });
     await client.exportPreview.generateArtifact("project-a", "batch-a", {
@@ -77,18 +75,34 @@ describe("shutdown tracker api client", () => {
       })
     );
     expect(calls[2].body).toBe(
-      JSON.stringify({
-        openedByUserId: "user-a",
-        reason: "Synthetic Microsoft Project reopen"
-      })
+      JSON.stringify({ reason: "Synthetic Microsoft Project reopen" })
     );
     expect(calls[3].body).toBe(
-      JSON.stringify({
-        verifiedByUserId: "user-b",
-        reason: "Synthetic manual verification complete"
-      })
+      JSON.stringify({ reason: "Synthetic manual verification complete" })
     );
     expect(calls[4].body).toBe(JSON.stringify({ reason: "Synthetic worker generation" }));
+  });
+
+  it("sends configured actor headers on every request", async () => {
+    let sentHeaders: Record<string, string> = {};
+    let sentBody: BodyInit | null | undefined;
+    const client = createShutdownTrackerApiClient({
+      headers: { "X-Shutdown-Tracker-Actor-Id": "00000000-0000-0000-0000-0000000000a1" },
+      fetchImpl: async (_input: string, init?: RequestInit) => {
+        sentHeaders = (init?.headers ?? {}) as Record<string, string>;
+        sentBody = init?.body;
+        return new Response(JSON.stringify({ batch: {}, lines: [], message: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    });
+
+    await client.exportPreview.approve("project-a", "batch-a", { reason: "Synthetic approval" });
+
+    expect(sentHeaders["X-Shutdown-Tracker-Actor-Id"]).toBe("00000000-0000-0000-0000-0000000000a1");
+    // Actor identity travels in headers only; it must never appear in the request body.
+    expect(sentBody).toBe(JSON.stringify({ reason: "Synthetic approval" }));
   });
 
   it("uploads source files as multipart form data", async () => {
