@@ -22,7 +22,6 @@ import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -47,7 +46,14 @@ public class ExportArtifactHandoffService {
         this.exportArtifactStorage = exportArtifactStorage;
     }
 
-    @Transactional
+    /**
+     * Deliberately not {@code @Transactional}.
+     *
+     * <p>This method calls the project worker over HTTP, and the worker writes the artifact to disk before
+     * returning. Holding a database transaction across that call would pin a connection for the life of a
+     * remote request. {@link ExportPreviewService#markGenerated} opens its own transaction to record the
+     * returned artifact metadata once the worker has responded and the response has been verified.
+     */
     public ExportArtifactGenerationResponse generateArtifact(
             UUID projectId,
             UUID exportBatchId,

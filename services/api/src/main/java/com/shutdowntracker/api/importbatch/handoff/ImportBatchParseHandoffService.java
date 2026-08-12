@@ -11,7 +11,6 @@ import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -32,7 +31,14 @@ public class ImportBatchParseHandoffService {
         this.projectParseHandoffService = projectParseHandoffService;
     }
 
-    @Transactional
+    /**
+     * Deliberately not {@code @Transactional}.
+     *
+     * <p>This method calls the project worker over HTTP. Holding a database transaction across that call
+     * would pin a connection for the life of a remote request and roll the {@code parsing} transition back
+     * on failure, hiding the attempt. Each persistence step below commits on its own, so {@code parsing} is
+     * visible while the worker runs.
+     */
     public ImportBatchParseHandoffResponse requestParseSummary(UUID projectId, UUID importBatchId) {
         Objects.requireNonNull(projectId, "projectId is required.");
         Objects.requireNonNull(importBatchId, "importBatchId is required.");
