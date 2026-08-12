@@ -101,3 +101,19 @@ Run a synthetic local generation only when explicitly needed:
 ```text
 mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.arguments=--shutdown-tracker.export-spike.output-path=/absolute/path/to/local/synthetic-export.mspdi.xml
 ```
+
+## Container Image
+
+Build from the repository root so the Docker context includes the shared contract modules the worker depends on:
+
+```text
+docker build -f services/project-worker/Dockerfile -t shutdown-tracker-project-worker .
+```
+
+The build stage copies every module pom because the root pom declares all modules and the Maven reactor resolves the full module graph before `-pl`/`-am` selects a subset. CI builds this image on every pull request.
+
+Handoff authentication fails closed, so supply the shared secret at run time and never bake it into the image:
+
+```text
+docker run -e SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET=... -p 8081:8081 shutdown-tracker-project-worker
+```
