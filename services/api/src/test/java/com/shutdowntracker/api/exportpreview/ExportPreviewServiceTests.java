@@ -484,6 +484,8 @@ class ExportPreviewServiceTests {
 
     private static class FakeExportPreviewRepository implements ExportPreviewRepository {
 
+        private String failureReason;
+
         private final UUID projectId;
         private final UUID projectSnapshotId = UUID.randomUUID();
         private final UUID exportBatchId = UUID.randomUUID();
@@ -633,6 +635,21 @@ class ExportPreviewServiceTests {
             status = ExportBatchState.VERIFIED;
             verifiedAt = OffsetDateTime.parse("2026-01-01T03:00:00Z");
             this.verifiedByUserId = verifiedByUserId;
+            return findBatch(projectId, exportBatchId);
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> markBatchFailed(
+                UUID projectId,
+                UUID exportBatchId,
+                String failureReason,
+                Map<String, Object> metadata
+        ) {
+            if (status == ExportBatchState.FAILED || status == ExportBatchState.SUPERSEDED) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.FAILED;
+            this.failureReason = failureReason;
             return findBatch(projectId, exportBatchId);
         }
 

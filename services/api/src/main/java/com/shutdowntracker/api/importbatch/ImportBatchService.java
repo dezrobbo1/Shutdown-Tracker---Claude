@@ -40,4 +40,10 @@ public class ImportBatchService {
         Objects.requireNonNull(response, "response is required.");
         return repository.recordParseSummary(ImportBatchParseSummaryUpdate.from(response));
     }
+
+    @Transactional
+    public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
+        Objects.requireNonNull(importBatchId, "importBatchId is required.");
+        return repository.recordParseFailure(importBatchId, failureReason);
+    }
 }

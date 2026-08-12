@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.shutdowntracker.api.importbatch.ImportBatchCreateRequest;
 import com.shutdowntracker.api.importbatch.ImportBatchParseSummaryUpdate;
+import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
 import com.shutdowntracker.api.importbatch.ImportBatchRecord;
 import com.shutdowntracker.api.importbatch.ImportBatchRepository;
 import com.shutdowntracker.api.importbatch.ImportBatchService;
@@ -97,12 +99,49 @@ class ImportBatchParseHandoffServiceTests {
         );
 
         assertThatThrownBy(() -> service.requestParseSummary(projectId, importBatchId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Worker parse response referenced a different import batch.");
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY))
+                .hasMessageContaining("Project worker parse request failed.");
 
         assertThat(importBatchRepository.statusUpdates).containsExactly(ImportBatchStatus.PARSING);
         assertThat(importBatchRepository.parseSummaryUpdate).isNull();
+        // The batch must not sit in parsing with no explanation.
+        assertThat(importBatchRepository.failedImportBatchId).isEqualTo(importBatchId);
+        assertThat(importBatchRepository.parseFailureReason)
+                .contains("Worker parse response referenced a different import batch.");
+        assertThat(auditEventRecorder.events().getLast().eventType())
+                .isEqualTo(AuditEventTypes.IMPORT_BATCH_PARSE_FAILED);
     }
+
+    @Test
+    void recordsTerminalFailureWhenTheWorkerCallThrows() {
+        UUID projectId = UUID.randomUUID();
+        UUID importBatchId = UUID.randomUUID();
+        UUID sourceFileId = UUID.randomUUID();
+        CapturingImportBatchRepository importBatchRepository = new CapturingImportBatchRepository(
+                importBatch(importBatchId, projectId, sourceFileId, ImportBatchStatus.PENDING)
+        );
+        ImportBatchParseHandoffService service = service(
+                importBatchRepository,
+                new CapturingSourceFileMetadataRepository(sourceFile(sourceFileId, projectId)),
+                request -> {
+                    throw new IllegalStateException("Synthetic worker outage");
+                }
+        );
+
+        assertThatThrownBy(() -> service.requestParseSummary(projectId, importBatchId))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
+
+        assertThat(importBatchRepository.failedImportBatchId).isEqualTo(importBatchId);
+        assertThat(importBatchRepository.parseFailureReason).contains("Synthetic worker outage");
+        assertThat(auditEventRecorder.events().getLast().metadata())
+                .containsEntry("workerCalled", true)
+                .containsEntry("parsed", false)
+                .containsEntry("projectWriteBack", false);
+    }
+
+    private final CapturingAuditEventRecorder auditEventRecorder = new CapturingAuditEventRecorder();
 
     private ImportBatchParseHandoffService service(
             ImportBatchRepository importBatchRepository,
@@ -112,7 +151,8 @@ class ImportBatchParseHandoffServiceTests {
         return new ImportBatchParseHandoffService(
                 new ImportBatchService(importBatchRepository),
                 new SourceFileMetadataService(sourceFileRepository),
-                new ProjectParseHandoffService(jobClient)
+                new ProjectParseHandoffService(jobClient),
+                auditEventRecorder
         );
     }
 
@@ -138,6 +178,9 @@ class ImportBatchParseHandoffServiceTests {
     }
 
     private static class CapturingImportBatchRepository implements ImportBatchRepository {
+
+        private String parseFailureReason;
+        private UUID failedImportBatchId;
 
         private final ImportBatchRecord findRecord;
         private final List<ImportBatchStatus> statusUpdates = new ArrayList<>();
@@ -172,6 +215,22 @@ class ImportBatchParseHandoffServiceTests {
                     findRecord.errorCount()
             );
         }
+        @Override
+        public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
+            this.parseFailureReason = failureReason;
+            this.failedImportBatchId = importBatchId;
+            return new ImportBatchRecord(
+                    importBatchId,
+                    UUID.randomUUID(),
+                    UUID.randomUUID(),
+                    ImportBatchStatus.FAILED,
+                    null,
+                    null,
+                    0,
+                    1
+            );
+        }
+
 
         @Override
         public ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update) {

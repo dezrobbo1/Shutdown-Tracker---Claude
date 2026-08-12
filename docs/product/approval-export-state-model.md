@@ -117,6 +117,30 @@ Verified in Microsoft Project — master .mpp update remains planner-controlled.
 
 Queued is not submitted. A local progress update is not visible to supervisors or planners until the server receives it.
 
+## Implemented Approval Surface
+
+The API records approval decisions on source records through:
+
+- `POST /api/projects/{projectId}/approvals`
+- `GET /api/projects/{projectId}/approvals?sourceEntityType=&sourceEntityId=`
+
+A decision carries `sourceEntityType`, `sourceEntityId`, and an `approvalState` of `draft`, `submitted`, `awaiting_review`, `correction_requested`, `approved_for_export`, or `rejected`. `superseded` and `exported` are system-owned and are rejected if requested directly.
+
+Recording a decision supersedes the previous active decision for that source entity rather than editing it, so approval history stays append-only. The reviewer is the authenticated request actor; it is never read from the request body.
+
+This is the gate export preview reads: a preview line is export-eligible only when the latest approval for its source entity is `approved_for_export` and the imported task is a leaf. Approving a source record is not export batch approval, which remains a separate decision on the assembled batch.
+
+Two limits are deliberate and currently unenforced: role-based authority (Planner-only export approval) is not yet enforced, because project-scoped RBAC is not implemented; and there is no `task_update` table yet, so `sourceEntityId` refers to whatever operational record a caller nominates.
+
+## Failure Recording
+
+Terminal failures now move the owning record to `failed` instead of rolling back:
+
+- A failed worker parse moves the import batch to `failed`, records the reason in `parse_summary`, and writes an `import_batch_parse_failed` audit event.
+- A failed or mismatched artifact generation moves the export batch to `failed` with `failure_reason` set, and writes an `export_file_generation_failed` audit event.
+
+Failure bookkeeping never masks the original error: if recording the failure itself fails, that exception is attached as suppressed and the original is rethrown.
+
 ## Approval Rules
 
 - Field users cannot approve export batches.

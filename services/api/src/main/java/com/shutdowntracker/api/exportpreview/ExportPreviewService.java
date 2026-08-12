@@ -35,6 +35,8 @@ public class ExportPreviewService {
             + "for manual verification. No Microsoft Project write-back was run.";
     private static final String VERIFIED_MESSAGE = "Export artifact manually verified after Microsoft Project reopen. "
             + "No Microsoft Project write-back was run.";
+    private static final String FAILED_MESSAGE = "Export batch failed. "
+            + "No Microsoft Project write-back was run.";
 
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
@@ -326,6 +328,46 @@ public class ExportPreviewService {
                 Map.of("openedInMicrosoftProject", true, "artifactVerified", true)
         );
         return detail;
+    }
+
+    /**
+     * Records a terminal generation or verification failure against the batch.
+     *
+     * <p>Returns the failed detail, or empty when the batch had already reached a terminal state.
+     */
+    @Transactional
+    public java.util.Optional<ExportPreviewDetail> markFailed(
+            UUID projectId,
+            Actor actor,
+            UUID exportBatchId,
+            String failureReason
+    ) {
+        UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
+        UUID requiredExportBatchId = requireNonNull(exportBatchId, "exportBatchId is required.");
+        Actor requiredActor = requireNonNull(actor, "actor is required.");
+        ExportPreviewBatchRecord existing = findBatch(requiredProjectId, requiredExportBatchId);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("failureReason", failureReason);
+        metadata.put("artifactGenerated", false);
+        metadata.put("projectWriteBack", false);
+
+        return repository
+                .markBatchFailed(requiredProjectId, requiredExportBatchId, failureReason, metadata)
+                .map(updated -> {
+                    ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), FAILED_MESSAGE);
+                    recordExportBatchAudit(
+                            requiredProjectId,
+                            requiredActor,
+                            existing,
+                            detail,
+                            AuditEventTypes.EXPORT_FILE_GENERATION_FAILED,
+                            failureReason,
+                            false,
+                            Map.of("failureReason", failureReason)
+                    );
+                    return detail;
+                });
     }
 
     private ExportPreviewDetail getPreview(UUID projectId, UUID exportBatchId, String message) {

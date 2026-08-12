@@ -46,6 +46,17 @@ public interface ExportPreviewRepository {
             Map<String, Object> metadata
     );
 
+    /**
+     * Moves the batch to {@code failed} and records why, so a failed generation stays visible in export
+     * history instead of leaving the batch sitting at {@code approved}.
+     */
+    Optional<ExportPreviewBatchRecord> markBatchFailed(
+            UUID projectId,
+            UUID exportBatchId,
+            String failureReason,
+            Map<String, Object> metadata
+    );
+
     Optional<ExportPreviewTaskContext> findTaskContext(UUID projectId, UUID projectSnapshotId, UUID importedTaskId);
 
     Optional<ApprovalState> findLatestApprovalState(UUID projectId, String sourceEntityType, UUID sourceEntityId);

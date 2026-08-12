@@ -312,6 +312,38 @@ public class JdbcExportPreviewRepository implements ExportPreviewRepository {
     }
 
     @Override
+    public Optional<ExportPreviewBatchRecord> markBatchFailed(
+            UUID projectId,
+            UUID exportBatchId,
+            String failureReason,
+            Map<String, Object> metadata
+    ) {
+        String sql = """
+                UPDATE export_batches
+                SET status = CAST(:status AS export_batch_state),
+                    failure_reason = :failureReason,
+                    metadata = metadata || CAST(:metadata AS jsonb)
+                WHERE project_id = :projectId
+                  AND id = :exportBatchId
+                  AND status NOT IN ('failed', 'superseded')
+                RETURNING id
+                """;
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("projectId", projectId)
+                .addValue("exportBatchId", exportBatchId)
+                .addValue("status", ExportBatchState.FAILED.databaseValue())
+                .addValue("failureReason", failureReason)
+                .addValue("metadata", toJson(metadata));
+
+        List<UUID> ids = jdbcTemplate.query(sql, parameters, (rs, rowNum) -> rs.getObject("id", UUID.class));
+        if (ids.isEmpty()) {
+            return Optional.empty();
+        }
+        return findBatch(projectId, ids.getFirst());
+    }
+
+    @Override
     public Optional<ExportPreviewTaskContext> findTaskContext(
             UUID projectId,
             UUID projectSnapshotId,

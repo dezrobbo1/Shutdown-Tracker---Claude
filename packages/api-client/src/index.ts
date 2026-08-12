@@ -194,6 +194,30 @@ export type TaskLineageDecisionResponse = {
   message: string;
 };
 
+export type ApprovalRecord = {
+  id: string;
+  projectId: string;
+  sourceEntityType: string;
+  sourceEntityId: string;
+  approvalState: ApprovalState;
+  requestedByUserId: string | null;
+  requestedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  reason: string | null;
+};
+
+/**
+ * Reviewer identity is deliberately absent: the API takes it from the authenticated request actor.
+ */
+export type ApprovalRecordCreateRequest = {
+  sourceEntityType: string;
+  sourceEntityId: string;
+  approvalState: ApprovalState;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
 export type ExportPreviewLineCreateRequest = {
   importedTaskId: string;
   sourceEntityType: string;
@@ -336,6 +360,8 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Reject import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject" },
   { label: "List lineage links", method: "GET", path: "/api/projects/{projectId}/import-review/lineage-links" },
   { label: "Create lineage link", method: "POST", path: "/api/projects/{projectId}/import-review/lineage-links" },
+  { label: "Record approval decision", method: "POST", path: "/api/projects/{projectId}/approvals" },
+  { label: "List approval decisions", method: "GET", path: "/api/projects/{projectId}/approvals" },
   { label: "Create export preview", method: "POST", path: "/api/projects/{projectId}/export-preview" },
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
@@ -458,6 +484,17 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           { method: "POST" }
         )
     },
+    approvals: {
+      record: (projectId: string, request: ApprovalRecordCreateRequest) =>
+        requestJson<ApprovalRecord>(transport, baseUrl, defaultHeaders, approvalsPath(projectId), {
+          method: "POST",
+          body: request
+        }),
+      listBySourceEntity: (projectId: string, sourceEntityType: string, sourceEntityId: string) =>
+        requestJson<ApprovalRecord[]>(transport, baseUrl, defaultHeaders, approvalsPath(projectId), {
+          query: { sourceEntityType, sourceEntityId }
+        })
+    },
     exportPreview: {
       create: (projectId: string, request: ExportPreviewCreateRequest) =>
         requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId), {
@@ -569,6 +606,10 @@ function importBatchPath(projectId: string, importBatchId: string, path: string)
 
 function importReviewPath(projectId: string, path: string) {
   return `/api/projects/${encodePathSegment(projectId)}/import-review/${encodePath(path)}`;
+}
+
+function approvalsPath(projectId: string) {
+  return `/api/projects/${encodePathSegment(projectId)}/approvals`;
 }
 
 function exportPreviewPath(projectId: string, path = "") {

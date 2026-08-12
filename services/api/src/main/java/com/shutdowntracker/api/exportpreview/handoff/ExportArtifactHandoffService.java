@@ -79,9 +79,17 @@ public class ExportArtifactHandoffService {
         ExportArtifactStorageLocation storageLocation =
                 exportArtifactStorage.prepareExportArtifact(requiredProjectId, requiredExportBatchId);
         ProjectExportArtifactGenerationRequest workerRequest = buildWorkerRequest(approvedPreview, storageLocation);
-        ProjectExportArtifactGenerationResponse workerResponse =
-                exportArtifactJobClient.generateArtifact(workerRequest);
-        verifyWorkerResponse(requiredProjectId, requiredExportBatchId, storageLocation, workerResponse);
+
+        ProjectExportArtifactGenerationResponse workerResponse;
+        try {
+            workerResponse = exportArtifactJobClient.generateArtifact(workerRequest);
+            verifyWorkerResponse(requiredProjectId, requiredExportBatchId, storageLocation, workerResponse);
+        } catch (RuntimeException exception) {
+            // The worker may already have written the artifact. Record the terminal failure so the batch
+            // does not sit at approved, and so any orphaned artifact has a matching failure row.
+            recordGenerationFailure(requiredProjectId, requiredActor, requiredExportBatchId, exception);
+            throw exception;
+        }
 
         ExportPreviewDetail generatedPreview = exportPreviewService.markGenerated(
                 requiredProjectId,
@@ -141,6 +149,24 @@ public class ExportArtifactHandoffService {
                                 .toList()
                 )
         );
+    }
+
+    private void recordGenerationFailure(
+            UUID projectId,
+            Actor actor,
+            UUID exportBatchId,
+            RuntimeException cause
+    ) {
+        String failureReason = cause.getMessage() == null
+                ? cause.getClass().getSimpleName()
+                : cause.getClass().getSimpleName() + ": " + cause.getMessage();
+
+        try {
+            exportPreviewService.markFailed(projectId, actor, exportBatchId, failureReason);
+        } catch (RuntimeException recordingFailure) {
+            // Never let failure bookkeeping mask the original generation failure.
+            cause.addSuppressed(recordingFailure);
+        }
     }
 
     private void verifyWorkerResponse(

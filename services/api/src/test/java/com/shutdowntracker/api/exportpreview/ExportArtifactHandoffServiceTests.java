@@ -110,7 +110,10 @@ class ExportArtifactHandoffServiceTests {
         assertThatThrownBy(() -> service.generateArtifact(repository.projectId, repository.exportBatchId, ACTOR, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Worker export artifact response did not match the reserved storage URI.");
-        assertThat(repository.status).isEqualTo(ExportBatchState.APPROVED);
+        // The batch must not remain approved after a terminal generation failure.
+        assertThat(repository.status).isEqualTo(ExportBatchState.FAILED);
+        assertThat(repository.failureReason)
+                .contains("Worker export artifact response did not match the reserved storage URI.");
     }
 
     @Test
@@ -203,6 +206,8 @@ class ExportArtifactHandoffServiceTests {
     }
 
     private static class FakeExportPreviewRepository implements ExportPreviewRepository {
+
+        private String failureReason;
 
         private final UUID projectId = UUID.randomUUID();
         private final UUID projectSnapshotId = UUID.randomUUID();
@@ -380,6 +385,21 @@ class ExportArtifactHandoffServiceTests {
                 Map<String, Object> metadata
         ) {
             throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public Optional<ExportPreviewBatchRecord> markBatchFailed(
+                UUID projectId,
+                UUID exportBatchId,
+                String failureReason,
+                Map<String, Object> metadata
+        ) {
+            if (status == ExportBatchState.FAILED || status == ExportBatchState.SUPERSEDED) {
+                return Optional.empty();
+            }
+            status = ExportBatchState.FAILED;
+            this.failureReason = failureReason;
+            return findBatch(projectId, exportBatchId);
         }
 
         @Override
