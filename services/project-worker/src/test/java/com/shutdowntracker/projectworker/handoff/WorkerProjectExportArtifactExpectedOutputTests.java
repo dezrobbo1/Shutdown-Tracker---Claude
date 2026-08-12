@@ -10,6 +10,8 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import com.shutdowntracker.projectworker.exporter.MpxjMspdiExportArtifactService;
+import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -25,8 +27,12 @@ import org.springframework.boot.json.JsonParserFactory;
 
 class WorkerProjectExportArtifactExpectedOutputTests {
 
-    private final WorkerProjectExportArtifactHandoffService service =
-            new WorkerProjectExportArtifactHandoffService(new MpxjMspdiExportArtifactService());
+    private WorkerProjectExportArtifactHandoffService service() {
+        return new WorkerProjectExportArtifactHandoffService(
+                new MpxjMspdiExportArtifactService(),
+                new WorkerStoragePathResolver(new WorkerStorageProperties(tempDir, tempDir))
+        );
+    }
 
     @TempDir
     private Path tempDir;
@@ -43,7 +49,7 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         UUID exportBatchId = UUID.fromString("00000000-0000-0000-0000-000000000029");
         UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000030");
 
-        ProjectExportArtifactGenerationResponse response = service.generateArtifact(new ProjectExportArtifactGenerationRequest(
+        ProjectExportArtifactGenerationResponse response = service().generateArtifact(new ProjectExportArtifactGenerationRequest(
                 exportBatchId,
                 projectId,
                 outputPath.toString(),

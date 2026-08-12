@@ -30,6 +30,27 @@ The spike does not calculate CPM, critical path, float, resource levelling, reco
 
 Local files are for local testing only. Do not commit real customer/project files, MPP/XML/MSPDI/XER/ZIP/PDF/DOCX files, screenshots, generated exports, or any file containing real work orders, contractors, vendors, people, locations, assets, costs, or commercial data.
 
+## Handoff Trust Boundary
+
+The worker handoff endpoints are a service-to-service boundary, not a public API. Two controls apply.
+
+**Shared-secret authentication.** Requests to `/worker/**` must present the configured secret:
+
+```text
+Authorization: Bearer <shutdown-tracker.worker-auth.shared-secret>
+```
+
+Authentication is enabled by default and fails closed. If `shutdown-tracker.worker-auth.enabled` is true and no secret is configured, the worker refuses to start rather than serving MPXJ parsing and MSPDI/XML generation anonymously. Set `shutdown-tracker.worker-auth.enabled=false` only for isolated local development.
+
+This secret authenticates the calling service. It is not user authentication, carries no role or project scope, and does not replace the API-owned authorization model in [docs/security/authorization-model.md](../../docs/security/authorization-model.md). Actuator health and info remain reachable without it so deployment probes keep working.
+
+**Storage confinement.** Handoff requests carry a storage URI and an output path chosen by the API, and the worker treats both as untrusted input. `WorkerStoragePathResolver` resolves them against configured roots and rejects anything outside:
+
+- `shutdown-tracker.worker-storage.source-file-root`, default `.shutdown-tracker/source-files`
+- `shutdown-tracker.worker-storage.export-artifact-root`, default `.shutdown-tracker/export-artifacts`
+
+Confinement resolves symlinks before comparing, so neither a `..` traversal nor a symlinked parent directory can redirect a read or a write. Defaults align with the API storage defaults because the current synchronous handoff assumes a shared local filesystem.
+
 ## Project Parse Handoff Boundary
 
 `WorkerProjectParseHandoffService` accepts the shared `ProjectParseSummaryRequest`, resolves an explicit local file URI/path, calls the existing MPXJ summary service, and returns a shared `ProjectParseSummaryResponse`.
@@ -40,7 +61,7 @@ The worker exposes the same contract through:
 
 The response is summary-only: parser name/version, source filename, detected format, project name, task/resource/assignment/calendar/custom-field counts, warning/error counts, and notes. It does not persist import output, create snapshots, create imported tasks, run jobs, integrate a queue, generate exports, write back to Microsoft Project, or calculate schedules.
 
-Only local file storage URIs are accepted for this early handoff. Non-local object-storage URIs should wait for the future storage/queue contract.
+Only local file storage URIs are accepted for this early handoff, and only inside the configured source-file root. Non-local object-storage URIs should wait for the future storage/queue contract.
 
 When a future queue consumer is added, it should reuse this worker-owned parsing boundary rather than moving MPXJ into the API. Product workflow state and audit writes should remain API-owned.
 
@@ -71,7 +92,7 @@ mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.profiles=local
 mvn -pl services/project-worker spring-boot:run -Dspring-boot.run.arguments=--shutdown-tracker.import-spike.path=/absolute/path/to/local/safe-file.mpp
 ```
 
-The worker HTTP endpoint defaults to port `8081`, or `PORT` when set. The import spike command uses the default profile so it does not require PostgreSQL. When the path property is absent, the worker starts normally and does not run the import spike. With the path property set, the worker logs the summary during startup and continues serving until stopped.
+The worker HTTP endpoint defaults to port `8081`, or `PORT` when set. Handoff endpoints require `SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET` unless worker authentication is explicitly disabled. The import spike command uses the default profile so it does not require PostgreSQL. When the path property is absent, the worker starts normally and does not run the import spike. With the path property set, the worker logs the summary during startup and continues serving until stopped.
 
 ## MSPDI/XML Export Artifact Spike
 
@@ -88,7 +109,7 @@ The worker also exposes the same artifact generation through:
 
 - `POST /worker/project-export/generate-artifact`
 
-The endpoint accepts the shared export handoff contract, writes the requested local MSPDI/XML path, and returns artifact URI/hash plus summary counts. The API remains responsible for checking export-batch approval and recording generated metadata.
+The endpoint accepts the shared export handoff contract, writes the requested local MSPDI/XML path inside the configured export-artifact root, and returns artifact URI/hash plus summary counts. The API remains responsible for checking export-batch approval and recording generated metadata.
 
 The spike and endpoint do not read from the database, approve export batches, mark approval records exported, update `export_batches`, generate native MPP files, call Microsoft Project, or write back to Microsoft Project. They do not calculate CPM, critical path, float, resource levelling, recovery dates, or schedule movement.
 

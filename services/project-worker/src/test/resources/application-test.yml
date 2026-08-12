@@ -5,3 +5,8 @@ spring:
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   flyway:
     enabled: false
+
+shutdown-tracker:
+  worker-auth:
+    enabled: true
+    shared-secret: synthetic-worker-test-secret

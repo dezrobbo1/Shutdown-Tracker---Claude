@@ -69,6 +69,16 @@ Field users can update assigned work, submit field updates, log problems, upload
 - Viewer / Management may view read-only audit summaries where granted.
 - Security events and permission-change history are protected.
 
+## Service-to-Service Authentication
+
+User authentication and service-to-service authentication are separate concerns and must not be conflated.
+
+The API-to-worker handoff hop uses a shared secret presented as `Authorization: Bearer <secret>` on `/worker/**`. It authenticates the calling service only. It carries no user identity, no role, and no project scope, and it never substitutes for the project-scoped RBAC described above. The worker must not make authorization decisions on behalf of a user.
+
+Worker authentication fails closed: the worker refuses to start when authentication is enabled without a configured secret. The secret is supplied through environment configuration and must never be committed.
+
+The worker additionally confines every caller-supplied storage path to its configured source-file and export-artifact roots, so a handoff request cannot make the worker read or write arbitrary local files.
+
 ## Future Tenant Boundary Notes
 
 The baseline assumes project-scoped permissions. If multi-tenant operation is introduced, tenant boundaries must be explicit, audited, and covered by ADR updates before implementation.

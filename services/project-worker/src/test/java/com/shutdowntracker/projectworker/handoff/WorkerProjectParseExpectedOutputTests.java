@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import com.shutdowntracker.projectworker.importer.MpxjProjectImportSummaryService;
+import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,8 +17,13 @@ import org.springframework.boot.json.JsonParserFactory;
 
 class WorkerProjectParseExpectedOutputTests {
 
-    private final WorkerProjectParseHandoffService service =
-            new WorkerProjectParseHandoffService(new MpxjProjectImportSummaryService());
+    private WorkerProjectParseHandoffService service() {
+        Path fixtureRoot = repositoryRoot().resolve("fixtures");
+        return new WorkerProjectParseHandoffService(
+                new MpxjProjectImportSummaryService(),
+                new WorkerStoragePathResolver(new WorkerStorageProperties(fixtureRoot, fixtureRoot))
+        );
+    }
 
     @Test
     void syntheticBasicWbsMatchesExpectedWorkerParseSummary() {
@@ -27,7 +34,7 @@ class WorkerProjectParseExpectedOutputTests {
         ));
         Map<String, Object> expectedResponse = map(expected.get("worker_response"));
 
-        ProjectParseSummaryResponse response = service.summarize(new ProjectParseSummaryRequest(
+        ProjectParseSummaryResponse response = service().summarize(new ProjectParseSummaryRequest(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
                 UUID.fromString("00000000-0000-0000-0000-000000000002"),
                 UUID.fromString("00000000-0000-0000-0000-000000000003"),

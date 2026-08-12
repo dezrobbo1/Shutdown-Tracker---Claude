@@ -11,6 +11,8 @@ The repository already has two synchronous, opt-in local handoff paths:
 
 The default API worker clients are disconnected. Local HTTP clients are enabled only through explicit configuration. No queue, background jobs, broker, scheduler, worker persistence, or production object-store provider exists yet.
 
+The handoff hop is authenticated with a service-to-service shared secret, and the worker confines every caller-supplied storage path to configured source-file and export-artifact roots. A future queue transport must preserve both properties: queue messages carry storage references chosen by the API, so a consumer must keep treating those references as untrusted input rather than trusting them because they arrived from the broker.
+
 ## Scope
 
 This strategy covers future asynchronous handoff for:

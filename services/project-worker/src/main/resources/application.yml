@@ -12,3 +12,11 @@ management:
     web:
       exposure:
         include: health,info
+
+shutdown-tracker:
+  worker-auth:
+    enabled: ${SHUTDOWN_TRACKER_WORKER_AUTH_ENABLED:true}
+    shared-secret: ${SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET:}
+  worker-storage:
+    source-file-root: ${SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT:.shutdown-tracker/source-files}
+    export-artifact-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT:.shutdown-tracker/export-artifacts}

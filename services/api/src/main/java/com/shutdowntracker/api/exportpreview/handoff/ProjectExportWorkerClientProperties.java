@@ -5,7 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "shutdown-tracker.project-export-worker")
 public record ProjectExportWorkerClientProperties(
         String baseUrl,
-        String generateArtifactPath
+        String generateArtifactPath,
+        String sharedSecret
 ) {
 
     public ProjectExportWorkerClientProperties {
@@ -14,6 +15,9 @@ public record ProjectExportWorkerClientProperties(
         }
         if (generateArtifactPath == null || generateArtifactPath.isBlank()) {
             generateArtifactPath = "/worker/project-export/generate-artifact";
+        }
+        if (sharedSecret != null && sharedSecret.isBlank()) {
+            sharedSecret = null;
         }
     }
 }
