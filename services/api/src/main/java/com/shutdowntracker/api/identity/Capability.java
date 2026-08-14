@@ -27,6 +27,18 @@ public enum Capability {
     APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),
     GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER),
     RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER),
+
+    // Execution. Field users and contractors submit for their own assigned work;
+    // narrowing that to the specific assignment is responsibility scoping, still to come.
+    SUBMIT_TASK_PROGRESS(
+            ProjectRole.FIELD_USER,
+            ProjectRole.CONTRACTOR,
+            ProjectRole.SUPERVISOR,
+            ProjectRole.COORDINATOR),
+    // Supervisor review confirms operational validity. It is not export approval, which
+    // is why it does not include the planner-only export capabilities above.
+    REVIEW_TASK_PROGRESS(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
+    PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER),
     VIEW_PROJECT(
             ProjectRole.ADMIN,
             ProjectRole.PLANNER,
