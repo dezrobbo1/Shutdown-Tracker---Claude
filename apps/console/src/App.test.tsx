@@ -10,7 +10,14 @@ import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
 import { canApprove, canGenerate, canMarkOpened, canVerify, previewLinesFor } from "./zones/ExportZone";
 import { validateCategoryInput } from "./zones/MappingZone";
-import { newestSnapshotId } from "./zones/ImportReviewZone";
+import { ImportReviewZone, newestSnapshotId } from "./zones/ImportReviewZone";
+import { ExecutionZone } from "./zones/ExecutionZone";
+import { ReviewQueueZone } from "./zones/ReviewQueueZone";
+import { ProblemsZone } from "./zones/ProblemsZone";
+import { HandoverZone } from "./zones/HandoverZone";
+import { MappingZone } from "./zones/MappingZone";
+import { ExportZone } from "./zones/ExportZone";
+import { createConsoleApiClient } from "./consoleApi";
 import { formatPercent, toneForState } from "./formatting";
 
 describe("console shell", () => {
@@ -258,5 +265,41 @@ describe("display", () => {
     expect(toneForState("Awaiting supervisor review")).toBe("amber");
     expect(toneForState("Planner approved")).toBe("green");
     expect(toneForState("Export blocked")).toBe("red");
+  });
+});
+
+describe("every zone renders", () => {
+  // The router picks a component per route; a zone that throws on first render would be
+  // invisible until someone navigated to it. Each is rendered here with an unconfigured
+  // session, which is the state a zone must survive before any data arrives.
+  const session = buildZoneSession(buildConsoleSession({}));
+  const client = createConsoleApiClient(session, {
+    fetchImpl: () => Promise.reject(new Error("no network in tests"))
+  });
+
+  const zones = [
+    ["import-review", ImportReviewZone],
+    ["execution", ExecutionZone],
+    ["review-queue", ReviewQueueZone],
+    ["problems", ProblemsZone],
+    ["handover", HandoverZone],
+    ["mapping", MappingZone],
+    ["export", ExportZone]
+  ] as const;
+
+  for (const [id, Zone] of zones) {
+    it(`renders ${id} without a configured project`, () => {
+      const html = renderToString(<Zone session={session} client={client} />);
+
+      expect(html.length).toBeGreaterThan(0);
+      expect(html).toContain("Configure a project and actor");
+    });
+  }
+
+  it("shows the product boundary where someone might expect a recalculation", () => {
+    const html = renderToString(<ExportZone session={session} client={client} />);
+
+    expect(html).toContain("does not write the master");
+    expect(html).toContain("recalculates nothing");
   });
 });

@@ -148,7 +148,11 @@ export function MappingZone({ session, client }: ZoneProps) {
           rather than silently remapping work to a different category.
         </BoundaryNote>
 
-        {activeProfile === null ? (
+        {/* Offering to create a profile before a project is even configured would invite a
+            planner to fill in a form that has nowhere to go. */}
+        {profile.state.status !== "loaded" ? (
+          <ResourceView resource={profile}>{() => null}</ResourceView>
+        ) : activeProfile === null ? (
           <CapabilityGate
             allowed={session.canManageMapping}
             reason="Import profiles are planner-owned."
