@@ -39,22 +39,33 @@ Implemented foundations include:
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
 - append-only audit foundations;
 - approval-record capture that gates export eligibility, and terminal failure recording for import and export batches;
+- users, project-scoped roles, and enforced authorization resolved from stored membership;
+- task execution state and the field-to-export progress review chain, with supervisor and
+  planner review as separate decisions;
+- problems, actions, evidence, and handover records;
+- versioned Import Profiles and Operational Categories resolved from task fields, summary
+  ancestry, and assigned-resource Groups, with mapping health on re-import;
+- Critical Watchlists, Critical Work Packages, and Critical Update reporting;
 - React/Vite Master Console and Mobile Field App visual shells;
 - TypeScript API client and shared Java import/export handoff contracts;
 - synthetic MSPDI regression fixtures and expected-output tests;
+- repository tests that run the migrations and every SQL statement against a real
+  PostgreSQL server;
 - local migration and import/export smoke tooling.
 
 Not production-complete yet:
 
-- live task-execution and progress-write workflows;
-- supervisor/planner production review workflows;
-- production authentication and authorization enforcement;
+- Master Console and Field App user interfaces for the workflows above; both apps are
+  still read-only shells against synthetic data;
+- production authentication; authorization is enforced, but the actor still arrives
+  through a gateway-trusted header rather than a validated token;
 - mobile offline execution queue;
+- Saved Operational Views and global operational Scope;
+- reporting policy cadences and generated reporting periods;
 - production object storage;
 - durable background-job/queue integration;
 - full human Microsoft Project round-trip evidence;
-- communications implementation;
-- Project Operational Mapping and configurable operational scope.
+- communications implementation.
 
 Current implementation details belong in the app/service READMEs and source code rather than this root overview.
 
