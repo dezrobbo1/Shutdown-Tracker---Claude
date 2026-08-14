@@ -22,6 +22,9 @@ public enum Capability {
     ACCEPT_IMPORT_SNAPSHOT(ProjectRole.PLANNER, ProjectRole.ADMIN),
     REJECT_IMPORT_SNAPSHOT(ProjectRole.PLANNER, ProjectRole.ADMIN),
     RECONCILE_TASK_LINEAGE(ProjectRole.PLANNER),
+    // Mapping configuration is planner-owned. An admin may administer who can configure
+    // mappings but does not own the planner's interpretation of Project fields.
+    MANAGE_IMPORT_PROFILE(ProjectRole.PLANNER),
     RECORD_APPROVAL(ProjectRole.PLANNER),
     CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER),
     APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),

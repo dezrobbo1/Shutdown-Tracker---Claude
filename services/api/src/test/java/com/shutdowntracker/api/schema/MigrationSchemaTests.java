@@ -32,7 +32,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "V006__critical_watchlists_reporting.sql",
                         "V007__users_roles_and_memberships.sql",
                         "V008__task_execution_and_progress.sql",
-                        "V009__problems_actions_evidence_handover.sql");
+                        "V009__problems_actions_evidence_handover.sql",
+                        "V010__import_profiles_and_operational_categories.sql");
     }
 
     @Test
