@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Exercises {@link JdbcAuditEventRecorder} against a real PostgreSQL server.
@@ -22,12 +23,14 @@ class JdbcAuditEventRecorderTests extends AbstractDatabaseTest {
 
     private JdbcAuditEventRecorder recorder;
     private UUID projectId;
+    private DatabaseFixtures fixtures;
 
     @BeforeEach
     void setUp() {
         recorder = new JdbcAuditEventRecorder(
                 new NamedParameterJdbcTemplate(dataSource()), new ObjectMapper());
-        projectId = new DatabaseFixtures(jdbcTemplate()).createProject("Audit Trail");
+        fixtures = new DatabaseFixtures(jdbcTemplate());
+        projectId = fixtures.createProject("Audit Trail");
     }
 
     @Test
@@ -48,7 +51,7 @@ class JdbcAuditEventRecorderTests extends AbstractDatabaseTest {
 
     @Test
     void recordsAUserEventWithAttribution() {
-        UUID actorId = UUID.randomUUID();
+        UUID actorId = fixtures.createUser("dana.reyes@example.com", "Dana Reyes");
 
         recorder.record(AuditEventCreateRequest.userEvent(
                 projectId, actorId, "Dana Reyes", "planner",
@@ -103,5 +106,17 @@ class JdbcAuditEventRecorderTests extends AbstractDatabaseTest {
                 "SELECT count(*) FROM audit_events WHERE occurred_at IS NOT NULL", Integer.class);
 
         assertThat(withTimestamp).isEqualTo(1);
+    }
+
+    @Test
+    void refusesToAttributeAnEventToAUserThatDoesNotExist() {
+        // The point of the foreign key added in V007: an audit trail that can name
+        // a non-existent user is not evidence of anything.
+        assertThatThrownBy(() -> recorder.record(AuditEventCreateRequest.userEvent(
+                projectId, UUID.randomUUID(), "Ghost", "planner",
+                AuditEventCategory.APPROVAL, "export.batch.approved",
+                "export_batch", UUID.randomUUID(), "Batch 9",
+                Map.of(), Map.of(), null, null, null, Map.of())))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 }

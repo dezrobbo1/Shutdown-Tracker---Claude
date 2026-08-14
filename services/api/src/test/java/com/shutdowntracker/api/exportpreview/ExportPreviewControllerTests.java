@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.actor.ActorResolver;
 import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -49,6 +51,14 @@ class ExportPreviewControllerTests {
 
     @MockBean
     private ExportPreviewService service;
+
+    /**
+     * Authorisation itself is covered by ProjectAuthorizationServiceTests against the real
+     * database. These slice tests assert routing and delegation, so the check is stubbed
+     * to allow; the wiring is asserted in {@link #refusesWhenTheActorLacksTheCapability()}.
+     */
+    @MockBean
+    private ProjectAuthorizationService authorization;
 
     @Test
     void createsExportPreviewOnly() throws Exception {
@@ -245,6 +255,25 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
         verify(service).verifyBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchVerificationRequest.class));
+    }
+
+    @Test
+    void refusesWhenTheActorLacksTheCapability() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "Role supervisor may not approve."))
+                .when(authorization)
+                .requireCapability(projectId, ACTOR, Capability.APPROVE_EXPORT_BATCH);
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview/{id}/approve", projectId, exportBatchId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        // The approval must not reach the service when authorisation refuses.
+        verify(service, org.mockito.Mockito.never())
+                .approveBatch(any(), any(), any(), any());
     }
 
     private ExportPreviewDetail detail(UUID projectId, UUID snapshotId, boolean eligible) {

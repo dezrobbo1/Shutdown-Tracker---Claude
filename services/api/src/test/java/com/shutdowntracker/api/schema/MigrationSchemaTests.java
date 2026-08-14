@@ -29,7 +29,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "V003__imported_project_entities.sql",
                         "V004__audit_events.sql",
                         "V005__approval_and_export_batches.sql",
-                        "V006__critical_watchlists_reporting.sql");
+                        "V006__critical_watchlists_reporting.sql",
+                        "V007__users_roles_and_memberships.sql");
     }
 
     @Test
@@ -49,7 +50,27 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "export_batches",
                         "export_batch_lines",
                         "task_lineage_links",
-                        "critical_watchlists");
+                        "critical_watchlists",
+                        "users",
+                        "project_memberships");
+    }
+
+    @Test
+    void attributionColumnsReferenceRealUsers() {
+        // Before V007 every *_by_user_id was a free UUID, so the audit trail could name a
+        // user that did not exist.
+        List<String> constrained = jdbcTemplate().queryForList(
+                """
+                SELECT tc.table_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.constraint_column_usage ccu
+                  ON tc.constraint_name = ccu.constraint_name
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+                  AND ccu.table_name = 'users'
+                """,
+                String.class);
+
+        assertThat(constrained).contains("audit_events", "projects", "source_files", "export_batches");
     }
 
     @Test

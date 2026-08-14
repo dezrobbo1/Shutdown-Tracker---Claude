@@ -52,6 +52,35 @@ public final class DatabaseFixtures {
                 sourceFileId);
     }
 
+    /**
+     * Creates an active user. Attribution columns carry foreign keys to {@code users}, so
+     * tests that record who did something need a real row to point at.
+     */
+    public UUID createUser(String email, String displayName) {
+        return jdbcTemplate.queryForObject(
+                """
+                INSERT INTO users (email, display_name, status)
+                VALUES (?, ?, CAST('active' AS user_status))
+                RETURNING id
+                """,
+                UUID.class,
+                email,
+                displayName);
+    }
+
+    public UUID grantMembership(UUID projectId, UUID userId, String role) {
+        return jdbcTemplate.queryForObject(
+                """
+                INSERT INTO project_memberships (project_id, user_id, role)
+                VALUES (?, ?, CAST(? AS project_role))
+                RETURNING id
+                """,
+                UUID.class,
+                projectId,
+                userId,
+                role);
+    }
+
     /** Builds project -> source file -> import batch in one call. */
     public ImportChain createImportChain(String projectName) {
         UUID projectId = createProject(projectName);

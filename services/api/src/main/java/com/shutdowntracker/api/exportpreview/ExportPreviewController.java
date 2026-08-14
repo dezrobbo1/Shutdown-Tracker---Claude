@@ -1,6 +1,8 @@
 package com.shutdowntracker.api.exportpreview;
 
 import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,9 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExportPreviewController {
 
     private final ExportPreviewService service;
+    private final ProjectAuthorizationService authorization;
 
-    public ExportPreviewController(ExportPreviewService service) {
+    public ExportPreviewController(ExportPreviewService service, ProjectAuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @PostMapping
@@ -27,6 +31,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody ExportPreviewCreateRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.CREATE_EXPORT_PREVIEW);
         return service.createPreview(projectId, actor, request);
     }
 
@@ -45,6 +50,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody(required = false) ExportBatchDecisionRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.APPROVE_EXPORT_BATCH);
         return service.approveBatch(projectId, exportBatchId, actor, request);
     }
 
@@ -55,6 +61,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody(required = false) ExportBatchDecisionRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.APPROVE_EXPORT_BATCH);
         return service.rejectBatch(projectId, exportBatchId, actor, request);
     }
 
@@ -65,6 +72,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody ExportBatchGeneratedRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.GENERATE_EXPORT_ARTIFACT);
         return service.markGenerated(projectId, exportBatchId, actor, request);
     }
 
@@ -75,6 +83,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody(required = false) ExportBatchProjectOpenRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.RECORD_EXPORT_VERIFICATION);
         return service.markOpenedInMicrosoftProject(projectId, exportBatchId, actor, request);
     }
 
@@ -85,6 +94,7 @@ public class ExportPreviewController {
             Actor actor,
             @RequestBody(required = false) ExportBatchVerificationRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.RECORD_EXPORT_VERIFICATION);
         return service.verifyBatch(projectId, exportBatchId, actor, request);
     }
 }

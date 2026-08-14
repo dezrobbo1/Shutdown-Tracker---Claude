@@ -85,7 +85,19 @@ It is disabled by default and fails closed: with `shutdown-tracker.actor.trusted
 
 This is an interim seam, not the target model. OIDC token validation should replace `TrustedHeaderActorResolver` behind the same interface without changing controllers or services.
 
-The actor's role is carried into audit events for traceability but is **not** yet enforced as authorization. Project-scoped RBAC, including Planner-only export approval, remains unimplemented; the role field records a claim, it does not gate an action.
+## Project-Scoped Authorization
+
+Authority comes from stored membership, never from the request. `ProjectAuthorizationService` resolves the actor to a `users` row and an active `project_memberships` row, and checks the required `Capability` against that stored role. The role header is used for audit display only; a caller claiming `planner` gets no planner authority unless the database agrees.
+
+Every step fails closed. An unknown user, an account that is not `active`, no membership on the project, or a role without the capability all return 403.
+
+Roles are project-scoped: being a planner on one shutdown confers nothing on another. Suspending an account revokes authority immediately without unpicking individual role grants.
+
+Export approval, rejection, and artifact generation are Planner-only, including for Admin, which administers access rather than acting as a routine export approver. Capabilities are declared in `Capability` for the operations that exist today; execution, problems, evidence, and handover capabilities follow when those endpoints do.
+
+Attribution columns now carry foreign keys to `users`, so an audit event cannot name a user that does not exist.
+
+Still outstanding: explicit responsibility and delegation scopes, and `assigned only` / `scoped` refinements from the permission matrix. Role is enforced; narrower per-record scoping is not yet.
 
 ## Service-to-Service Authentication
 
