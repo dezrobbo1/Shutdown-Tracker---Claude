@@ -12,20 +12,21 @@ COPY packages/project-export-contract/pom.xml packages/project-export-contract/p
 COPY services/api/pom.xml services/api/pom.xml
 COPY services/project-worker/pom.xml services/project-worker/pom.xml
 
-# The API depends on both shared contract modules, so their sources build with it.
+# The worker depends on both shared contract modules, so their sources build with it.
 COPY packages/project-import-contract/src packages/project-import-contract/src
 COPY packages/project-export-contract/src packages/project-export-contract/src
-COPY services/api/src services/api/src
+COPY services/project-worker/src services/project-worker/src
 
-RUN mvn -B -pl services/api -am -DskipTests package
+RUN mvn -B -pl services/project-worker -am -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-ENV SPRING_PROFILES_ACTIVE=review
-ENV PORT=8080
+ENV PORT=8081
 
-COPY --from=build /workspace/services/api/target/api-*.jar /app/shutdown-tracker-api.jar
+COPY --from=build /workspace/services/project-worker/target/project-worker-*.jar /app/shutdown-tracker-project-worker.jar
 
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/shutdown-tracker-api.jar"]
+# Worker handoff authentication fails closed. Supply the shared secret at run time
+# through SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET; never bake it into the image.
+EXPOSE 8081
+ENTRYPOINT ["java", "-jar", "/app/shutdown-tracker-project-worker.jar"]

@@ -330,3 +330,12 @@ Operations that must be attributed to a person take their actor from the request
 It is disabled by default and fails closed, returning 401. Enable `shutdown-tracker.actor.trusted-header.enabled` only behind a gateway that authenticates the user and overwrites those headers on every inbound request.
 
 Role is recorded in audit for traceability but is not yet enforced as authorization. See [docs/security/authorization-model.md](../../docs/security/authorization-model.md).
+## Container Image
+
+Build from the repository root so the Docker context includes the shared contract modules the API depends on:
+
+```text
+docker build -f services/api/Dockerfile -t shutdown-tracker-api .
+```
+
+The build stage copies every module pom because the root pom declares all modules and the Maven reactor resolves the full module graph before `-pl`/`-am` selects a subset. Omitting the `packages/*` poms fails the build. CI builds this image on every pull request.
