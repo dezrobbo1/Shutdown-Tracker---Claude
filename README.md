@@ -33,7 +33,8 @@ Implemented foundations include:
 
 - Java 21 Spring Boot API and project-worker services;
 - PostgreSQL and Flyway-compatible migrations;
-- immutable Project source/snapshot and imported-entity persistence foundations;
+- immutable Project source/snapshot persistence, including imported tasks, resources,
+  assignments, and aliased custom fields stored from a parsed Project file;
 - MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
 - append-only audit foundations;
@@ -46,7 +47,6 @@ Implemented foundations include:
 Not production-complete yet:
 
 - live task-execution and progress-write workflows;
-- imported-entity persistence from a parsed Project file, which waits on the worker parsed-entities contract described in [docs/architecture/worker-handoff-queue-strategy.md](docs/architecture/worker-handoff-queue-strategy.md);
 - supervisor/planner production review workflows;
 - production authentication and authorization enforcement;
 - mobile offline execution queue;

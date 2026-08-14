@@ -2,6 +2,7 @@ package com.shutdowntracker.api.importbatch.handoff;
 
 import com.shutdowntracker.api.importbatch.ImportBatchRecord;
 import com.shutdowntracker.api.sourcefile.metadata.SourceFileMetadataRecord;
+import com.shutdowntracker.projectimport.contract.ProjectParseEntitiesResponse;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
@@ -21,6 +22,13 @@ public class ProjectParseHandoffService {
             SourceFileMetadataRecord sourceFile
     ) {
         return parseJobClient.requestParseSummary(buildRequest(importBatch, sourceFile));
+    }
+
+    public ProjectParseEntitiesResponse requestParseEntities(
+            ImportBatchRecord importBatch,
+            SourceFileMetadataRecord sourceFile
+    ) {
+        return parseJobClient.requestParseEntities(buildRequest(importBatch, sourceFile));
     }
 
     public ProjectParseSummaryRequest buildRequest(

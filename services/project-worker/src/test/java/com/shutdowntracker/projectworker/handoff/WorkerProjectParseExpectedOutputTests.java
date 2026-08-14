@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
+import com.shutdowntracker.projectworker.importer.MpxjProjectEntityExtractionService;
 import com.shutdowntracker.projectworker.importer.MpxjProjectImportSummaryService;
+import com.shutdowntracker.projectworker.importer.MpxjProjectParseService;
 import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
 import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Files;
@@ -21,6 +23,8 @@ class WorkerProjectParseExpectedOutputTests {
         Path fixtureRoot = repositoryRoot().resolve("fixtures");
         return new WorkerProjectParseHandoffService(
                 new MpxjProjectImportSummaryService(),
+                new MpxjProjectParseService(
+                        new MpxjProjectImportSummaryService(), new MpxjProjectEntityExtractionService()),
                 new WorkerStoragePathResolver(new WorkerStorageProperties(fixtureRoot, fixtureRoot))
         );
     }

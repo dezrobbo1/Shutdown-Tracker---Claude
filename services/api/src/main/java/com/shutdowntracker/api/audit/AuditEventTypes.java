@@ -13,6 +13,7 @@ public final class AuditEventTypes {
     public static final String APPROVAL_REJECTED = "approval_rejected";
     public static final String APPROVAL_CORRECTION_REQUESTED = "approval_correction_requested";
     public static final String IMPORT_BATCH_PARSE_FAILED = "import_batch_parse_failed";
+    public static final String IMPORT_SNAPSHOT_STORED = "import_snapshot_stored";
     public static final String EXPORT_FILE_GENERATION_FAILED = "export_file_generation_failed";
     public static final String EXPORT_PREVIEW_CREATED = "export_preview_created";
     public static final String EXPORT_BATCH_APPROVED = "export_batch_approved";

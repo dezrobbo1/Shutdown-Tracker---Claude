@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.importbatch.handoff;
 
+import com.shutdowntracker.projectimport.contract.ProjectParseEntitiesResponse;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
@@ -18,9 +19,19 @@ public class DisconnectedProjectParseJobClient implements ProjectParseJobClient 
     @Override
     public ProjectParseSummaryResponse requestParseSummary(ProjectParseSummaryRequest request) {
         Objects.requireNonNull(request, "request is required.");
-        throw new UnsupportedOperationException(
-                "Project parse handoff is not connected yet. MPXJ parsing remains in services/project-worker; "
-                        + "the API does not parse files, persist parser output, or create worker jobs."
+        throw notConnected();
+    }
+
+    @Override
+    public ProjectParseEntitiesResponse requestParseEntities(ProjectParseSummaryRequest request) {
+        Objects.requireNonNull(request, "request is required.");
+        throw notConnected();
+    }
+
+    private UnsupportedOperationException notConnected() {
+        return new UnsupportedOperationException(
+                "Project parse handoff is not connected. MPXJ parsing runs in services/project-worker; "
+                        + "set shutdown-tracker.project-parse-worker.enabled=true and point base-url at it."
         );
     }
 }

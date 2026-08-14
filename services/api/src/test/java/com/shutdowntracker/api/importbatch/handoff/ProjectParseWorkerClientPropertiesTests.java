@@ -10,7 +10,7 @@ class ProjectParseWorkerClientPropertiesTests {
     @Test
     void appliesBoundedTimeoutDefaultsWhenUnset() {
         ProjectParseWorkerClientProperties properties =
-                new ProjectParseWorkerClientProperties(null, null, null, null, null);
+                new ProjectParseWorkerClientProperties(null, null, null, null, null, null);
 
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(5));
         assertThat(properties.readTimeout()).isEqualTo(Duration.ofMinutes(2));
@@ -19,6 +19,7 @@ class ProjectParseWorkerClientPropertiesTests {
     @Test
     void keepsConfiguredTimeouts() {
         ProjectParseWorkerClientProperties properties = new ProjectParseWorkerClientProperties(
+                null,
                 null,
                 null,
                 null,
@@ -36,6 +37,7 @@ class ProjectParseWorkerClientPropertiesTests {
                 null,
                 null,
                 null,
+                null,
                 Duration.ZERO,
                 Duration.ofSeconds(-1)
         );
@@ -46,6 +48,6 @@ class ProjectParseWorkerClientPropertiesTests {
 
     @Test
     void treatsBlankSharedSecretAsMissing() {
-        assertThat(new ProjectParseWorkerClientProperties(null, null, "  ", null, null).sharedSecret()).isNull();
+        assertThat(new ProjectParseWorkerClientProperties(null, null, null, "  ", null, null).sharedSecret()).isNull();
     }
 }

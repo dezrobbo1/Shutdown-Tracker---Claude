@@ -55,6 +55,7 @@ class HttpProjectParseJobClientTests {
                         baseUrl,
                         null,
                         null,
+                        null,
                         Duration.ofSeconds(2),
                         Duration.ofMillis(400)
                 )

@@ -7,6 +7,7 @@ import com.shutdowntracker.api.importbatch.ImportBatchRecord;
 import com.shutdowntracker.api.importbatch.ImportBatchStatus;
 import com.shutdowntracker.api.sourcefile.metadata.SourceFileKind;
 import com.shutdowntracker.api.sourcefile.metadata.SourceFileMetadataRecord;
+import com.shutdowntracker.projectimport.contract.ProjectParseEntitiesResponse;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.List;
@@ -74,8 +75,22 @@ class ProjectParseHandoffServiceTests {
                 "synthetic-basic-wbs.mspdi.xml"
         )))
                 .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("MPXJ parsing remains in services/project-worker")
-                .hasMessageContaining("the API does not parse files");
+                .hasMessageContaining("MPXJ parsing runs in services/project-worker")
+                .hasMessageContaining("shutdown-tracker.project-parse-worker.enabled=true");
+    }
+
+    @Test
+    void defaultClientAlsoRefusesEntityParsing() {
+        DisconnectedProjectParseJobClient client = new DisconnectedProjectParseJobClient();
+
+        assertThatThrownBy(() -> client.requestParseEntities(new ProjectParseSummaryRequest(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "file:///synthetic/source/synthetic-basic-wbs.mspdi.xml",
+                "synthetic-basic-wbs.mspdi.xml"
+        )))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private ImportBatchRecord importBatch(UUID importBatchId, UUID projectId, UUID sourceFileId) {
@@ -133,6 +148,12 @@ class ProjectParseHandoffServiceTests {
                     0,
                     List.of("Summary only; no schedule calculations were run.")
             );
+        }
+
+        @Override
+        public ProjectParseEntitiesResponse requestParseEntities(ProjectParseSummaryRequest request) {
+            return new ProjectParseEntitiesResponse(
+                    requestParseSummary(request), null, null, List.of(), List.of(), List.of(), List.of());
         }
     }
 }

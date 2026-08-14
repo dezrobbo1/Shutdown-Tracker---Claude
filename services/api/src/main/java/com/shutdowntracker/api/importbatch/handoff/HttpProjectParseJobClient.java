@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.importbatch.handoff;
 
+import com.shutdowntracker.projectimport.contract.ProjectParseEntitiesResponse;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
@@ -17,6 +18,7 @@ public class HttpProjectParseJobClient implements ProjectParseJobClient {
 
     private final RestClient restClient;
     private final String parseSummaryPath;
+    private final String parseEntitiesPath;
 
     public HttpProjectParseJobClient(
             RestClient.Builder restClientBuilder,
@@ -32,6 +34,7 @@ public class HttpProjectParseJobClient implements ProjectParseJobClient {
         }
         this.restClient = builder.build();
         this.parseSummaryPath = properties.parseSummaryPath();
+        this.parseEntitiesPath = properties.parseEntitiesPath();
     }
 
     @Override
@@ -44,5 +47,17 @@ public class HttpProjectParseJobClient implements ProjectParseJobClient {
                 .body(request)
                 .retrieve()
                 .body(ProjectParseSummaryResponse.class);
+    }
+
+    @Override
+    public ProjectParseEntitiesResponse requestParseEntities(ProjectParseSummaryRequest request) {
+        Objects.requireNonNull(request, "request is required.");
+        return restClient.post()
+                .uri(parseEntitiesPath)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ProjectParseEntitiesResponse.class);
     }
 }
