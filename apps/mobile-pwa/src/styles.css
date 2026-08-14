@@ -435,3 +435,70 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Field app additions ------------------------------------------------------ */
+
+.connection-pill.offline {
+  background: #f8e2df;
+  color: #8a3028;
+}
+
+.sync-status-dot.waiting {
+  background: #c9822d;
+}
+
+.sync-status-dot.clear {
+  background: #2f7a5a;
+}
+
+/* A problem the reporter has to see before the report leaves the device. */
+.field-alert {
+  margin: 8px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #f8e2df;
+  color: #8a3028;
+  font-size: 0.88rem;
+}
+
+.sync-queue-side {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  align-content: start;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.checkbox-field input {
+  width: auto;
+  margin-top: 4px;
+}
+
+.progress-form select,
+.progress-form input,
+.progress-form textarea {
+  width: 100%;
+  /* Comfortable for a gloved thumb, and large enough that iOS does not zoom on focus. */
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cdd5c8;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 16px;
+}
+
+.progress-form textarea {
+  min-height: 84px;
+}
+
+.work-card-side button,
+.mobile-action-row button,
+.sync-queue-side button {
+  min-height: 44px;
+}

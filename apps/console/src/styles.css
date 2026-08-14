@@ -833,3 +833,210 @@ button {
     overflow-x: auto;
   }
 }
+
+/* Zones ------------------------------------------------------------------ */
+
+.zone-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .zone-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.zone-column {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+.subheading {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
+}
+
+/* Selectable rows: a row that changes what the neighbouring panel shows must
+   look pressable and report its selected state, not just change colour. */
+.review-row.selectable {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-row.selectable:hover {
+  background: #f2f6f0;
+}
+
+.review-row.selectable.selected {
+  background: #e8f1ec;
+  box-shadow: inset 3px 0 0 #1d473d;
+}
+
+.review-table.dense .review-row {
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+/* An ineligible export line stays visible. Hiding it would let a planner assume
+   everything reviewed made it into the batch. */
+.review-row.ineligible {
+  background: #fbf4f3;
+  color: #6d534f;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-bottom: 12px;
+}
+
+.detail-value {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #e6eae1;
+  border-radius: 6px;
+  background: #fbfcf8;
+}
+
+.detail-value span {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5d6b5f;
+}
+
+.detail-value strong {
+  font-size: 0.95rem;
+}
+
+.queue-list {
+  display: grid;
+  gap: 12px;
+}
+
+.queue-comment {
+  margin: 8px 0;
+  padding-left: 10px;
+  border-left: 3px solid #d7ddd2;
+  color: #3d4a3f;
+  font-style: italic;
+}
+
+/* Write outcomes ---------------------------------------------------------- */
+
+.write-feedback {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #eef1ea;
+  font-size: 0.88rem;
+}
+
+.write-feedback.done {
+  background: #e6f2ea;
+  color: #1d473d;
+}
+
+.write-feedback.failed {
+  background: #f8e2df;
+  color: #8a3028;
+}
+
+.boundary-copy.zone-error {
+  color: #8a3028;
+}
+
+/* Capability gating ------------------------------------------------------- */
+
+.capability-gate fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0.55;
+}
+
+.capability-reason {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #5d6b5f;
+}
+
+/* Session ----------------------------------------------------------------- */
+
+.session-panel {
+  margin-top: auto;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #dbe1d6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.session-panel select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #cdd5c8;
+  border-radius: 6px;
+  background: #fbfcf8;
+  font: inherit;
+}
+
+.session-note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: #5d6b5f;
+}
+
+.connection-pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f1ec;
+  color: #1d473d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Forms ------------------------------------------------------------------- */
+
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.checkbox-field input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.progress-form select,
+.progress-form input,
+.progress-form textarea {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid #cdd5c8;
+  border-radius: 6px;
+  background: #fbfcf8;
+  font: inherit;
+}
+
+.nav-item {
+  text-decoration: none;
+}

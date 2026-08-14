@@ -46,7 +46,14 @@ Implemented foundations include:
 - versioned Import Profiles and Operational Categories resolved from task fields, summary
   ancestry, and assigned-resource Groups, with mapping health on re-import;
 - Critical Watchlists, Critical Work Packages, and Critical Update reporting;
-- React/Vite Master Console and Mobile Field App visual shells;
+- a Master Console with working import review, execution, supervisor and planner progress
+  review, problems and actions, handover, operational mapping, and controlled export zones,
+  each reading and writing through the API;
+- a Mobile Field App with an offline execution queue: progress is stored on the device before
+  it is sent, carries a device-generated idempotency key so a retry cannot double-report, and
+  shows sync state rather than implying delivery;
+- role-aware controls in both apps, checked against a capability map that a test compares
+  against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
 - synthetic MSPDI regression fixtures and expected-output tests;
 - repository tests that run the migrations and every SQL statement against a real
@@ -55,11 +62,13 @@ Implemented foundations include:
 
 Not production-complete yet:
 
-- Master Console and Field App user interfaces for the workflows above; both apps are
-  still read-only shells against synthetic data;
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
-- mobile offline execution queue;
+- Critical Watch has no HTTP surface yet; the service and repository exist but no controller
+  exposes them, so the console cannot reach them;
+- evidence capture in the field app, and evidence binary upload in either app;
+- assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
+  rather than only the work assigned to the signed-in user;
 - Saved Operational Views and global operational Scope;
 - reporting policy cadences and generated reporting periods;
 - production object storage;

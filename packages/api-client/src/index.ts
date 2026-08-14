@@ -1,3 +1,5 @@
+export * from "./identity";
+
 export type JsonObject = Record<string, unknown>;
 
 export type ProjectSnapshotStatus = "PARSED" | "ACCEPTED" | "REJECTED" | "SUPERSEDED" | "FAILED";
