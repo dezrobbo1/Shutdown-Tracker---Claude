@@ -129,7 +129,11 @@ npm test
 npm run build
 ```
 
-Database migration validation:
+`mvn test` includes repository tests that start a real PostgreSQL server and apply
+`infra/migrations` to it. Docker is not required: the server binary is unpacked from a
+Maven artifact, so the same tests run locally and in CI.
+
+Static migration linting (naming and content checks only):
 
 ```text
 ./scripts/db/validate-migrations.sh
