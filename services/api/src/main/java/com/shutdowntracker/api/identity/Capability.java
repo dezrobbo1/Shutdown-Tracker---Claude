@@ -39,6 +39,29 @@ public enum Capability {
     // is why it does not include the planner-only export capabilities above.
     REVIEW_TASK_PROGRESS(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
     PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER),
+
+    // Operational records. Anyone doing the work can raise a problem or capture evidence;
+    // deciding what happens to a problem is a coordination responsibility.
+    RAISE_PROBLEM(
+            ProjectRole.FIELD_USER,
+            ProjectRole.CONTRACTOR,
+            ProjectRole.SUPERVISOR,
+            ProjectRole.COORDINATOR,
+            ProjectRole.SHUTDOWN_CONTROL,
+            ProjectRole.INSPECTOR,
+            ProjectRole.PLANNER),
+    MANAGE_PROBLEM(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
+    MANAGE_ACTION(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
+    CAPTURE_EVIDENCE(
+            ProjectRole.FIELD_USER,
+            ProjectRole.CONTRACTOR,
+            ProjectRole.SUPERVISOR,
+            ProjectRole.INSPECTOR),
+    RECORD_HANDOVER(
+            ProjectRole.FIELD_USER,
+            ProjectRole.SUPERVISOR,
+            ProjectRole.COORDINATOR,
+            ProjectRole.SHUTDOWN_CONTROL),
     VIEW_PROJECT(
             ProjectRole.ADMIN,
             ProjectRole.PLANNER,

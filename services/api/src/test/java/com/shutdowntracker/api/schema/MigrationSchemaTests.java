@@ -31,7 +31,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "V005__approval_and_export_batches.sql",
                         "V006__critical_watchlists_reporting.sql",
                         "V007__users_roles_and_memberships.sql",
-                        "V008__task_execution_and_progress.sql");
+                        "V008__task_execution_and_progress.sql",
+                        "V009__problems_actions_evidence_handover.sql");
     }
 
     @Test
