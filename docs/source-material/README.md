@@ -8,8 +8,9 @@ The curated and authoritative documentation remains under `docs/product`, `docs/
 
 - `inbox/` — temporary landing area for newly uploaded source bundles.
 - `research/` — catalogue of research reports and deep-research source documents.
-- `reference/` — catalogue of project history, design/review material, and real Microsoft Project reference schedules.
+- `reference/` — catalogue of project history, design/review material, prototype notes, and real Microsoft Project reference schedules.
 - `archive/` — immutable source bundles preserved as uploaded.
+- `source-disposition.md` — cleanup/status register showing which sources are primary, overlapping, historical, archive-only, or external historical artefacts.
 
 ## Current source bundle
 
@@ -19,4 +20,6 @@ It contains 22 source files split internally into `research/` and `reference/`, 
 
 The archive is retained as the canonical raw package because several Project XML files are large and highly compressible. This avoids duplicating tens of megabytes of raw schedule XML in Git while preserving the original files and checksums.
 
-See the category catalogues for the file inventory and purpose of each source group.
+The raw archive is intentionally not edited during cleanup. Instead, the catalogues and source-disposition register identify misleading names, low-value artefacts, overlap, preferred research packets, and historical-only material.
+
+See the category catalogues and `source-disposition.md` before using a raw source for current product or architecture work.
