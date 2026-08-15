@@ -5,6 +5,8 @@ import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummary;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummaryService;
 import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
+import java.nio.file.Path;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,17 @@ public class WorkerProjectParseHandoffService {
     ) {
         this.summaryService = summaryService;
         this.storagePathResolver = storagePathResolver;
+    }
+
+    /** Package-private compatibility constructor for existing isolated unit tests only. */
+    WorkerProjectParseHandoffService(ProjectImportSummaryService summaryService) {
+        this(
+                summaryService,
+                new WorkerStoragePathResolver(new WorkerStorageProperties(
+                        Path.of("").toAbsolutePath().normalize(),
+                        Path.of(System.getProperty("java.io.tmpdir"))
+                ))
+        );
     }
 
     public ProjectParseSummaryResponse summarize(ProjectParseSummaryRequest request) {

@@ -5,6 +5,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGeneratio
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectworker.exporter.ProjectExportArtifactService;
 import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,17 @@ public class WorkerProjectExportArtifactHandoffService {
     ) {
         this.exportArtifactService = exportArtifactService;
         this.storagePathResolver = storagePathResolver;
+    }
+
+    /** Package-private compatibility constructor for existing isolated unit tests only. */
+    WorkerProjectExportArtifactHandoffService(ProjectExportArtifactService exportArtifactService) {
+        this(
+                exportArtifactService,
+                new WorkerStoragePathResolver(new WorkerStorageProperties(
+                        Path.of(System.getProperty("java.io.tmpdir")),
+                        Path.of(System.getProperty("java.io.tmpdir"))
+                ))
+        );
     }
 
     public ProjectExportArtifactGenerationResponse generateArtifact(ProjectExportArtifactGenerationRequest request) {

@@ -5,3 +5,7 @@ spring:
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   flyway:
     enabled: false
+
+shutdown-tracker:
+  worker-auth:
+    enabled: false
