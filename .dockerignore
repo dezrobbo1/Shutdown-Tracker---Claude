@@ -1,0 +1,43 @@
+# Keep build context small and free of local build output, dependencies, source archives, and secrets.
+.git/
+.github/
+
+# Java build output
+target/
+**/target/
+*.jar
+*.war
+
+# Node build output and dependencies
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+*.tsbuildinfo
+
+# Local runtime data and generated artifacts
+.shutdown-tracker/
+local-data/
+uploads/
+exports/
+logs/
+*.log
+fixtures/import-export/_local/
+
+# Source archives may contain real Microsoft Project schedules and must never enter a Docker build context.
+docs/source-material/archive/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+.DS_Store
