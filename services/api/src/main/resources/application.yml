@@ -20,12 +20,6 @@ management:
 shutdown-tracker:
   persistence:
     enabled: false
-  actor:
-    trusted-header:
-      # Disabled by default and fails closed: operations that must be attributed to a user return 401.
-      # Enable ONLY behind a gateway that authenticates the user and overwrites these headers on every
-      # inbound request. See docs/security/authorization-model.md.
-      enabled: ${SHUTDOWN_TRACKER_ACTOR_TRUSTED_HEADER_ENABLED:false}
   source-file-validation:
     max-size-bytes: 52428800
   source-file-storage:
@@ -34,16 +28,10 @@ shutdown-tracker:
     enabled: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED:false}
     base-url: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_BASE_URL:http://localhost:8081}
     parse-summary-path: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_PARSE_SUMMARY_PATH:/worker/project-import/parse-summary}
-    shared-secret: ${SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET:}
-    connect-timeout: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_CONNECT_TIMEOUT:5s}
-    read-timeout: ${SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_READ_TIMEOUT:2m}
   project-export-worker:
     enabled: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_ENABLED:false}
     base-url: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_BASE_URL:http://localhost:8081}
     generate-artifact-path: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_GENERATE_ARTIFACT_PATH:/worker/project-export/generate-artifact}
-    shared-secret: ${SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET:}
-    connect-timeout: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_CONNECT_TIMEOUT:5s}
-    read-timeout: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_READ_TIMEOUT:2m}
   export-artifact-storage:
     local-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT:.shutdown-tracker/export-artifacts}
   review-project-bootstrap:

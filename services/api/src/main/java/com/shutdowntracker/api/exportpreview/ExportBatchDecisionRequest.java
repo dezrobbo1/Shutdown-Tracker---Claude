@@ -3,11 +3,10 @@ package com.shutdowntracker.api.exportpreview;
 import static com.shutdowntracker.api.exportpreview.ExportPreviewRecordValidation.immutableObjectMap;
 
 import java.util.Map;
+import java.util.UUID;
 
-/**
- * Reviewer identity is deliberately absent: it comes from the authenticated request actor, not the body.
- */
 public record ExportBatchDecisionRequest(
+        UUID reviewedByUserId,
         String reason,
         Map<String, Object> metadata
 ) {
@@ -16,6 +15,6 @@ public record ExportBatchDecisionRequest(
     }
 
     public static ExportBatchDecisionRequest empty() {
-        return new ExportBatchDecisionRequest(null, null);
+        return new ExportBatchDecisionRequest(null, null, null);
     }
 }

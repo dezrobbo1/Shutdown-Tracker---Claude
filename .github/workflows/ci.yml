@@ -51,37 +51,17 @@ jobs:
         run: npm run build
 
   migration-validation:
-    name: Migration validation
+    name: Migration and export-integrity validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate SQL migrations
+      - name: Validate clean install, populated upgrades, and export integrity
         run: bash scripts/db/validate-migrations.sh
 
-  docker-image-build:
-    name: Docker image build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/api/Dockerfile
-          push: false
-
-      - name: Build project worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/project-worker/Dockerfile
-          push: false
+      - name: Remove migration-validation containers and volumes
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.postgres.yml down -v

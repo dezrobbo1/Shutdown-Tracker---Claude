@@ -90,28 +90,6 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
     }
 
     @Override
-    public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
-        // import_batches has no failure column; parse_summary is the documented home for parse metadata.
-        String sql = """
-                UPDATE import_batches
-                SET status = CAST('failed' AS import_batch_status),
-                    completed_at = COALESCE(completed_at, now()),
-                    error_count = GREATEST(error_count, 1),
-                    parse_summary = parse_summary || CAST(:failure AS jsonb)
-                WHERE id = :id
-                RETURNING id, project_id, source_file_id, status, parser_name, parser_version, warning_count, error_count
-                """;
-
-        return jdbcTemplate.queryForObject(
-                sql,
-                new MapSqlParameterSource()
-                        .addValue("id", importBatchId)
-                        .addValue("failure", toJson(Map.of("failureReason", failureReason))),
-                this::mapRecord
-        );
-    }
-
-    @Override
     public ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update) {
         String sql = """
                 UPDATE import_batches
@@ -150,14 +128,6 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
                 rs.getInt("warning_count"),
                 rs.getInt("error_count")
         );
-    }
-
-    private String toJson(Map<String, Object> value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Failed to serialize import batch failure metadata.", exception);
-        }
     }
 
     private String toJson(ImportBatchParseSummary parseSummary) {

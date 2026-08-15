@@ -19,6 +19,8 @@ From the repository root:
 
 The PowerShell script checks `PATH` first and then falls back to common Docker Desktop install locations, including per-user installs under `%LOCALAPPDATA%\Programs\DockerDesktop`.
 
+Both platform wrappers invoke the same read-only-mounted POSIX integrity runner inside the PostgreSQL container, so the SQL fixtures, assertions, and concurrency behavior do not diverge by host shell.
+
 ## POSIX Shell
 
 From the repository root:
@@ -32,11 +34,16 @@ From the repository root:
 - Start a local PostgreSQL container using `infra/docker/docker-compose.postgres.yml`.
 - Reset the validation database volume before applying migrations.
 - Wait for PostgreSQL readiness.
-- Apply all `infra/migrations/V*.sql` files in sorted version order.
-- Fail fast on SQL errors.
-- Verify the expected baseline tables exist after migration.
+- Apply each `infra/migrations/V*.sql` file in sorted version order as its own PostgreSQL transaction.
+- Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
+- Verify the expected 21 baseline tables exist after migration.
+- Upgrade populated synthetic V006 history through V007 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
+- Exercise current policy-1 approval-neutral candidate creation, trusted fingerprints, separate exact candidate-bound approval history, candidate-ID-only preview lines, field and leaf authority, duplicates, sealing, deterministic latest-event ordering, and baseline freshness.
+- Prove same-state lifecycle rewrite rejection; immutable approval/generation/open/verification actor and time facts; immutable artifact URI/hash; collision-proof sectioned metadata; transition piggyback rejection; authoritative Microsoft Project open identity; and terminal-state immutability.
+- Prove task mutation versus candidate approval, line-versus-seal, concurrent duplicate, approval versus batch approval/generation, snapshot/task mutation versus generation, worker-failure rollback, and stable reversed multi-source contention behavior with separately synchronized PostgreSQL sessions.
+- Intentionally fail V007 near the end of its transaction and verify that it leaves no partial V007 objects while V006 data remains intact.
 
-The scripts do not insert seed data and do not run application code.
+The populated data is fixed, synthetic validation data created only in temporary databases inside the local validation container. The suite does not run application code, create Project artifacts, or use operational data. Concurrency synchronization uses PostgreSQL locks and `pg_blocking_pids`, rather than assuming that a timed delay proves blocking.
 
 ## Reset
 
@@ -46,7 +53,7 @@ To manually reset the local validation container and volume:
 docker compose -f infra/docker/docker-compose.postgres.yml down -v
 ```
 
-The validation scripts already run this reset before applying migrations.
+The validation scripts run this reset before applying migrations and again from their exit cleanup, including when validation fails. CI uses the same wrapper and cleanup behavior.
 
 ## Boundary
 

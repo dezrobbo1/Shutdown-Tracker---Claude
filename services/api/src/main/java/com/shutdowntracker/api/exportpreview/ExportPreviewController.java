@@ -1,6 +1,5 @@
 package com.shutdowntracker.api.exportpreview;
 
-import com.shutdowntracker.api.actor.Actor;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,10 +23,9 @@ public class ExportPreviewController {
     @PostMapping
     public ExportPreviewDetail createPreview(
             @PathVariable UUID projectId,
-            Actor actor,
             @RequestBody ExportPreviewCreateRequest request
     ) {
-        return service.createPreview(projectId, actor, request);
+        return service.createPreview(projectId, request);
     }
 
     @GetMapping("/{exportBatchId}")
@@ -42,49 +40,35 @@ public class ExportPreviewController {
     public ExportPreviewDetail approveBatch(
             @PathVariable UUID projectId,
             @PathVariable UUID exportBatchId,
-            Actor actor,
             @RequestBody(required = false) ExportBatchDecisionRequest request
     ) {
-        return service.approveBatch(projectId, exportBatchId, actor, request);
+        return service.approveBatch(projectId, exportBatchId, request);
     }
 
     @PostMapping("/{exportBatchId}/reject")
     public ExportPreviewDetail rejectBatch(
             @PathVariable UUID projectId,
             @PathVariable UUID exportBatchId,
-            Actor actor,
             @RequestBody(required = false) ExportBatchDecisionRequest request
     ) {
-        return service.rejectBatch(projectId, exportBatchId, actor, request);
-    }
-
-    @PostMapping("/{exportBatchId}/mark-generated")
-    public ExportPreviewDetail markGenerated(
-            @PathVariable UUID projectId,
-            @PathVariable UUID exportBatchId,
-            Actor actor,
-            @RequestBody ExportBatchGeneratedRequest request
-    ) {
-        return service.markGenerated(projectId, exportBatchId, actor, request);
+        return service.rejectBatch(projectId, exportBatchId, request);
     }
 
     @PostMapping("/{exportBatchId}/mark-opened-in-microsoft-project")
     public ExportPreviewDetail markOpenedInMicrosoftProject(
             @PathVariable UUID projectId,
             @PathVariable UUID exportBatchId,
-            Actor actor,
-            @RequestBody(required = false) ExportBatchProjectOpenRequest request
+            @RequestBody ExportBatchProjectOpenRequest request
     ) {
-        return service.markOpenedInMicrosoftProject(projectId, exportBatchId, actor, request);
+        return service.markOpenedInMicrosoftProject(projectId, exportBatchId, request);
     }
 
     @PostMapping("/{exportBatchId}/verify")
     public ExportPreviewDetail verifyBatch(
             @PathVariable UUID projectId,
             @PathVariable UUID exportBatchId,
-            Actor actor,
-            @RequestBody(required = false) ExportBatchVerificationRequest request
+            @RequestBody ExportBatchVerificationRequest request
     ) {
-        return service.verifyBatch(projectId, exportBatchId, actor, request);
+        return service.verifyBatch(projectId, exportBatchId, request);
     }
 }

@@ -7,6 +7,11 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 $ComposeFile = Join-Path $RepoRoot "infra\docker\docker-compose.postgres.yml"
 $MigrationsDir = Join-Path $RepoRoot "infra\migrations"
+$Migrations = @(Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" | Sort-Object Name)
+
+if ($Migrations.Count -ne 7 -or $Migrations[-1].Name -ne "V007__enforce_export_candidate_integrity.sql") {
+    throw "Expected exactly V001-V007 ending with V007__enforce_export_candidate_integrity.sql."
+}
 
 $ExpectedTables = @(
     "projects",
@@ -22,6 +27,7 @@ $ExpectedTables = @(
     "approval_records",
     "export_batches",
     "export_batch_lines",
+    "export_candidate_records",
     "critical_watchlists",
     "critical_work_packages",
     "critical_work_package_sources",
@@ -65,8 +71,12 @@ function Test-PostgresSqlReady {
     }
 }
 
+$CleanupRequired = $false
+
+try {
 Write-Host "Resetting local PostgreSQL validation database..."
 Invoke-Compose @("down", "-v")
+$CleanupRequired = $true
 Invoke-Compose @("up", "-d")
 
 Write-Host "Waiting for PostgreSQL to become ready..."
@@ -90,11 +100,10 @@ if (-not $ready) {
     throw "PostgreSQL did not become ready in time."
 }
 
-Write-Host "Applying migrations..."
-$Migrations = Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" | Sort-Object Name
+Write-Host "Applying exactly V001-V007..."
 foreach ($Migration in $Migrations) {
     Write-Host "Applying $($Migration.Name)"
-    Invoke-Compose @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")
+    Invoke-Compose @("exec", "-T", "postgres", "psql", "--single-transaction", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")
 }
 
 Write-Host "Verifying expected tables..."
@@ -112,4 +121,23 @@ foreach ($Table in $ExpectedTables) {
     Write-Host "Verified table: $Table"
 }
 
+Write-Host "Running populated-upgrade and PostgreSQL export-integrity validation..."
+Invoke-Compose @(
+    "exec",
+    "-T",
+    "postgres",
+    "sh",
+    "-c",
+    "tr -d '\015' < /validation/validation/run-export-integrity-suite.sh | sh"
+)
+
 Write-Host "Migration validation passed."
+} finally {
+    if ($CleanupRequired) {
+        try {
+            Invoke-Compose @("down", "-v")
+        } catch {
+            Write-Warning "Failed to remove the migration-validation container and volume: $($_.Exception.Message)"
+        }
+    }
+}

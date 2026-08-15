@@ -15,13 +15,12 @@ class ExportPreviewCreateRequestTests {
     void defaultsMissingMetadataToEmptyObjects() {
         ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
-                List.of(line(null)),
+                List.of(line()),
                 null
         );
 
         assertThat(request.metadata()).isEmpty();
-        assertThat(request.lines()).hasSize(1);
-        assertThat(request.lines().getFirst().metadata()).isEmpty();
+        assertThat(request.candidateIds()).hasSize(1);
     }
 
     @Test
@@ -29,14 +28,14 @@ class ExportPreviewCreateRequestTests {
         Map<String, Object> metadata = Map.of("source", "synthetic-export-preview");
         ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
-                List.of(line(metadata)),
+                List.of(line()),
                 metadata
         );
 
         assertThat(request.metadata()).containsEntry("source", "synthetic-export-preview");
         assertThatThrownBy(() -> request.metadata().put("extra", "not allowed"))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> request.lines().add(line(null)))
+        assertThatThrownBy(() -> request.candidateIds().add(line()))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
@@ -44,24 +43,53 @@ class ExportPreviewCreateRequestTests {
     void rejectsEmptyPreviewLineList() {
         assertThatThrownBy(() -> new ExportPreviewCreateRequest(UUID.randomUUID(), List.of(), Map.of()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("At least one export preview line is required.");
+                .hasMessage("At least one authoritative export candidate is required.");
     }
 
     @Test
-    void rejectsUnsupportedFieldNames() {
-        assertThatThrownBy(() -> new ExportPreviewLineCreateRequest(
+    void rejectsDuplicateAuthoritativeCandidateIds() {
+        UUID candidateId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(
                 UUID.randomUUID(),
-                "task_update",
-                UUID.randomUUID(),
-                "planned_start",
-                "2026-01-01T08:00:00Z",
-                UUID.randomUUID(),
-                null,
-                "Synthetic reason",
+                List.of(
+                        candidateId,
+                        candidateId
+                ),
                 Map.of()
         ))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Unsupported export preview field: planned_start");
+                .hasMessage(
+                        "Duplicate authoritative export candidate '"
+                                + candidateId
+                                + "'."
+                );
+    }
+
+    @Test
+    void allowsDifferentAuthoritativeCandidates() {
+
+        ExportPreviewCreateRequest request = new ExportPreviewCreateRequest(
+                UUID.randomUUID(),
+                List.of(
+                        line(),
+                        line()
+                ),
+                Map.of()
+        );
+
+        assertThat(request.candidateIds()).hasSize(2);
+    }
+
+    @Test
+    void rejectsMissingAuthoritativeCandidateId() {
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(
+                UUID.randomUUID(),
+                java.util.Collections.singletonList(null),
+                Map.of()
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("candidateIds must not contain null values.");
     }
 
     @Test
@@ -69,14 +97,14 @@ class ExportPreviewCreateRequestTests {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(null, "not allowed");
 
-        assertThatThrownBy(() -> line(metadata))
+        assertThatThrownBy(() -> new ExportPreviewCreateRequest(UUID.randomUUID(), List.of(line()), metadata))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("metadata must not contain null keys.");
     }
 
     @Test
     void defaultsExportBatchDecisionMetadataToEmptyObject() {
-        ExportBatchDecisionRequest request = new ExportBatchDecisionRequest("Synthetic reason", null);
+        ExportBatchDecisionRequest request = new ExportBatchDecisionRequest(UUID.randomUUID(), "Synthetic reason", null);
 
         assertThat(request.metadata()).isEmpty();
     }
@@ -86,6 +114,7 @@ class ExportPreviewCreateRequestTests {
         assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
                 "",
                 "sha256:synthetic",
+                UUID.randomUUID(),
                 "Synthetic reason",
                 null
         ))
@@ -95,6 +124,7 @@ class ExportPreviewCreateRequestTests {
         assertThatThrownBy(() -> new ExportBatchGeneratedRequest(
                 "object://synthetic/export-batches/export-1.mspdi.xml",
                 " ",
+                UUID.randomUUID(),
                 "Synthetic reason",
                 null
         ))
@@ -103,34 +133,28 @@ class ExportPreviewCreateRequestTests {
     }
 
     @Test
-    void projectOpenRequestCarriesNoActorIdentity() {
-        ExportBatchProjectOpenRequest request =
-                new ExportBatchProjectOpenRequest("Synthetic Microsoft Project reopen", null);
-
-        assertThat(request.reason()).isEqualTo("Synthetic Microsoft Project reopen");
-        assertThat(request.metadata()).isEmpty();
+    void rejectsProjectOpenRequestWithoutActor() {
+        assertThatThrownBy(() -> new ExportBatchProjectOpenRequest(
+                null,
+                "Synthetic Microsoft Project reopen",
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("openedByUserId is required.");
     }
 
     @Test
-    void verificationRequestCarriesNoActorIdentity() {
-        ExportBatchVerificationRequest request =
-                new ExportBatchVerificationRequest("Synthetic manual verification complete", null);
-
-        assertThat(request.reason()).isEqualTo("Synthetic manual verification complete");
-        assertThat(request.metadata()).isEmpty();
+    void rejectsVerificationRequestWithoutActor() {
+        assertThatThrownBy(() -> new ExportBatchVerificationRequest(
+                null,
+                "Synthetic manual verification complete",
+                null
+        ))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("verifiedByUserId is required.");
     }
 
-    private ExportPreviewLineCreateRequest line(Map<String, Object> metadata) {
-        return new ExportPreviewLineCreateRequest(
-                UUID.randomUUID(),
-                "task_update",
-                UUID.randomUUID(),
-                "percent_complete",
-                "50",
-                UUID.randomUUID(),
-                null,
-                "Synthetic reason",
-                metadata
-        );
+    private UUID line() {
+        return UUID.randomUUID();
     }
 }

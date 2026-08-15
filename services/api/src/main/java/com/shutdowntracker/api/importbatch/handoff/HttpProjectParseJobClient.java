@@ -4,9 +4,6 @@ import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.web.client.ClientHttpRequestFactories;
-import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -22,15 +19,9 @@ public class HttpProjectParseJobClient implements ProjectParseJobClient {
             RestClient.Builder restClientBuilder,
             ProjectParseWorkerClientProperties properties
     ) {
-        RestClient.Builder builder = restClientBuilder
+        this.restClient = restClientBuilder
                 .baseUrl(properties.baseUrl())
-                .requestFactory(ClientHttpRequestFactories.get(ClientHttpRequestFactorySettings.DEFAULTS
-                        .withConnectTimeout(properties.connectTimeout())
-                        .withReadTimeout(properties.readTimeout())));
-        if (properties.sharedSecret() != null) {
-            builder = builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.sharedSecret());
-        }
-        this.restClient = builder.build();
+                .build();
         this.parseSummaryPath = properties.parseSummaryPath();
     }
 

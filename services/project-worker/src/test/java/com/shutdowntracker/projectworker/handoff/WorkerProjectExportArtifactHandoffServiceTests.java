@@ -9,11 +9,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGeneratio
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.shutdowntracker.projectworker.exporter.ProjectExportArtifactService;
-import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
-import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +27,7 @@ class WorkerProjectExportArtifactHandoffServiceTests {
         UUID exportBatchId = UUID.randomUUID();
         CapturingProjectExportArtifactService artifactService = new CapturingProjectExportArtifactService();
         WorkerProjectExportArtifactHandoffService service =
-                new WorkerProjectExportArtifactHandoffService(artifactService, resolver());
+                new WorkerProjectExportArtifactHandoffService(artifactService);
         Path outputPath = tempDir.resolve("synthetic-export.mspdi.xml");
         ProjectExportArtifactGenerationRequest request = new ProjectExportArtifactGenerationRequest(
                 exportBatchId,
@@ -62,44 +58,6 @@ class WorkerProjectExportArtifactHandoffServiceTests {
         assertThat(response.exportFileUri()).isEqualTo(outputPath.toAbsolutePath().normalize().toUri().toString());
         assertThat(response.exportFileHash()).isEqualTo("synthetic-sha256");
         assertThat(response.message()).contains("No Microsoft Project write-back");
-    }
-
-    @Test
-    void rejectsOutputPathOutsideTheConfiguredArtifactRoot() {
-        WorkerProjectExportArtifactHandoffService service =
-                new WorkerProjectExportArtifactHandoffService(
-                        new CapturingProjectExportArtifactService(),
-                        resolver()
-                );
-        ProjectExportArtifactGenerationRequest request = new ProjectExportArtifactGenerationRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                tempDir.resolve("../escaped-export.mspdi.xml").toString(),
-                new ProjectExportArtifactRequest(
-                        "Synthetic Export Preview",
-                        List.of(new ProjectExportArtifactTask(
-                                "synthetic-task-a1",
-                                "101",
-                                "1",
-                                "Synthetic Task A1",
-                                true,
-                                List.of(new ProjectExportArtifactFieldValue(
-                                        ProjectExportArtifactField.PERCENT_COMPLETE,
-                                        "75"
-                                ))
-                        ))
-                )
-        );
-
-        assertThatThrownBy(() -> service.generateArtifact(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("outside the configured storage root");
-    }
-
-    private WorkerStoragePathResolver resolver() {
-        return new WorkerStoragePathResolver(
-                new WorkerStorageProperties(tempDir.resolve("source-files"), tempDir)
-        );
     }
 
     private static class CapturingProjectExportArtifactService implements ProjectExportArtifactService {

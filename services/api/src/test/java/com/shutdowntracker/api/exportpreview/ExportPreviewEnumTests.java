@@ -11,6 +11,14 @@ import org.junit.jupiter.api.Test;
 class ExportPreviewEnumTests {
 
     @Test
+    void usesCorrectedV007PolicyOneAsTheOnlyCurrentPolicy() {
+        assertThat(ExportIntegrityPolicy.CURRENT_VERSION).isEqualTo(1);
+        assertThat(ExportIntegrityPolicy.isCurrent(1)).isTrue();
+        assertThat(ExportIntegrityPolicy.isCurrent(2)).isFalse();
+        assertThat(ExportIntegrityPolicy.isCurrent(null)).isFalse();
+    }
+
+    @Test
     void mapsExistingApprovalStates() {
         assertThat(ApprovalState.fromDatabaseValue("approved_for_export"))
                 .isEqualTo(ApprovalState.APPROVED_FOR_EXPORT);
@@ -31,6 +39,10 @@ class ExportPreviewEnumTests {
                 .isEqualTo(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE);
         assertThat(ExportPreviewField.fromFieldName("actual_start")).isEqualTo(ExportPreviewField.ACTUAL_START);
         assertThat(ExportPreviewField.fromFieldName("actual_finish")).isEqualTo(ExportPreviewField.ACTUAL_FINISH);
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.ACTUAL_START.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.ACTUAL_FINISH.mvpExportAuthorized()).isTrue();
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.mvpExportAuthorized()).isFalse();
     }
 
     @Test
@@ -46,19 +58,44 @@ class ExportPreviewEnumTests {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                "SYN-TASK-1",
+                "101",
                 "1",
                 "Synthetic Task A1",
                 false,
                 new BigDecimal("25.50"),
                 new BigDecimal("30.00"),
-                OffsetDateTime.parse("2026-01-01T08:00:00Z"),
+                OffsetDateTime.parse("2026-01-01T08:00:00.123456Z"),
                 OffsetDateTime.parse("2026-01-01T10:00:00Z")
         );
 
-        assertThat(ExportPreviewField.PERCENT_COMPLETE.oldValue(task)).isEqualTo("25.50");
-        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.oldValue(task)).isEqualTo("30.00");
-        assertThat(ExportPreviewField.ACTUAL_START.oldValue(task)).isEqualTo("2026-01-01T08:00Z");
-        assertThat(ExportPreviewField.ACTUAL_FINISH.oldValue(task)).isEqualTo("2026-01-01T10:00Z");
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.oldValue(task)).isEqualTo("25.5");
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.oldValue(task)).isEqualTo("30");
+        assertThat(ExportPreviewField.ACTUAL_START.oldValue(task)).isEqualTo("2026-01-01T08:00:00.123456Z");
+        assertThat(ExportPreviewField.ACTUAL_FINISH.oldValue(task)).isEqualTo("2026-01-01T10:00:00Z");
+    }
+
+    @Test
+    void normalizesCandidateValuesDeterministically() {
+        assertThat(ExportPreviewField.PERCENT_COMPLETE.normalizeValue("075.00")).isEqualTo("75");
+        assertThat(ExportPreviewField.PHYSICAL_PERCENT_COMPLETE.normalizeValue("30.500")).isEqualTo("30.5");
+        assertThat(ExportPreviewField.ACTUAL_START.normalizeValue("2026-01-01T16:00:00+08:00"))
+                .isEqualTo("2026-01-01T16:00:00+08:00");
+        assertThat(ExportPreviewField.ACTUAL_FINISH.normalizeValue("2026-01-01T16:00+08:00"))
+                .isEqualTo("2026-01-01T16:00:00+08:00");
+        assertThatThrownBy(() -> ExportPreviewField.ACTUAL_START.normalizeValue(
+                "2026-01-01T16:00:00.123456+08:00"
+        ))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid candidate value for actual_start.");
+    }
+
+    @Test
+    void rejectsFractionalOrOutOfRangeAuthorizedPercentComplete() {
+        assertThatThrownBy(() -> ExportPreviewField.PERCENT_COMPLETE.normalizeValue("75.5"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid candidate value for percent_complete.");
+        assertThatThrownBy(() -> ExportPreviewField.PERCENT_COMPLETE.normalizeValue("101"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid candidate value for percent_complete.");
     }
 }

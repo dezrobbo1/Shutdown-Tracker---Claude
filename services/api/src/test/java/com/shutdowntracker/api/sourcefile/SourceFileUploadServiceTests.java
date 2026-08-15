@@ -165,9 +165,6 @@ class SourceFileUploadServiceTests {
 
     private static class CapturingImportBatchRepository implements ImportBatchRepository {
 
-        private String parseFailureReason;
-        private UUID failedImportBatchId;
-
         private ImportBatchCreateRequest createRequest;
 
         @Override
@@ -194,22 +191,6 @@ class SourceFileUploadServiceTests {
         public ImportBatchRecord updateStatus(UUID importBatchId, ImportBatchStatus status) {
             throw new UnsupportedOperationException("Status updates are not part of upload orchestration.");
         }
-        @Override
-        public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
-            this.parseFailureReason = failureReason;
-            this.failedImportBatchId = importBatchId;
-            return new ImportBatchRecord(
-                    importBatchId,
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    ImportBatchStatus.FAILED,
-                    null,
-                    null,
-                    0,
-                    1
-            );
-        }
-
 
         @Override
         public ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update) {

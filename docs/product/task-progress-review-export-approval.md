@@ -59,10 +59,10 @@ The current repo already has partial import/export review infrastructure, export
 The missing product bridge is:
 
 ```text
-field task update -> supervisor review -> planner review -> approved export candidate
+field task update -> supervisor review -> authoritative candidate created -> planner candidate approval
 ```
 
-Without this bridge, export preview must be fed by explicit test candidates rather than reviewed live execution records.
+The authoritative-candidate API supplies the export-integrity boundary, but the live field-update and supervisor-review source records do not exist yet. Until that product bridge is implemented, candidate creation must use explicit synthetic or otherwise authorized review provenance rather than reviewed live execution records.
 
 ## Users and responsibilities
 
@@ -205,19 +205,40 @@ Required copy:
 Planner approval marks this progress as eligible for export preview. The master .mpp is not updated.
 ```
 
+## Authoritative export-candidate binding
+
+Candidate creation and candidate approval are separate events. Creating a candidate captures one immutable fact against an accepted project snapshot; it does not imply planner approval or export eligibility. Every later approval, rejection, `correction_requested`, or supersession event identifies that exact candidate. Before `approved_for_export` is appended, the database locks and revalidates the accepted snapshot, task UID/ID/name/leaf state, captured baseline, canonical proposed value, source fingerprint, and candidate identity. Non-authorizing history remains appendable after drift. Current authority is the latest database-ordered event for the candidate, not the latest event for a reusable generic source identity.
+
+The server creates the candidate from the requested accepted snapshot, imported task, recognized field, proposed value, and required source-version identifier, which becomes immutable as part of the candidate. It derives the captured baseline value and Microsoft Project task UID/ID/name/leaf state, canonicalizes the proposed value, and computes the source-event or payload fingerprint from canonical candidate content and provenance. The caller cannot supply the captured baseline, task identity, normalized value, fingerprint, or approval state.
+
+Export-preview requests select authoritative candidate IDs only. The server loads each immutable candidate and separately resolves its exact latest database-ordered candidate-bound approval event. It derives task identity, field, old value, new value, and source identity from the candidate; none of those facts or the approval identity comes from the preview caller. An approval for one candidate cannot authorize another task, field, value, snapshot, project, or source version.
+
+Before candidate approval, preview materialization, batch approval, artifact generation, and generated-metadata recording, the exact referenced snapshot must remain accepted and every candidate must match the current imported snapshot row. A changed old value, task UID, task ID, task name, leaf/summary state, approval identity/state, candidate payload, or source version blocks authorization and requires a fresh candidate or preview as applicable. Final generation holds locks in this order until generated metadata commits: export batch; project snapshot; candidates in stable ID order; imported tasks in stable ID order; then current candidate-bound approval rows in stable candidate/event order. Candidate approval takes the project advisory lock, active export batches in stable order, accepted snapshot, candidate, then imported task before inserting an authorizing event. This is a freshness check only; it does not calculate or reconcile schedule values.
+
+## Candidate value normalization
+
+- `percent_complete` is a whole number from 0 through 100. Equivalent inputs such as `75`, `75.0`, and `075` canonicalize to `75`; fractional values are rejected.
+- Proposed `actual_start` and `actual_finish` values require ISO-8601 minute- or second-precision values with an explicit offset and canonicalize to whole seconds. Omitted seconds become `:00`. A fractional component is accepted only when it contains one through six digits and every digit is zero; that zero-valued fraction canonicalizes away. Non-zero fractions and fractions outside the one-to-six-digit input range are rejected because the MSPDI writer does not preserve them. Canonicalization preserves the reviewed Microsoft Project local wall-clock component and emits one canonical offset form; the worker uses that local component without converting it to UTC. Offset-free and invalid values are rejected.
+- Captured imported `actual_start` and `actual_finish` baselines use a separate canonicalizer that preserves available microsecond precision for freshness comparison. Baseline values are not sent to the worker as proposed values.
+- `physical_percent_complete` may remain readable as internal or historical context, but it is never export eligible and never enters the worker contract or MSPDI/XML artifact.
+- For proposed export values, the API/database boundary and shared contract, worker, and XML checks enforce equivalent canonical rules. Imported actual baselines use the separate precision-preserving baseline canonicalizer.
+
 ## Export preview workflow
 
 Export preview is a planner-facing comparison and approval surface. It must show old value, new value, source, task identity, field, eligibility, and exclusion reason.
 
 Required sequence copy:
 
-```text
-Draft export preview — master .mpp not updated.
-Export batch approved — master .mpp not updated.
-MSPDI/XML artifact generated — master .mpp not updated.
-Planner must manually open/check the artifact in Microsoft Project.
-Verified in Microsoft Project — master .mpp update remains planner-controlled.
-```
+1. Candidate created — master `.mpp` not updated.
+2. Candidate approved — master `.mpp` not updated.
+3. Export preview created — master `.mpp` not updated.
+4. Export batch approved — master `.mpp` not updated.
+5. MSPDI/XML artifact generated — master `.mpp` not updated.
+6. Artifact opened in Microsoft Project — master `.mpp` not updated.
+7. Artifact verified in Microsoft Project — master `.mpp` not updated.
+8. Planner manually updates or saves the master `.mpp` — outside Shutdown Tracker automation.
+
+The manual Microsoft Project round-trip remains pending until a planner completes and records the synthetic artifact check.
 
 ## Microsoft Project verification workflow
 
@@ -244,16 +265,16 @@ Shutdown Tracker records verification metadata only. Saving or updating the mast
 
 ## Re-import and stale candidate handling
 
-Every Microsoft Project re-import creates a new immutable snapshot. Progress candidates submitted against an older snapshot must be revalidated before export.
+Every Microsoft Project re-import creates a new immutable snapshot. A candidate remains bound to the snapshot and imported task identity it captured; it cannot be carried into a later snapshot. Continued export preparation requires a new candidate against the newly accepted snapshot and a new candidate-bound approval.
 
 | Scenario | Behaviour |
 | --- | --- |
-| Same imported task confidently matched | Carry candidate forward with matched lineage |
-| Task renamed but matched | Carry candidate forward with warning |
-| Task moved WBS/summary | Carry candidate forward with lineage warning |
-| Task deleted | Mark candidate orphaned and not exportable |
-| Task replaced | Require planner lineage review |
-| Summary/leaf status changed | Recheck export eligibility |
+| Same imported task confidently matched | Create a new candidate against the newly accepted snapshot and require a new candidate-bound approval; retain the prior candidate as history |
+| Task renamed but matched | Require a new candidate and planner review against the new snapshot; do not reuse the prior candidate or approval |
+| Task moved WBS/summary | Require a new candidate and planner review; summary-task actuals remain ineligible |
+| Task deleted | Retain the prior candidate as orphaned history and keep it non-exportable |
+| Task replaced | Require planner lineage review, then create and approve a new candidate if appropriate |
+| Summary/leaf status changed | Require a new candidate and recheck field authority; summary-task actuals remain ineligible |
 | Snapshot changed after mobile offline capture | Mark conflict and require review before export |
 
 UI copy:
@@ -287,11 +308,11 @@ Minimum audit events for this workflow:
 - `task_progress_correction_requested`;
 - `task_progress_rejected`;
 - `task_progress_superseded`;
-- `planner_review_candidate_created`;
-- `planner_progress_approved_for_export`;
-- `planner_progress_rejected`;
-- `progress_export_candidate_blocked`;
-- `progress_export_candidate_superseded`;
+- `export_candidate_created`;
+- `export_candidate_approved_for_export`;
+- `export_candidate_rejected`;
+- `export_candidate_correction_requested`;
+- `export_candidate_superseded`;
 - `export_preview_created`;
 - `export_batch_approved`;
 - `export_batch_rejected`;

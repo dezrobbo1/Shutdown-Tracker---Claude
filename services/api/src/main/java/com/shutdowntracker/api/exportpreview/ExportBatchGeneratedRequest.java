@@ -4,19 +4,30 @@ import static com.shutdowntracker.api.exportpreview.ExportPreviewRecordValidatio
 import static com.shutdowntracker.api.exportpreview.ExportPreviewRecordValidation.requireText;
 
 import java.util.Map;
+import java.util.UUID;
 
-/**
- * Generating identity is deliberately absent: it comes from the authenticated request actor, not the body.
- */
 public record ExportBatchGeneratedRequest(
         String exportFileUri,
         String exportFileHash,
+        UUID generatedByUserId,
         String reason,
-        Map<String, Object> metadata
+        Map<String, Object> clientMetadata,
+        Map<String, Object> provenance
 ) {
     public ExportBatchGeneratedRequest {
         exportFileUri = requireText(exportFileUri, "exportFileUri is required.");
         exportFileHash = requireText(exportFileHash, "exportFileHash is required.");
-        metadata = immutableObjectMap(metadata, "metadata");
+        clientMetadata = immutableObjectMap(clientMetadata, "clientMetadata");
+        provenance = immutableObjectMap(provenance, "provenance");
+    }
+
+    public ExportBatchGeneratedRequest(
+            String exportFileUri,
+            String exportFileHash,
+            UUID generatedByUserId,
+            String reason,
+            Map<String, Object> clientMetadata
+    ) {
+        this(exportFileUri, exportFileHash, generatedByUserId, reason, clientMetadata, Map.of());
     }
 }

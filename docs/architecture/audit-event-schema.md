@@ -153,12 +153,11 @@ Audit events are append-only. An audit event must not be edited or deleted in or
 - `task_progress_correction_requested`
 - `task_progress_rejected`
 - `task_progress_superseded`
-- `planner_review_candidate_created`
-- `planner_progress_approved_for_export`
-- `planner_progress_rejected`
-- `progress_export_candidate_blocked`
-- `progress_export_candidate_superseded`
-- `task_approved_for_export`
+- `export_candidate_created`
+- `export_candidate_approved_for_export`
+- `export_candidate_rejected`
+- `export_candidate_correction_requested`
+- `export_candidate_superseded`
 
 ### Problems and Actions
 

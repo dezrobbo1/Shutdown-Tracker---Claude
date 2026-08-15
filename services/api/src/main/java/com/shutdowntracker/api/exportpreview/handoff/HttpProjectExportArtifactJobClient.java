@@ -4,9 +4,6 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGeneratio
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.web.client.ClientHttpRequestFactories;
-import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -22,15 +19,9 @@ public class HttpProjectExportArtifactJobClient implements ProjectExportArtifact
             RestClient.Builder restClientBuilder,
             ProjectExportWorkerClientProperties properties
     ) {
-        RestClient.Builder builder = restClientBuilder
+        this.restClient = restClientBuilder
                 .baseUrl(properties.baseUrl())
-                .requestFactory(ClientHttpRequestFactories.get(ClientHttpRequestFactorySettings.DEFAULTS
-                        .withConnectTimeout(properties.connectTimeout())
-                        .withReadTimeout(properties.readTimeout())));
-        if (properties.sharedSecret() != null) {
-            builder = builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.sharedSecret());
-        }
-        this.restClient = builder.build();
+                .build();
         this.generateArtifactPath = properties.generateArtifactPath();
     }
 

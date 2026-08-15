@@ -37,7 +37,6 @@ Implemented foundations include:
 - MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
 - append-only audit foundations;
-- approval-record capture that gates export eligibility, and terminal failure recording for import and export batches;
 - React/Vite Master Console and Mobile Field App visual shells;
 - TypeScript API client and shared Java import/export handoff contracts;
 - synthetic MSPDI regression fixtures and expected-output tests;
@@ -46,7 +45,6 @@ Implemented foundations include:
 Not production-complete yet:
 
 - live task-execution and progress-write workflows;
-- imported-entity persistence from a parsed Project file, which waits on the worker parsed-entities contract described in [docs/architecture/worker-handoff-queue-strategy.md](docs/architecture/worker-handoff-queue-strategy.md);
 - supervisor/planner production review workflows;
 - production authentication and authorization enforcement;
 - mobile offline execution queue;

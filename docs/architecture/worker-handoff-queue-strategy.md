@@ -11,8 +11,6 @@ The repository already has two synchronous, opt-in local handoff paths:
 
 The default API worker clients are disconnected. Local HTTP clients are enabled only through explicit configuration. No queue, background jobs, broker, scheduler, worker persistence, or production object-store provider exists yet.
 
-The handoff hop is authenticated with a service-to-service shared secret, and the worker confines every caller-supplied storage path to configured source-file and export-artifact roots. A future queue transport must preserve both properties: queue messages carry storage references chosen by the API, so a consumer must keep treating those references as untrusted input rather than trusting them because they arrived from the broker.
-
 ## Scope
 
 This strategy covers future asynchronous handoff for:
@@ -91,19 +89,6 @@ Export artifact jobs should reference:
 - request idempotency/correlation key
 
 The existing shared Java contracts should remain the starting point for the HTTP and future queued payloads. If queue envelopes are added, they should wrap those contracts rather than creating a parallel shape.
-
-## Synchronous Call Boundaries
-
-While the handoff is synchronous HTTP, the API must not hold a database transaction across a worker call. A remote call inside a transaction pins a connection for the life of that call and rolls back the state transition that recorded the attempt, so a slow or unreachable worker becomes a database availability problem and leaves no trace of the request.
-
-The current boundaries are:
-
-- `ImportBatchParseHandoffService.requestParseSummary` commits the `pending` to `parsing` transition before calling the worker, then records the returned summary in a separate transaction.
-- `ExportArtifactHandoffService.generateArtifact` reserves the storage target and calls the worker outside any transaction, then records artifact metadata through `ExportPreviewService.markGenerated`, which opens its own transaction.
-
-Both worker clients apply bounded connect and read timeouts. An unbounded client would let a silent worker block an API request thread indefinitely.
-
-One consequence is deliberate and currently unhandled: the worker writes the artifact to disk before the API records it, so a failure between the write and the record leaves an artifact on disk with no matching database row. Terminal-failure recording is the mechanism intended to make that visible; see the failure rules below.
 
 ## Failure and Retry Rules
 

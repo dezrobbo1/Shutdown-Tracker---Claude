@@ -69,34 +69,6 @@ Field users can update assigned work, submit field updates, log problems, upload
 - Viewer / Management may view read-only audit summaries where granted.
 - Security events and permission-change history are protected.
 
-## Actor Resolution and the Authentication Seam
-
-Every operation that must be attributed to a person resolves its actor from the request, never from a request body. A caller cannot assert who approved, generated, opened, or verified an export batch.
-
-`ActorResolver` is the single seam where request-borne identity enters the API. Controllers declare an `Actor` parameter to mark an endpoint as requiring an authenticated user; the resolved actor is what reaches the service layer, the `*_by_user_id` columns, and the audit trail. Audit rows for these operations are recorded with actor type `user` rather than `system`.
-
-The current implementation, `TrustedHeaderActorResolver`, reads gateway-set headers:
-
-- `X-Shutdown-Tracker-Actor-Id`, required, must be a UUID
-- `X-Shutdown-Tracker-Actor-Role`, optional
-- `X-Shutdown-Tracker-Actor-Name`, optional
-
-It is disabled by default and fails closed: with `shutdown-tracker.actor.trusted-header.enabled` unset, these operations return 401 rather than falling back to an anonymous or caller-asserted identity. Enable it only behind a gateway that authenticates the user and overwrites those headers on every inbound request. If clients can reach the API directly, anyone can set the headers and impersonate any actor.
-
-This is an interim seam, not the target model. OIDC token validation should replace `TrustedHeaderActorResolver` behind the same interface without changing controllers or services.
-
-The actor's role is carried into audit events for traceability but is **not** yet enforced as authorization. Project-scoped RBAC, including Planner-only export approval, remains unimplemented; the role field records a claim, it does not gate an action.
-
-## Service-to-Service Authentication
-
-User authentication and service-to-service authentication are separate concerns and must not be conflated.
-
-The API-to-worker handoff hop uses a shared secret presented as `Authorization: Bearer <secret>` on `/worker/**`. It authenticates the calling service only. It carries no user identity, no role, and no project scope, and it never substitutes for the project-scoped RBAC described above. The worker must not make authorization decisions on behalf of a user.
-
-Worker authentication fails closed: the worker refuses to start when authentication is enabled without a configured secret. The secret is supplied through environment configuration and must never be committed.
-
-The worker additionally confines every caller-supplied storage path to its configured source-file and export-artifact roots, so a handoff request cannot make the worker read or write arbitrary local files.
-
 ## Future Tenant Boundary Notes
 
 The baseline assumes project-scoped permissions. If multi-tenant operation is introduced, tenant boundaries must be explicit, audited, and covered by ADR updates before implementation.

@@ -15,6 +15,7 @@ public record ExportPreviewLineRecord(
         String sourceEntityType,
         UUID sourceEntityId,
         ApprovalState approvalState,
+        UUID sourceApprovalRecordId,
         String fieldName,
         String oldValue,
         String newValue,
@@ -22,6 +23,10 @@ public record ExportPreviewLineRecord(
         OffsetDateTime sourceTimestamp,
         String reason,
         boolean leafTask,
-        boolean exportEligible
+        boolean exportEligible,
+        Integer integrityPolicyVersion,
+        UUID authoritativeExportCandidateId,
+        String capturedSourceEventOrPayloadHash,
+        String capturedSourceVersion
 ) {
 }

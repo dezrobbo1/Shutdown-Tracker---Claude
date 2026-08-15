@@ -3,46 +3,30 @@ package com.shutdowntracker.api.exportpreview;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.shutdowntracker.api.actor.Actor;
-import com.shutdowntracker.api.actor.ActorResolver;
-import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.ApiStrictJsonConfiguration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ExportPreviewController.class)
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
-@Import({ActorWebMvcConfiguration.class, ExportPreviewControllerTests.StubActorConfiguration.class})
+@Import(ApiStrictJsonConfiguration.class)
 class ExportPreviewControllerTests {
-
-    private static final Actor ACTOR =
-            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
-
-    /** Controller slice tests assert routing and delegation; header parsing is covered by the resolver tests. */
-    @TestConfiguration
-    static class StubActorConfiguration {
-
-        @Bean
-        ActorResolver actorResolver() {
-            return request -> ACTOR;
-        }
-    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,29 +38,19 @@ class ExportPreviewControllerTests {
     void createsExportPreviewOnly() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID snapshotId = UUID.randomUUID();
-        UUID importedTaskId = UUID.randomUUID();
-        UUID sourceEntityId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, snapshotId, true);
-        when(service.createPreview(eq(projectId), eq(ACTOR), any(ExportPreviewCreateRequest.class))).thenReturn(detail);
+        when(service.createPreview(eq(projectId), any(ExportPreviewCreateRequest.class))).thenReturn(detail);
 
         String body = """
                 {
                   "projectSnapshotId": "%s",
-                  "lines": [
-                    {
-                      "importedTaskId": "%s",
-                      "sourceEntityType": "task_update",
-                      "sourceEntityId": "%s",
-                      "fieldName": "percent_complete",
-                      "newValue": "50",
-                      "reason": "Synthetic approved progress update"
-                    }
-                  ],
+                  "candidateIds": ["%s"],
                   "metadata": {
                     "source": "synthetic-export-preview"
                   }
                 }
-                """.formatted(snapshotId, importedTaskId, sourceEntityId);
+                """.formatted(snapshotId, candidateId);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -88,7 +62,58 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.lines[0].exportEligible").value(true))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).createPreview(eq(projectId), eq(ACTOR), any(ExportPreviewCreateRequest.class));
+        verify(service).createPreview(eq(projectId), any(ExportPreviewCreateRequest.class));
+    }
+
+    @Test
+    void rejectsDuplicateAuthoritativeCandidatesBeforeCallingService() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID snapshotId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+
+        String body = """
+                {
+                  "projectSnapshotId": "%s",
+                  "candidateIds": ["%s", "%s"]
+                }
+                """.formatted(
+                snapshotId,
+                candidateId,
+                candidateId
+        );
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsLegacyCallerSuppliedTaskFieldAndValueContract() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/projects/{projectId}/export-preview", projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectSnapshotId": "11111111-1111-1111-1111-111111111111",
+                                  "candidateIds": ["44444444-4444-4444-4444-444444444444"],
+                                  "lines": [
+                                    {
+                                      "importedTaskId": "22222222-2222-2222-2222-222222222222",
+                                      "sourceEntityType": "task_update",
+                                      "sourceEntityId": "33333333-3333-3333-3333-333333333333",
+                                      "fieldName": "actual_finish",
+                                      "newValue": "2026-01-01T08:00:00Z"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -114,7 +139,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.APPROVED);
-        when(service.approveBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class)))
+        when(service.approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/approve", projectId, exportBatchId)
@@ -128,7 +153,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.status").value("APPROVED"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).approveBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class));
+        verify(service).approveBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
     }
 
     @Test
@@ -136,7 +161,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), false, ExportBatchState.REJECTED);
-        when(service.rejectBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class)))
+        when(service.rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/reject", projectId, exportBatchId)
@@ -150,16 +175,13 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.status").value("REJECTED"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).rejectBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchDecisionRequest.class));
+        verify(service).rejectBatch(eq(projectId), eq(exportBatchId), any(ExportBatchDecisionRequest.class));
     }
 
     @Test
-    void marksExportBatchGeneratedFromArtifactMetadata() throws Exception {
+    void doesNotExposeGeneratedStateMetadataAsAStandaloneRoute() throws Exception {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
-        ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.GENERATED);
-        when(service.markGenerated(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchGeneratedRequest.class)))
-                .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated", projectId, exportBatchId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -170,13 +192,9 @@ class ExportPreviewControllerTests {
                                   "reason": "Synthetic worker artifact recorded"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.batch.status").value("GENERATED"))
-                .andExpect(jsonPath("$.batch.exportFileUri").value("object://synthetic/export-batches/export-1.mspdi.xml"))
-                .andExpect(jsonPath("$.batch.exportFileHash").value("sha256:synthetic"))
-                .andExpect(jsonPath("$.message").value(detail.message()));
+                .andExpect(status().isNotFound());
 
-        verify(service).markGenerated(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchGeneratedRequest.class));
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -192,7 +210,6 @@ class ExportPreviewControllerTests {
         when(service.markOpenedInMicrosoftProject(
                 eq(projectId),
                 eq(exportBatchId),
-                eq(ACTOR),
                 any(ExportBatchProjectOpenRequest.class)
         )).thenReturn(detail);
 
@@ -217,7 +234,6 @@ class ExportPreviewControllerTests {
         verify(service).markOpenedInMicrosoftProject(
                 eq(projectId),
                 eq(exportBatchId),
-                eq(ACTOR),
                 any(ExportBatchProjectOpenRequest.class)
         );
     }
@@ -227,7 +243,7 @@ class ExportPreviewControllerTests {
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         ExportPreviewDetail detail = detail(projectId, UUID.randomUUID(), true, ExportBatchState.VERIFIED);
-        when(service.verifyBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchVerificationRequest.class)))
+        when(service.verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class)))
                 .thenReturn(detail);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{exportBatchId}/verify", projectId, exportBatchId)
@@ -244,7 +260,7 @@ class ExportPreviewControllerTests {
                 .andExpect(jsonPath("$.batch.verifiedByUserId").value("22222222-2222-2222-2222-222222222222"))
                 .andExpect(jsonPath("$.message").value(detail.message()));
 
-        verify(service).verifyBatch(eq(projectId), eq(exportBatchId), eq(ACTOR), any(ExportBatchVerificationRequest.class));
+        verify(service).verifyBatch(eq(projectId), eq(exportBatchId), any(ExportBatchVerificationRequest.class));
     }
 
     private ExportPreviewDetail detail(UUID projectId, UUID snapshotId, boolean eligible) {
@@ -296,7 +312,9 @@ class ExportPreviewControllerTests {
                 null,
                 1,
                 eligible ? 1 : 0,
-                eligible ? 0 : 1
+                eligible ? 0 : 1,
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                true
         );
         ExportPreviewLineRecord line = new ExportPreviewLineRecord(
                 UUID.randomUUID(),
@@ -310,6 +328,7 @@ class ExportPreviewControllerTests {
                 "task_update",
                 UUID.randomUUID(),
                 eligible ? ApprovalState.APPROVED_FOR_EXPORT : ApprovalState.AWAITING_REVIEW,
+                UUID.randomUUID(),
                 "percent_complete",
                 "25",
                 "50",
@@ -317,7 +336,11 @@ class ExportPreviewControllerTests {
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
                 "Synthetic reason",
                 true,
-                eligible
+                eligible,
+                ExportIntegrityPolicy.CURRENT_VERSION,
+                UUID.randomUUID(),
+                "a".repeat(64),
+                "synthetic-source-version-1"
         );
         return new ExportPreviewDetail(
                 batch,

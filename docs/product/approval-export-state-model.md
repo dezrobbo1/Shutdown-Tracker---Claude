@@ -84,14 +84,14 @@ Planner approval marks this progress as eligible for export preview. The master 
 
 | State | Meaning | Allowed next states |
 | --- | --- | --- |
-| `draft_preview` | Preview has been assembled but not submitted for approval. | `awaiting_approval`, `superseded` |
-| `awaiting_approval` | Preview is ready for Planner approval. | `approved`, `rejected`, `superseded` |
-| `approved` | Export batch has been approved for file generation. | `generated`, `superseded` |
-| `rejected` | Export batch is not approved. | `superseded` |
+| `draft_preview` | Preview has been assembled but not submitted for approval. | `awaiting_approval`, `approved`, `rejected`, `failed`, `superseded` |
+| `awaiting_approval` | Preview is ready for Planner approval. | `approved`, `rejected`, `failed`, `superseded` |
+| `approved` | Export batch has been approved for file generation. | `generated`, `failed`, `superseded` |
+| `rejected` | Export batch is not approved. | none |
 | `generated` | MSPDI/XML export artifact has been generated. | `opened_in_microsoft_project`, `failed`, `superseded` |
 | `opened_in_microsoft_project` | Planner has opened the artifact in Microsoft Project for manual verification. | `verified`, `failed`, `superseded` |
-| `verified` | Planner has confirmed the artifact opened and behaved as expected in Microsoft Project. | `superseded` |
-| `failed` | Generation or manual verification failed. | `superseded` |
+| `verified` | Planner has confirmed the artifact opened and behaved as expected in Microsoft Project. | none |
+| `failed` | Generation or manual verification failed. | none |
 | `superseded` | A later export batch replaces this batch for operational purposes. | none |
 
 Required copy sequence:
@@ -116,30 +116,6 @@ Verified in Microsoft Project — master .mpp update remains planner-controlled.
 | `conflict` | Server accepted context but cannot apply without review. | `Conflict needs review.` |
 
 Queued is not submitted. A local progress update is not visible to supervisors or planners until the server receives it.
-
-## Implemented Approval Surface
-
-The API records approval decisions on source records through:
-
-- `POST /api/projects/{projectId}/approvals`
-- `GET /api/projects/{projectId}/approvals?sourceEntityType=&sourceEntityId=`
-
-A decision carries `sourceEntityType`, `sourceEntityId`, and an `approvalState` of `draft`, `submitted`, `awaiting_review`, `correction_requested`, `approved_for_export`, or `rejected`. `superseded` and `exported` are system-owned and are rejected if requested directly.
-
-Recording a decision supersedes the previous active decision for that source entity rather than editing it, so approval history stays append-only. The reviewer is the authenticated request actor; it is never read from the request body.
-
-This is the gate export preview reads: a preview line is export-eligible only when the latest approval for its source entity is `approved_for_export` and the imported task is a leaf. Approving a source record is not export batch approval, which remains a separate decision on the assembled batch.
-
-Two limits are deliberate and currently unenforced: role-based authority (Planner-only export approval) is not yet enforced, because project-scoped RBAC is not implemented; and there is no `task_update` table yet, so `sourceEntityId` refers to whatever operational record a caller nominates.
-
-## Failure Recording
-
-Terminal failures now move the owning record to `failed` instead of rolling back:
-
-- A failed worker parse moves the import batch to `failed`, records the reason in `parse_summary`, and writes an `import_batch_parse_failed` audit event.
-- A failed or mismatched artifact generation moves the export batch to `failed` with `failure_reason` set, and writes an `export_file_generation_failed` audit event.
-
-Failure bookkeeping never masks the original error: if recording the failure itself fails, that exception is attached as suppressed and the original is rethrown.
 
 ## Approval Rules
 
@@ -211,7 +187,10 @@ Never export from Shutdown Tracker:
 
 ## Immutability and Corrections
 
-- Export batches must be immutable once generated.
+- Policy-1 export batches allow only the explicit state transitions shown above. The one-time draft line-set seal is the only permitted same-state mutation.
+- Batch identity, preview creation, sealed membership, and every established approval, generation, artifact, Microsoft Project open, and verification fact are immutable.
+- Rejected, failed, superseded, and verified policy-1 batches are terminal and immutable.
+- Lifecycle metadata uses server-owned sections with caller data nested under `clientMetadata`; later transitions cannot replace earlier provenance.
 - Corrections create new records or superseding records, not destructive edits.
 - Generated export artifacts should remain linked to the approval record that produced them.
 - A failed or superseded export batch must remain visible in export history.

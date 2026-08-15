@@ -10,11 +10,10 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import com.shutdowntracker.projectworker.exporter.MpxjMspdiExportArtifactService;
-import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
-import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,12 +26,8 @@ import org.springframework.boot.json.JsonParserFactory;
 
 class WorkerProjectExportArtifactExpectedOutputTests {
 
-    private WorkerProjectExportArtifactHandoffService service() {
-        return new WorkerProjectExportArtifactHandoffService(
-                new MpxjMspdiExportArtifactService(),
-                new WorkerStoragePathResolver(new WorkerStorageProperties(tempDir, tempDir))
-        );
-    }
+    private final WorkerProjectExportArtifactHandoffService service =
+            new WorkerProjectExportArtifactHandoffService(new MpxjMspdiExportArtifactService());
 
     @TempDir
     private Path tempDir;
@@ -49,7 +44,7 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         UUID exportBatchId = UUID.fromString("00000000-0000-0000-0000-000000000029");
         UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000030");
 
-        ProjectExportArtifactGenerationResponse response = service().generateArtifact(new ProjectExportArtifactGenerationRequest(
+        ProjectExportArtifactGenerationResponse response = service.generateArtifact(new ProjectExportArtifactGenerationRequest(
                 exportBatchId,
                 projectId,
                 outputPath.toString(),
@@ -74,6 +69,16 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(response.exportFileHash()).isEqualTo(summary.sha256());
 
         assertGeneratedArtifactMatchesExpectedTasks(outputPath, expected);
+        assertThat(readString(outputPath))
+                .doesNotContain(
+                        "<PhysicalPercentComplete>",
+                        "<WBS>",
+                        "<Duration>",
+                        "<PredecessorLink>",
+                        "<Calendars>",
+                        "<Resources>",
+                        "<Assignments>"
+                );
         assertThat(root.resolve("fixtures/import-export/synthetic-basic-wbs/synthetic-export.mspdi.xml"))
                 .doesNotExist();
     }
@@ -90,6 +95,10 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(expected.get("synthetic_or_sanitized")).isEqualTo("synthetic");
         assertThat(expected.get("contains_real_project_data")).isEqualTo(Boolean.FALSE);
         assertThat(expected.get("generated_artifact_committed")).isEqualTo(Boolean.FALSE);
+        assertThat(objectList(expected.get("expected_tasks")).stream()
+                .flatMap(task -> map(task.get("expected_fields")).values().stream())
+                .map(String::valueOf))
+                .anyMatch(value -> value.endsWith("+08:00"));
         assertThat(stringList(expected.get("excluded_scope")))
                 .contains(
                         "summary task exports",
@@ -135,17 +144,15 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(exportedProject.getProjectProperties().getName()).isEqualTo(stringValue(expected, "project_name"));
 
         for (Map<String, Object> expectedTask : objectList(expected.get("expected_tasks"))) {
-            Task actualTask = taskNamed(exportedProject, stringValue(expectedTask, "task_name"));
-            assertThat(actualTask.getUniqueID()).isEqualTo(intValue(expectedTask, "microsoft_project_task_uid"));
+            int taskUid = intValue(expectedTask, "microsoft_project_task_uid");
+            Task actualTask = taskWithUid(exportedProject, taskUid);
+            assertThat(actualTask.getUniqueID()).isEqualTo(taskUid);
             assertThat(actualTask.getID()).isEqualTo(intValue(expectedTask, "microsoft_project_task_id"));
+            assertThat(actualTask.getName()).isEqualTo(stringValue(expectedTask, "task_name"));
 
             Map<String, Object> expectedFields = map(expectedTask.get("expected_fields"));
             if (expectedFields.containsKey("percent_complete")) {
                 assertThat(actualTask.getPercentageComplete().intValue()).isEqualTo(intValue(expectedFields, "percent_complete"));
-            }
-            if (expectedFields.containsKey("physical_percent_complete")) {
-                assertThat(actualTask.getPhysicalPercentComplete().intValue())
-                        .isEqualTo(intValue(expectedFields, "physical_percent_complete"));
             }
             if (expectedFields.containsKey("actual_start")) {
                 assertThat(actualTask.getActualStart()).isEqualTo(dateTimeValue(expectedFields, "actual_start"));
@@ -168,11 +175,11 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         }
     }
 
-    private Task taskNamed(ProjectFile project, String name) {
+    private Task taskWithUid(ProjectFile project, int uid) {
         return project.getTasks().stream()
-                .filter(task -> task != null && name.equals(task.getName()))
+                .filter(task -> task != null && Integer.valueOf(uid).equals(task.getUniqueID()))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Expected task was not found: " + name));
+                .orElseThrow(() -> new AssertionError("Expected task UID was not found: " + uid));
     }
 
     private Path repositoryRoot() {
@@ -233,6 +240,6 @@ class WorkerProjectExportArtifactExpectedOutputTests {
     }
 
     private LocalDateTime dateTimeValue(Map<String, Object> values, String key) {
-        return LocalDateTime.parse(stringValue(values, key));
+        return OffsetDateTime.parse(stringValue(values, key)).toLocalDateTime();
     }
 }

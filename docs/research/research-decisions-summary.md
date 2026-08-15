@@ -57,7 +57,7 @@ Current implemented/scaffolded areas include:
 - Task lineage review endpoints.
 - Export preview endpoints.
 - Export approval/rejection metadata endpoints.
-- Generated artifact metadata endpoint.
+- Worker-backed artifact generation endpoint.
 - Project opened/verified metadata endpoints.
 - React/Vite console scaffold.
 - React/Vite mobile PWA scaffold.

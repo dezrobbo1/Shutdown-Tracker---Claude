@@ -5,7 +5,6 @@ import java.util.Arrays;
 public enum AuditEventCategory {
     IMPORT("import"),
     REIMPORT("reimport"),
-    APPROVAL("approval"),
     EXPORT("export");
 
     private final String databaseValue;

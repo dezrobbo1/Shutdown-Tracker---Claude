@@ -4,28 +4,25 @@ import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummary;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummaryService;
-import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WorkerProjectParseHandoffService {
 
-    private final ProjectImportSummaryService summaryService;
-    private final WorkerStoragePathResolver storagePathResolver;
+    private static final String LOCAL_FILE_SCHEME = "file";
 
-    public WorkerProjectParseHandoffService(
-            ProjectImportSummaryService summaryService,
-            WorkerStoragePathResolver storagePathResolver
-    ) {
+    private final ProjectImportSummaryService summaryService;
+
+    public WorkerProjectParseHandoffService(ProjectImportSummaryService summaryService) {
         this.summaryService = summaryService;
-        this.storagePathResolver = storagePathResolver;
     }
 
     public ProjectParseSummaryResponse summarize(ProjectParseSummaryRequest request) {
         Objects.requireNonNull(request, "request is required.");
-        ProjectImportSummary summary =
-                summaryService.summarize(storagePathResolver.resolveSourceFile(request.storageUri()));
+        ProjectImportSummary summary = summaryService.summarize(resolveLocalPath(request.storageUri()));
         return new ProjectParseSummaryResponse(
                 request.importBatchId(),
                 "mpxj",
@@ -44,6 +41,17 @@ public class WorkerProjectParseHandoffService {
                 0,
                 summary.notes()
         );
+    }
+
+    private Path resolveLocalPath(String storageUri) {
+        URI uri = URI.create(storageUri);
+        if (uri.getScheme() == null) {
+            return Path.of(storageUri);
+        }
+        if (LOCAL_FILE_SCHEME.equalsIgnoreCase(uri.getScheme())) {
+            return Path.of(uri);
+        }
+        throw new IllegalArgumentException("Project worker parse handoff only supports local file storage URIs for now.");
     }
 
     private int warningCount(ProjectImportSummary summary) {

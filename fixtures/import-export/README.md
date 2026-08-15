@@ -49,3 +49,5 @@ Manual Microsoft Project round-trip validation should use synthetic or fully san
 ## Approved Synthetic Fixtures
 
 `synthetic-basic-wbs` is a tiny hand-built MSPDI XML fixture with neutral names only. Its expected import summary includes a structured `worker_response` block used by automated worker tests. Its expected export artifact summary is text-only JSON used to verify temporary generated MSPDI/XML output. This approval does not allow real Project XML, real schedules, committed generated exports, screenshots, or broad binary/project-file commits.
+
+The expected export artifact includes a synthetic `actual_start` with the non-zero explicit offset `+08:00`. Automated readback verifies that the reviewed Microsoft Project local wall-clock value is preserved; the human Microsoft Project reopen remains pending.

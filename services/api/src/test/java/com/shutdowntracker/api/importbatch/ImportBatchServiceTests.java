@@ -87,9 +87,6 @@ class ImportBatchServiceTests {
 
     private static class FakeImportBatchRepository implements ImportBatchRepository {
 
-        private String parseFailureReason;
-        private UUID failedImportBatchId;
-
         private ImportBatchCreateRequest createRequest;
         private ImportBatchRecord findRecord;
         private UUID updatedImportBatchId;
@@ -132,22 +129,6 @@ class ImportBatchServiceTests {
                     0
             );
         }
-        @Override
-        public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
-            this.parseFailureReason = failureReason;
-            this.failedImportBatchId = importBatchId;
-            return new ImportBatchRecord(
-                    importBatchId,
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    ImportBatchStatus.FAILED,
-                    null,
-                    null,
-                    0,
-                    1
-            );
-        }
-
 
         @Override
         public ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update) {

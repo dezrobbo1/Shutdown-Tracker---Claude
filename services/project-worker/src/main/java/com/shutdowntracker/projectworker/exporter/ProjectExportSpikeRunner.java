@@ -58,9 +58,6 @@ public class ProjectExportSpikeRunner implements CommandLineRunner {
                                 true,
                                 List.of(
                                         new ProjectExportArtifactFieldValue(
-                                                ProjectExportArtifactField.PHYSICAL_PERCENT_COMPLETE,
-                                                "50"),
-                                        new ProjectExportArtifactFieldValue(
                                                 ProjectExportArtifactField.ACTUAL_FINISH,
                                                 "2026-01-06T15:00:00Z")
                                 )

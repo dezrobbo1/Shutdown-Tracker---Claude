@@ -161,6 +161,100 @@ export type ImportReviewDecisionResponse = {
   message: string;
 };
 
+export type ExportCandidateFieldName =
+  | "percent_complete"
+  | "physical_percent_complete"
+  | "actual_start"
+  | "actual_finish";
+
+export type ExportCandidateCreateRequest = {
+  projectSnapshotId: string;
+  importedTaskId: string;
+  fieldName: ExportCandidateFieldName;
+  proposedValue: string;
+  sourceEntityType: string;
+  sourceEntityId: string;
+  sourceVersion: string;
+  sourceActorUserId?: string | null;
+  sourceTimestamp?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportCandidateRecord = {
+  id: string;
+  bindingPolicyVersion: number;
+  projectId: string;
+  projectSnapshotId: string;
+  importedTaskId: string;
+  sourceEntityType: string;
+  sourceEntityId: string;
+  sourceVersion: string;
+  fieldName: ExportCandidateFieldName;
+  normalizedOldValue: string | null;
+  normalizedNewValue: string;
+  sourceEventOrPayloadHash: string;
+  capturedTaskExternalUid: string;
+  capturedTaskExternalId: string;
+  capturedTaskName: string;
+  capturedLeafTask: boolean;
+  sourceActorUserId: string | null;
+  sourceTimestamp: string | null;
+  reason: string | null;
+  createdAt: string;
+  metadata: JsonObject;
+};
+
+export type ExportCandidateApprovalEventCreateRequest = {
+  approvalState: ApprovalState;
+  requestedAt?: string | null;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  reason?: string | null;
+  metadata?: JsonObject | null;
+};
+
+export type ExportCandidateApprovalEventRecord = {
+  id: string;
+  projectId: string;
+  projectSnapshotId: string;
+  authoritativeExportCandidateId: string;
+  candidateBindingPolicyVersion: number;
+  approvalState: ApprovalState;
+  requestedByUserId: string | null;
+  requestedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  reason: string | null;
+  createdAt: string;
+  metadata: JsonObject;
+};
+
+const exportCandidateCreateRequestFields = [
+  "projectSnapshotId",
+  "importedTaskId",
+  "fieldName",
+  "proposedValue",
+  "sourceEntityType",
+  "sourceEntityId",
+  "sourceVersion",
+  "sourceActorUserId",
+  "sourceTimestamp",
+  "reason",
+  "metadata"
+] as const;
+
+const exportCandidateApprovalEventCreateRequestFields = [
+  "approvalState",
+  "requestedAt",
+  "reviewedByUserId",
+  "reviewedAt",
+  "reason",
+  "metadata"
+] as const;
+
+const exportPreviewCreateRequestFields = ["projectSnapshotId", "candidateIds", "metadata"] as const;
+
 export type TaskLineageRecord = {
   id: string;
   projectId: string;
@@ -194,45 +288,9 @@ export type TaskLineageDecisionResponse = {
   message: string;
 };
 
-export type ApprovalRecord = {
-  id: string;
-  projectId: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  approvalState: ApprovalState;
-  requestedByUserId: string | null;
-  requestedAt: string | null;
-  reviewedByUserId: string | null;
-  reviewedAt: string | null;
-  reason: string | null;
-};
-
-/**
- * Reviewer identity is deliberately absent: the API takes it from the authenticated request actor.
- */
-export type ApprovalRecordCreateRequest = {
-  sourceEntityType: string;
-  sourceEntityId: string;
-  approvalState: ApprovalState;
-  reason?: string | null;
-  metadata?: JsonObject | null;
-};
-
-export type ExportPreviewLineCreateRequest = {
-  importedTaskId: string;
-  sourceEntityType: string;
-  sourceEntityId: string;
-  fieldName: "percent_complete" | "physical_percent_complete" | "actual_start" | "actual_finish";
-  newValue: string;
-  sourceActorUserId?: string | null;
-  sourceTimestamp?: string | null;
-  reason?: string | null;
-  metadata?: JsonObject | null;
-};
-
 export type ExportPreviewCreateRequest = {
   projectSnapshotId: string;
-  lines: ExportPreviewLineCreateRequest[];
+  candidateIds: string[];
   metadata?: JsonObject | null;
 };
 
@@ -246,6 +304,8 @@ export type ExportPreviewBatchRecord = {
   approvedByUserId: string | null;
   generatedAt: string | null;
   generatedByUserId: string | null;
+  openedInMicrosoftProjectAt: string | null;
+  openedInMicrosoftProjectByUserId: string | null;
   verifiedAt: string | null;
   verifiedByUserId: string | null;
   exportFileUri: string | null;
@@ -254,6 +314,9 @@ export type ExportPreviewBatchRecord = {
   lineCount: number;
   eligibleLineCount: number;
   ineligibleLineCount: number;
+  integrityPolicyVersion: number | null;
+  lineSetSealed: boolean | null;
+  metadata: JsonObject;
 };
 
 export type ExportPreviewLineRecord = {
@@ -268,6 +331,7 @@ export type ExportPreviewLineRecord = {
   sourceEntityType: string;
   sourceEntityId: string;
   approvalState: ApprovalState | null;
+  sourceApprovalRecordId: string | null;
   fieldName: string;
   oldValue: string | null;
   newValue: string;
@@ -276,6 +340,10 @@ export type ExportPreviewLineRecord = {
   reason: string | null;
   leafTask: boolean;
   exportEligible: boolean;
+  integrityPolicyVersion: number | null;
+  authoritativeExportCandidateId: string | null;
+  capturedSourceVersion: string | null;
+  capturedSourceEventOrPayloadHash: string | null;
 };
 
 export type ExportPreviewDetail = {
@@ -284,29 +352,20 @@ export type ExportPreviewDetail = {
   message: string;
 };
 
-/**
- * Actor identity is deliberately absent from every request body below. The API attributes approval,
- * generation, Microsoft Project open, and verification to the authenticated request actor, never to a
- * caller-supplied user id. Send the actor via `actorHeaders` on the client options.
- */
 export type ExportBatchDecisionRequest = {
-  reason?: string | null;
-  metadata?: JsonObject | null;
-};
-
-export type ExportBatchGeneratedRequest = {
-  exportFileUri: string;
-  exportFileHash: string;
+  reviewedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
 
 export type ExportBatchProjectOpenRequest = {
+  openedByUserId: string;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
 
 export type ExportBatchVerificationRequest = {
+  verifiedByUserId: string;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -331,6 +390,7 @@ export type ProjectExportArtifactGenerationResponse = {
 };
 
 export type ExportArtifactGenerationRequest = {
+  generatedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -360,13 +420,16 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Reject import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject" },
   { label: "List lineage links", method: "GET", path: "/api/projects/{projectId}/import-review/lineage-links" },
   { label: "Create lineage link", method: "POST", path: "/api/projects/{projectId}/import-review/lineage-links" },
-  { label: "Record approval decision", method: "POST", path: "/api/projects/{projectId}/approvals" },
-  { label: "List approval decisions", method: "GET", path: "/api/projects/{projectId}/approvals" },
+  { label: "Create export candidate", method: "POST", path: "/api/projects/{projectId}/export-candidates" },
+  {
+    label: "Record export candidate approval event",
+    method: "POST",
+    path: "/api/projects/{projectId}/export-candidates/{candidateId}/approval-events"
+  },
   { label: "Create export preview", method: "POST", path: "/api/projects/{projectId}/export-preview" },
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
   { label: "Reject export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/reject" },
-  { label: "Record generated artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-generated" },
   {
     label: "Record Project reopen",
     method: "POST",
@@ -381,12 +444,6 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export type ShutdownTrackerApiClientOptions = {
   baseUrl?: string;
   fetchImpl?: FetchLike;
-  /**
-   * Headers sent with every request, used to carry the authenticated actor.
-   *
-   * The API rejects operations that must be attributed to a user when no actor reaches it.
-   */
-  headers?: Record<string, string>;
 };
 
 export class ShutdownTrackerApiError extends Error {
@@ -404,7 +461,6 @@ export class ShutdownTrackerApiError extends Error {
 export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClientOptions = {}) {
   const transport = options.fetchImpl ?? defaultFetch();
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? "");
-  const defaultHeaders = options.headers ?? {};
 
   return {
     sourceFiles: {
@@ -415,7 +471,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         } else {
           formData.append("file", file);
         }
-        return requestJson<SourceFileUploadResponse>(transport, baseUrl, defaultHeaders, sourceFilesPath(projectId), {
+        return requestJson<SourceFileUploadResponse>(transport, baseUrl, sourceFilesPath(projectId), {
           method: "POST",
           formData
         });
@@ -426,21 +482,19 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportBatchParseHandoffResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           importBatchPath(projectId, importBatchId, "request-parse-summary"),
           { method: "POST" }
         )
     },
     importReview: {
       listSnapshots: (projectId: string) =>
-        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "snapshots")),
+        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, importReviewPath(projectId, "snapshots")),
       getSnapshot: (projectId: string, snapshotId: string) =>
-        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, `snapshots/${snapshotId}`)),
+        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, importReviewPath(projectId, `snapshots/${snapshotId}`)),
       acceptSnapshot: (projectId: string, snapshotId: string) =>
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/accept`),
           { method: "POST" }
         ),
@@ -448,7 +502,6 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/reject`),
           { method: "POST" }
         )
@@ -458,12 +511,11 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageRecord[]>(
           transport,
           baseUrl,
-          defaultHeaders,
           importReviewPath(projectId, "lineage-links"),
           { query: { previousSnapshotId, currentSnapshotId } }
         ),
       createSuggested: (projectId: string, request: TaskLineageCreateRequest) =>
-        requestJson<TaskLineageRecord>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "lineage-links"), {
+        requestJson<TaskLineageRecord>(transport, baseUrl, importReviewPath(projectId, "lineage-links"), {
           method: "POST",
           body: request
         }),
@@ -471,7 +523,6 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/accept`),
           { method: "POST" }
         ),
@@ -479,53 +530,86 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/reject`),
           { method: "POST" }
         )
     },
-    approvals: {
-      record: (projectId: string, request: ApprovalRecordCreateRequest) =>
-        requestJson<ApprovalRecord>(transport, baseUrl, defaultHeaders, approvalsPath(projectId), {
+    exportCandidates: {
+      create: (projectId: string, request: ExportCandidateCreateRequest) => {
+        assertOnlySupportedRequestFields("Export candidate request", request, exportCandidateCreateRequestFields);
+        return requestJson<ExportCandidateRecord>(transport, baseUrl, exportCandidatesPath(projectId), {
           method: "POST",
-          body: request
-        }),
-      listBySourceEntity: (projectId: string, sourceEntityType: string, sourceEntityId: string) =>
-        requestJson<ApprovalRecord[]>(transport, baseUrl, defaultHeaders, approvalsPath(projectId), {
-          query: { sourceEntityType, sourceEntityId }
-        })
+          body: {
+            projectSnapshotId: request.projectSnapshotId,
+            importedTaskId: request.importedTaskId,
+            fieldName: request.fieldName,
+            proposedValue: request.proposedValue,
+            sourceEntityType: request.sourceEntityType,
+            sourceEntityId: request.sourceEntityId,
+            sourceVersion: request.sourceVersion,
+            sourceActorUserId: request.sourceActorUserId,
+            sourceTimestamp: request.sourceTimestamp,
+            reason: request.reason,
+            metadata: request.metadata
+          }
+        });
+      },
+      createApprovalEvent: (
+        projectId: string,
+        candidateId: string,
+        request: ExportCandidateApprovalEventCreateRequest
+      ) => {
+        assertOnlySupportedRequestFields(
+          "Export candidate approval request",
+          request,
+          exportCandidateApprovalEventCreateRequestFields
+        );
+        return requestJson<ExportCandidateApprovalEventRecord>(
+          transport,
+          baseUrl,
+          exportCandidatesPath(projectId, `${candidateId}/approval-events`),
+          {
+            method: "POST",
+            body: {
+              approvalState: request.approvalState,
+              requestedAt: request.requestedAt,
+              reviewedByUserId: request.reviewedByUserId,
+              reviewedAt: request.reviewedAt,
+              reason: request.reason,
+              metadata: request.metadata
+            }
+          }
+        );
+      }
     },
     exportPreview: {
-      create: (projectId: string, request: ExportPreviewCreateRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId), {
+      create: (projectId: string, request: ExportPreviewCreateRequest) => {
+        assertOnlySupportedRequestFields("Export preview request", request, exportPreviewCreateRequestFields);
+        return requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId), {
           method: "POST",
-          body: request
-        }),
+          body: {
+            projectSnapshotId: request.projectSnapshotId,
+            candidateIds: request.candidateIds,
+            metadata: request.metadata
+          }
+        });
+      },
       get: (projectId: string, exportBatchId: string) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, exportBatchId)),
+        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, exportBatchId)),
       approve: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
           method: "POST",
           body: request
         }),
       reject: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
           method: "POST",
           body: request
         }),
-      markGenerated: (projectId: string, exportBatchId: string, request: ExportBatchGeneratedRequest) =>
-        requestJson<ExportPreviewDetail>(
-          transport,
-          baseUrl,
-          defaultHeaders,
-          exportPreviewPath(projectId, `${exportBatchId}/mark-generated`),
-          { method: "POST", body: request }
-        ),
       markOpenedInMicrosoftProject: (projectId: string, exportBatchId: string, request: ExportBatchProjectOpenRequest) =>
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
-          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/mark-opened-in-microsoft-project`),
           { method: "POST", body: request }
         ),
@@ -533,7 +617,6 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
-          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/verify`),
           { method: "POST", body: request }
         ),
@@ -541,7 +624,6 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportArtifactGenerationResponse>(
           transport,
           baseUrl,
-          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/generate-artifact`),
           { method: "POST", body: request ?? {} }
         )
@@ -554,20 +636,16 @@ type RequestOptions = {
   body?: unknown;
   formData?: FormData;
   query?: Record<string, string>;
-  headers?: Record<string, string>;
 };
 
 async function requestJson<T>(
   fetchImpl: FetchLike,
   baseUrl: string,
-  defaultHeaders: Record<string, string>,
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: "application/json",
-    ...defaultHeaders,
-    ...(options.headers ?? {})
+    Accept: "application/json"
   };
   let body: BodyInit | undefined;
 
@@ -608,13 +686,28 @@ function importReviewPath(projectId: string, path: string) {
   return `/api/projects/${encodePathSegment(projectId)}/import-review/${encodePath(path)}`;
 }
 
-function approvalsPath(projectId: string) {
-  return `/api/projects/${encodePathSegment(projectId)}/approvals`;
-}
-
 function exportPreviewPath(projectId: string, path = "") {
   const suffix = path ? `/${encodePath(path)}` : "";
   return `/api/projects/${encodePathSegment(projectId)}/export-preview${suffix}`;
+}
+
+function exportCandidatesPath(projectId: string, path = "") {
+  const suffix = path ? `/${encodePath(path)}` : "";
+  return `/api/projects/${encodePathSegment(projectId)}/export-candidates${suffix}`;
+}
+
+function assertOnlySupportedRequestFields(
+  requestName: string,
+  request: object,
+  supportedFields: readonly string[]
+) {
+  const supported = new Set(supportedFields);
+  const unsupported = Object.keys(request)
+    .filter((field) => !supported.has(field))
+    .sort();
+  if (unsupported.length > 0) {
+    throw new TypeError(`${requestName} contains unsupported field(s): ${unsupported.join(", ")}.`);
+  }
 }
 
 function encodePath(value: string) {
