@@ -8,6 +8,7 @@ import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
 import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,6 +20,7 @@ public class WorkerProjectExportArtifactHandoffService {
     private final ProjectExportArtifactService exportArtifactService;
     private final WorkerStoragePathResolver storagePathResolver;
 
+    @Autowired
     public WorkerProjectExportArtifactHandoffService(
             ProjectExportArtifactService exportArtifactService,
             WorkerStoragePathResolver storagePathResolver
@@ -27,7 +29,7 @@ public class WorkerProjectExportArtifactHandoffService {
         this.storagePathResolver = storagePathResolver;
     }
 
-    /** Package-private compatibility constructor for existing isolated unit tests only. */
+    /** Package-private compatibility constructor for isolated unit tests only. */
     WorkerProjectExportArtifactHandoffService(ProjectExportArtifactService exportArtifactService) {
         this(
                 exportArtifactService,

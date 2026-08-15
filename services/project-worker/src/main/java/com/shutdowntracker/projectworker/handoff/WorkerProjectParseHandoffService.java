@@ -8,6 +8,7 @@ import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
 import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,6 +17,7 @@ public class WorkerProjectParseHandoffService {
     private final ProjectImportSummaryService summaryService;
     private final WorkerStoragePathResolver storagePathResolver;
 
+    @Autowired
     public WorkerProjectParseHandoffService(
             ProjectImportSummaryService summaryService,
             WorkerStoragePathResolver storagePathResolver
@@ -24,7 +26,7 @@ public class WorkerProjectParseHandoffService {
         this.storagePathResolver = storagePathResolver;
     }
 
-    /** Package-private compatibility constructor for existing isolated unit tests only. */
+    /** Package-private compatibility constructor for isolated unit tests only. */
     WorkerProjectParseHandoffService(ProjectImportSummaryService summaryService) {
         this(
                 summaryService,

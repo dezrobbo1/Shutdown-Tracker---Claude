@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import com.shutdowntracker.projectworker.importer.MpxjProjectImportSummaryService;
+import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
+import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,13 +17,18 @@ import org.springframework.boot.json.JsonParserFactory;
 
 class WorkerProjectParseExpectedOutputTests {
 
-    private final WorkerProjectParseHandoffService service =
-            new WorkerProjectParseHandoffService(new MpxjProjectImportSummaryService());
-
     @Test
     void syntheticBasicWbsMatchesExpectedWorkerParseSummary() {
         Path root = repositoryRoot();
-        Path fixturePath = root.resolve("fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml");
+        Path fixtureRoot = root.resolve("fixtures/import-export");
+        Path fixturePath = fixtureRoot.resolve("synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml");
+        WorkerProjectParseHandoffService service = new WorkerProjectParseHandoffService(
+                new MpxjProjectImportSummaryService(),
+                new WorkerStoragePathResolver(new WorkerStorageProperties(
+                        fixtureRoot,
+                        fixtureRoot.resolve("_local")
+                ))
+        );
         Map<String, Object> expected = parseJson(root.resolve(
                 "fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json"
         ));
