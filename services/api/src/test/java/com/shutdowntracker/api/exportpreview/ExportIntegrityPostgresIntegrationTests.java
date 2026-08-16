@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,8 +34,19 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClientResponseException;
 
+/**
+ * Real PostgreSQL, real Spring transaction proxies, real JDBC row mappings.
+ *
+ * <p>Skipped where no Docker CLI is available. The condition names a method on another class on
+ * purpose: this class starts its container from a static initializer, so evaluating a condition
+ * defined here would start the container in order to decide whether to start the container.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
+@EnabledIf(
+        value = "com.shutdowntracker.api.support.DockerAvailability#dockerCliIsAvailable",
+        disabledReason = "Needs a Docker CLI with a reachable daemon to run PostgreSQL."
+)
 class ExportIntegrityPostgresIntegrationTests {
 
     private static final UUID PROJECT_ID = UUID.fromString("30000000-0000-0000-0000-000000000001");

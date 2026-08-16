@@ -36,6 +36,8 @@ class WorkerProjectParseExpectedOutputTests {
         Path fixturePath = fixtureRoot.resolve("synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml");
         WorkerProjectParseHandoffService service = new WorkerProjectParseHandoffService(
                 new MpxjProjectImportSummaryService(),
+                new MpxjProjectParseService(
+                        new MpxjProjectImportSummaryService(), new MpxjProjectEntityExtractionService()),
                 new WorkerStoragePathResolver(new WorkerStorageProperties(
                         fixtureRoot,
                         fixtureRoot.resolve("_local")

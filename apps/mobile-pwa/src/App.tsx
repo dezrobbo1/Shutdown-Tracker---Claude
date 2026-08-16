@@ -60,6 +60,16 @@ const syncStateLabels: Record<SyncState, string> = {
  */
 type Screen = "work" | "today" | "problems" | "evidence" | "sync" | "progress";
 
+/**
+ * How many tasks the work list renders.
+ *
+ * The list is every leaf task in the schedule, not the reader's own work: nothing links a
+ * Microsoft Project resource to a Shutdown Tracker user yet, so there is nothing to filter on.
+ * The cap keeps a large schedule usable on a phone, and the list says when it has truncated
+ * rather than quietly ending.
+ */
+const WORK_LIST_LIMIT = 100;
+
 export function App() {
   const session = initialFieldSession;
   const client = useMemo(() => createFieldApiClient(session, fieldBaseUrl), [session]);
@@ -308,13 +318,19 @@ function WorkList({
   onSelect: (task: ImportReviewTaskRow) => void;
 }) {
   if (tasks.length === 0) {
-    return <p className="boundary-copy">{loadMessage || "No work is assigned on this device."}</p>;
+    return <p className="boundary-copy">{loadMessage || "No work is on this device."}</p>;
   }
 
   return (
-    <section className="work-list" aria-label="Assigned work">
+    <section className="work-list" aria-label="Work in this schedule">
       {loadMessage ? <p className="boundary-copy">{loadMessage}</p> : null}
-      {tasks.slice(0, 100).map((task) => (
+      {tasks.length > WORK_LIST_LIMIT ? (
+        <p className="boundary-copy">
+          Showing the first {WORK_LIST_LIMIT} of {tasks.length} tasks in this schedule. This is
+          every task, not the work assigned to you.
+        </p>
+      ) : null}
+      {tasks.slice(0, WORK_LIST_LIMIT).map((task) => (
         <article className="work-card" key={task.id}>
           <div>
             <p>{task.wbs ?? task.outlineNumber ?? task.externalId ?? "—"}</p>

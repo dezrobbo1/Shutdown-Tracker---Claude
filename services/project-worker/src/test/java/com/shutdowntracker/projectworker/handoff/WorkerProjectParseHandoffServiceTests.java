@@ -38,7 +38,7 @@ class WorkerProjectParseHandoffServiceTests {
     private WorkerStoragePathResolver resolver() {
         return new WorkerStoragePathResolver(
                 new WorkerStorageProperties(sourceFileRoot, sourceFileRoot.resolve("artifacts"))
-        ));
+        );
     }
 
     private Path storedSourceFile(String filename) throws IOException {
