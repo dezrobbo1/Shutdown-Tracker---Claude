@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 import type { TaskProgressSubmitRequest, TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
-import { App, mobileChipTone, toInstant, validateFieldProgress } from "./App";
+import { App, mobileChipTone, toInstant, validateFieldProgress, workCardPercent } from "./App";
 import { buildFieldSession, describeFieldSession, fieldSessionAllows } from "./fieldSession";
 import {
   OfflineProgressQueue,
@@ -51,9 +51,26 @@ describe("field app shell", () => {
   it("shows the field navigation", () => {
     const html = renderToString(<App />);
 
-    for (const label of ["My Work", "Progress", "Problem", "Sync"]) {
+    // The baseline field zones. Reporting progress is reached from a task rather than being a
+    // peer tab, so it is deliberately absent here.
+    for (const label of ["My Work", "Today", "Problems", "Evidence", "Sync"]) {
       expect(html).toContain(label);
     }
+  });
+
+  it("shows an unsent report on the work card rather than the stale server value", () => {
+    const task = {
+      id: "task-1",
+      name: "C2 Cyclone — remove access cover",
+      percentComplete: 10
+    } as never;
+
+    expect(workCardPercent(task, undefined)).toBe("10%");
+    expect(
+      workCardPercent(task, {
+        request: { percentComplete: 60 }
+      } as never)
+    ).toBe("60%");
   });
 
   it("tells the reporter that submitting sends the report for review, not to the schedule", () => {

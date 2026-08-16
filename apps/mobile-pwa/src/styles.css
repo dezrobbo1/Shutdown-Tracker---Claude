@@ -502,3 +502,75 @@ button {
 .sync-queue-side button {
   min-height: 44px;
 }
+
+/* Today: what this shift needs, as counts that settle into sentences. */
+.today-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.today-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #d8dfd3;
+  border-radius: 8px;
+}
+
+.today-row strong {
+  font-size: 1.4rem;
+  color: #1d473d;
+}
+
+.today-row span {
+  font-size: 0.88rem;
+  color: #526259;
+}
+
+.today-row.settled {
+  background: #f8faf5;
+}
+
+.today-row.settled span {
+  font-size: 0.82rem;
+  color: #657568;
+}
+
+.today-detail {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-detail h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #657568;
+}
+
+.problem-list,
+.evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sync-queue-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.evidence-list .wide-field,
+.problem-list .wide-field {
+  margin-bottom: 4px;
+}

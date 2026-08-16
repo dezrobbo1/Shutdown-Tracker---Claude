@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ClipboardList, RefreshCw, ShieldAlert, UploadCloud } from "lucide-react";
+import { Camera, ClipboardList, RefreshCw, ShieldAlert, Sunrise, UploadCloud } from "lucide-react";
 import type {
+  EvidenceRecord,
+  HandoverNoteRecord,
   ImportReviewTaskRow,
   ProblemRecord,
   TaskExecutionState
@@ -49,7 +51,14 @@ const syncStateLabels: Record<SyncState, string> = {
   REJECTED: "Could not be sent"
 };
 
-type Screen = "work" | "progress" | "problem" | "sync";
+/**
+ * The five field zones, plus the progress detail reached from a task.
+ *
+ * Progress is deliberately not a tab. Reporting is something you do to a task you have
+ * chosen, so it opens from My Work rather than sitting as a peer destination that has to ask
+ * which task you meant.
+ */
+type Screen = "work" | "today" | "problems" | "evidence" | "sync" | "progress";
 
 export function App() {
   const session = initialFieldSession;
@@ -59,6 +68,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>("work");
   const [tasks, setTasks] = useState<ImportReviewTaskRow[]>([]);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
+  const [handover, setHandover] = useState<HandoverNoteRecord[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [loadMessage, setLoadMessage] = useState(
     session.live ? "Loading assigned work…" : "No project configured for this device."
@@ -80,6 +90,10 @@ export function App() {
       setTasks(detail.tasks.filter((task) => !task.summary));
       const open = await client.problems.listOpen(session.projectId).catch(() => []);
       setProblems(open);
+      const unacknowledged = await client.handover
+        .listUnacknowledged(session.projectId)
+        .catch(() => []);
+      setHandover(unacknowledged);
       setLoadMessage("");
     } catch (error) {
       // Work already on the device stays usable; only the refresh failed.
@@ -107,6 +121,23 @@ export function App() {
       ),
     [problems]
   );
+
+  /**
+   * The newest unsent report per task.
+   *
+   * Without this the work list shows the server's percentage straight after someone reports a
+   * new one, which reads as if the report went nowhere. The queue already knows better.
+   */
+  const unsentByTaskId = useMemo(() => {
+    const byTask = new Map<string, QueuedProgressUpdate>();
+    for (const item of queue.state.items) {
+      if (item.syncState === "SYNCED") {
+        continue;
+      }
+      byTask.set(item.request.importedTaskId, item);
+    }
+    return byTask;
+  }, [queue.state.items]);
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const waiting = pendingCount(queue.state.items);
@@ -150,6 +181,7 @@ export function App() {
           <WorkList
             tasks={tasks}
             blockingTaskIds={blockingTaskIds}
+            unsentByTaskId={unsentByTaskId}
             loadMessage={loadMessage}
             onSelect={(task) => {
               setSelectedTaskId(task.id);
@@ -175,16 +207,36 @@ export function App() {
           )
         ) : null}
 
-        {screen === "problem" ? (
-          <ProblemCapture
+        {screen === "today" ? (
+          <TodayScreen
+            tasks={tasks}
+            problems={problems}
+            handover={handover}
+            waiting={waiting}
+            rejected={rejected}
+            loadMessage={loadMessage}
+          />
+        ) : null}
+
+        {screen === "problems" ? (
+          <ProblemsScreen
+            problems={problems}
             tasks={tasks}
             defaultTaskId={selectedTaskId}
             canRaise={fieldSessionAllows(session, "RAISE_PROBLEM")}
             onRaise={async (request) => {
               await client.problems.raise(session.projectId, request);
               await loadWork();
-              setScreen("work");
+              setScreen("problems");
             }}
+          />
+        ) : null}
+
+        {screen === "evidence" ? (
+          <EvidenceScreen
+            tasks={tasks}
+            live={session.live}
+            loadEvidence={(taskId) => client.evidence.listForTask(session.projectId, taskId)}
           />
         ) : null}
 
@@ -204,7 +256,7 @@ export function App() {
             <RefreshCw size={18} aria-hidden="true" />
             <span>Refresh work</span>
           </button>
-          <button type="button" onClick={() => setScreen("problem")}>
+          <button type="button" onClick={() => setScreen("problems")}>
             <ShieldAlert size={18} aria-hidden="true" />
             <span>Raise problem</span>
           </button>
@@ -212,14 +264,25 @@ export function App() {
       </main>
 
       <nav className="bottom-nav" aria-label="Field navigation">
-        <NavButton icon={ClipboardList} label="My Work" active={screen === "work"} onClick={() => setScreen("work")} />
         <NavButton
-          icon={CheckCircle2}
-          label="Progress"
-          active={screen === "progress"}
-          onClick={() => setScreen("progress")}
+          icon={ClipboardList}
+          label="My Work"
+          active={screen === "work" || screen === "progress"}
+          onClick={() => setScreen("work")}
         />
-        <NavButton icon={ShieldAlert} label="Problem" active={screen === "problem"} onClick={() => setScreen("problem")} />
+        <NavButton icon={Sunrise} label="Today" active={screen === "today"} onClick={() => setScreen("today")} />
+        <NavButton
+          icon={ShieldAlert}
+          label="Problems"
+          active={screen === "problems"}
+          onClick={() => setScreen("problems")}
+        />
+        <NavButton
+          icon={Camera}
+          label="Evidence"
+          active={screen === "evidence"}
+          onClick={() => setScreen("evidence")}
+        />
         <NavButton
           icon={UploadCloud}
           label={waiting > 0 ? `Sync (${waiting})` : "Sync"}
@@ -234,11 +297,13 @@ export function App() {
 function WorkList({
   tasks,
   blockingTaskIds,
+  unsentByTaskId,
   loadMessage,
   onSelect
 }: {
   tasks: ImportReviewTaskRow[];
   blockingTaskIds: Set<string>;
+  unsentByTaskId: Map<string, QueuedProgressUpdate>;
   loadMessage: string;
   onSelect: (task: ImportReviewTaskRow) => void;
 }) {
@@ -261,10 +326,13 @@ function WorkList({
               ) : (
                 <MobileChip label="No blocker" />
               )}
+              {unsentByTaskId.has(task.id) ? (
+                <MobileChip label={syncStateLabels[unsentByTaskId.get(task.id)!.syncState]} />
+              ) : null}
             </div>
           </div>
           <aside className="work-card-side">
-            <span className="percent-pill">{task.percentComplete === null ? "—" : `${task.percentComplete}%`}</span>
+            <span className="percent-pill">{workCardPercent(task, unsentByTaskId.get(task.id))}</span>
             <button type="button" onClick={() => onSelect(task)}>
               Report
             </button>
@@ -565,6 +633,195 @@ function SyncQueue({
   );
 }
 
+/**
+ * What this shift needs from this person.
+ *
+ * Deliberately short: what is blocked, what has not been sent, what someone is waiting to be
+ * told. Anything longer belongs on the screen that owns it.
+ */
+function TodayScreen({
+  tasks,
+  problems,
+  handover,
+  waiting,
+  rejected,
+  loadMessage
+}: {
+  tasks: ImportReviewTaskRow[];
+  problems: ProblemRecord[];
+  handover: HandoverNoteRecord[];
+  waiting: number;
+  rejected: number;
+  loadMessage: string;
+}) {
+  const blocking = problems.filter((problem) => problem.blocksExecution);
+
+  if (tasks.length === 0 && loadMessage) {
+    return <p className="boundary-copy">{loadMessage}</p>;
+  }
+
+  return (
+    <section className="today-list" aria-label="Today">
+      <TodayRow
+        count={blocking.length}
+        label="problems are stopping work"
+        settled="Nothing is blocking work right now."
+      />
+      <TodayRow count={waiting} label="reports are waiting to send" settled="Every report has been sent." />
+      <TodayRow
+        count={rejected}
+        label="reports could not be sent"
+        settled="No report has been refused."
+      />
+      <TodayRow
+        count={handover.length}
+        label="handover notes need acknowledging"
+        settled="No handover note is waiting on you."
+      />
+      <TodayRow count={tasks.length} label="tasks are on this device" settled="No work is on this device." />
+
+      {blocking.length > 0 ? (
+        <div className="today-detail">
+          <h2>Blocking now</h2>
+          {blocking.slice(0, 5).map((problem) => (
+            <article className="sync-queue-card" key={problem.id}>
+              <strong>{problem.title}</strong>
+              <span>{problem.description ?? "No detail recorded."}</span>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function TodayRow({ count, label, settled }: { count: number; label: string; settled: string }) {
+  if (count === 0) {
+    return (
+      <div className="today-row settled">
+        <span>{settled}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="today-row">
+      <strong>{count}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** Open problems, and the form to raise another. */
+function ProblemsScreen({
+  problems,
+  tasks,
+  defaultTaskId,
+  canRaise,
+  onRaise
+}: {
+  problems: ProblemRecord[];
+  tasks: ImportReviewTaskRow[];
+  defaultTaskId: string | null;
+  canRaise: boolean;
+  onRaise: (request: { title: string; description: string | null; importedTaskId: string | null; blocksExecution: boolean }) => Promise<void>;
+}) {
+  return (
+    <>
+      <section className="problem-list" aria-label="Open problems">
+        {problems.length === 0 ? (
+          <p className="boundary-copy">No problems are open on this project.</p>
+        ) : (
+          problems.slice(0, 30).map((problem) => (
+            <article className="sync-queue-card" key={problem.id}>
+              <div className="sync-queue-card-head">
+                <strong>{problem.title}</strong>
+                {problem.blocksExecution ? <MobileChip label="Blocked" /> : null}
+              </div>
+              <span>{problem.description ?? "No detail recorded."}</span>
+            </article>
+          ))
+        )}
+      </section>
+
+      <ProblemCapture
+        tasks={tasks}
+        defaultTaskId={defaultTaskId}
+        canRaise={canRaise}
+        onRaise={onRaise}
+      />
+    </>
+  );
+}
+
+/**
+ * Evidence already recorded against a task.
+ *
+ * Read-only: the product has no way to upload a file yet, so offering a camera button here
+ * would promise something that cannot happen.
+ */
+function EvidenceScreen({
+  tasks,
+  live,
+  loadEvidence
+}: {
+  tasks: ImportReviewTaskRow[];
+  live: boolean;
+  loadEvidence: (taskId: string) => Promise<EvidenceRecord[]>;
+}) {
+  const [taskId, setTaskId] = useState<string>("");
+  const [records, setRecords] = useState<EvidenceRecord[]>([]);
+  const [message, setMessage] = useState(
+    live ? "Choose a task to see its evidence." : "No project configured for this device."
+  );
+
+  const choose = async (nextTaskId: string) => {
+    setTaskId(nextTaskId);
+    setRecords([]);
+    if (nextTaskId === "" || !live) {
+      setMessage(live ? "Choose a task to see its evidence." : "No project configured for this device.");
+      return;
+    }
+    setMessage("Loading evidence…");
+    try {
+      const loaded = await loadEvidence(nextTaskId);
+      setRecords(loaded);
+      setMessage(loaded.length === 0 ? "No evidence has been recorded against this task." : "");
+    } catch (error) {
+      setMessage(`Could not load evidence: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  };
+
+  return (
+    <section className="evidence-list" aria-label="Evidence">
+      <p className="boundary-copy">
+        Evidence captured on this device cannot be uploaded yet. This shows what has already
+        been recorded against a task.
+      </p>
+      <label className="wide-field">
+        <span>Task</span>
+        <select value={taskId} onChange={(event) => void choose(event.target.value)}>
+          <option value="">Choose a task</option>
+          {tasks.slice(0, 200).map((task) => (
+            <option value={task.id} key={task.id}>
+              {task.name ?? "Unnamed task"}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {message ? <p className="boundary-copy">{message}</p> : null}
+
+      {records.map((record) => (
+        <article className="sync-queue-card" key={record.id}>
+          <strong>{record.originalFilename}</strong>
+          <span>{record.caption ?? "No caption recorded."}</span>
+          <MobileChip label={record.storageUri === null ? "Waiting to send" : "Server received"} />
+        </article>
+      ))}
+    </section>
+  );
+}
+
 function NavButton({
   icon: Icon,
   label,
@@ -587,6 +844,23 @@ function NavButton({
       <span>{label}</span>
     </button>
   );
+}
+
+/**
+ * The percentage a reporter should see.
+ *
+ * An unsent report is the newer fact for the person holding the device, so it wins over the
+ * server value — with the sync chip beside it saying the server does not have it yet.
+ */
+export function workCardPercent(
+  task: ImportReviewTaskRow,
+  unsent: QueuedProgressUpdate | undefined
+) {
+  const pending = unsent?.request.percentComplete;
+  if (pending !== null && pending !== undefined) {
+    return `${pending}%`;
+  }
+  return task.percentComplete === null ? "—" : `${task.percentComplete}%`;
 }
 
 function MobileChip({ label }: { label: string }) {
@@ -615,7 +889,13 @@ export function screenTitle(screen: Screen, task: ImportReviewTaskRow | null) {
   if (screen === "progress") {
     return task?.name ?? "Progress";
   }
-  return screen === "problem" ? "Raise a problem" : "Sync";
+  if (screen === "today") {
+    return "Today";
+  }
+  if (screen === "problems") {
+    return "Problems";
+  }
+  return screen === "evidence" ? "Evidence" : "Sync";
 }
 
 /**
