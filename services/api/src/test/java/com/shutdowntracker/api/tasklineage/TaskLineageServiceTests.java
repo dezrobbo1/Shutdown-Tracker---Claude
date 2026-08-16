@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,7 +25,7 @@ class TaskLineageServiceTests {
         TaskLineageService service = new TaskLineageService(repository, audit);
         TaskLineageCreateRequest request = createRequest();
 
-        TaskLineageRecord record = service.createSuggested(projectId, request);
+        TaskLineageRecord record = service.createSuggested(projectId, request, StubActorConfiguration.ACTOR);
         AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.createProjectId).isEqualTo(projectId);
@@ -68,10 +69,12 @@ class TaskLineageServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         TaskLineageService service = new TaskLineageService(repository, audit);
 
-        TaskLineageDecisionResponse response = service.accept(projectId, repository.lineageLinkId);
+        TaskLineageDecisionResponse response = service.accept(projectId, repository.lineageLinkId, StubActorConfiguration.ACTOR);
         AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.updatedState).isEqualTo(TaskLineageReviewState.ACCEPTED);
+        assertThat(repository.reviewedBy).isEqualTo(StubActorConfiguration.ACTOR.userId());
+        assertThat(event.actorUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(response.lineageLink().reviewState()).isEqualTo(TaskLineageReviewState.ACCEPTED);
         assertThat(response.message()).contains("No schedule calculation or Microsoft Project write-back was run.");
         assertThat(event.eventType()).isEqualTo(AuditEventTypes.REIMPORT_LINEAGE_LINK_ACCEPTED);
@@ -91,7 +94,7 @@ class TaskLineageServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         TaskLineageService service = new TaskLineageService(repository, audit);
 
-        TaskLineageDecisionResponse response = service.reject(projectId, repository.lineageLinkId);
+        TaskLineageDecisionResponse response = service.reject(projectId, repository.lineageLinkId, StubActorConfiguration.ACTOR);
         AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.updatedState).isEqualTo(TaskLineageReviewState.REJECTED);
@@ -115,7 +118,7 @@ class TaskLineageServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         TaskLineageService service = new TaskLineageService(repository, audit);
 
-        assertThatThrownBy(() -> service.reject(projectId, repository.lineageLinkId))
+        assertThatThrownBy(() -> service.reject(projectId, repository.lineageLinkId, StubActorConfiguration.ACTOR))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only suggested task lineage links can be accepted or rejected.");
@@ -129,7 +132,7 @@ class TaskLineageServiceTests {
         repository.linkExists = false;
         TaskLineageService service = new TaskLineageService(repository, new CapturingAuditEventRecorder());
 
-        assertThatThrownBy(() -> service.accept(projectId, repository.lineageLinkId))
+        assertThatThrownBy(() -> service.accept(projectId, repository.lineageLinkId, StubActorConfiguration.ACTOR))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND))
                 .hasMessageContaining("Task lineage link not found.");
@@ -163,6 +166,7 @@ class TaskLineageServiceTests {
         private UUID listPreviousSnapshotId;
         private UUID listCurrentSnapshotId;
         private TaskLineageReviewState updatedState;
+        private UUID reviewedBy;
 
         private FakeTaskLineageRepository(UUID projectId) {
             this.projectId = projectId;
@@ -199,9 +203,11 @@ class TaskLineageServiceTests {
         public Optional<TaskLineageRecord> updateReviewState(
                 UUID projectId,
                 UUID lineageLinkId,
-                TaskLineageReviewState reviewState
+                TaskLineageReviewState reviewState,
+                UUID reviewedByUserId
         ) {
             updatedState = reviewState;
+            reviewedBy = reviewedByUserId;
             currentState = reviewState;
             return find(projectId, lineageLinkId);
         }

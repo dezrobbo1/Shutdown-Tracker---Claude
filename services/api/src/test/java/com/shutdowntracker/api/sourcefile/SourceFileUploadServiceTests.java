@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -38,7 +39,7 @@ class SourceFileUploadServiceTests {
         CapturingAuditEventRecorder auditRecorder = new CapturingAuditEventRecorder();
         SourceFileUploadService service = service(storage, metadataRepository, importBatchRepository, auditRecorder);
 
-        SourceFileUploadResponse response = service.upload(projectId, multipartFile("synthetic-basic-wbs.mspdi.xml"));
+        SourceFileUploadResponse response = service.upload(projectId, StubActorConfiguration.ACTOR, multipartFile("synthetic-basic-wbs.mspdi.xml"));
 
         assertThat(response.accepted()).isTrue();
         assertThat(response.rejectionReason()).isNull();
@@ -83,7 +84,7 @@ class SourceFileUploadServiceTests {
         CapturingAuditEventRecorder auditRecorder = new CapturingAuditEventRecorder();
         SourceFileUploadService service = service(storage, metadataRepository, importBatchRepository, auditRecorder);
 
-        SourceFileUploadResponse response = service.upload(projectId, multipartFile("unsafe.zip"));
+        SourceFileUploadResponse response = service.upload(projectId, StubActorConfiguration.ACTOR, multipartFile("unsafe.zip"));
 
         assertThat(response.accepted()).isFalse();
         assertThat(response.rejectionReason()).isEqualTo("Unsupported source file extension.");

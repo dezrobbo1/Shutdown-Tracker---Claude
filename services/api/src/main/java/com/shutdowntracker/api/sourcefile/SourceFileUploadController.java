@@ -33,6 +33,6 @@ public class SourceFileUploadController {
             @RequestParam("file") MultipartFile file
     ) {
         authorization.requireCapability(projectId, actor, Capability.UPLOAD_SOURCE_FILE);
-        return uploadService.upload(projectId, file);
+        return uploadService.upload(projectId, actor, file);
     }
 }

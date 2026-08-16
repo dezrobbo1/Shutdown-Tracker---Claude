@@ -90,14 +90,14 @@ class ImportReviewControllerTests {
                 snapshot(projectId, snapshotId, ProjectSnapshotStatus.ACCEPTED),
                 "Snapshot accepted for Shutdown Tracker review use only. No Microsoft Project file was written back."
         );
-        when(service.acceptSnapshot(projectId, snapshotId)).thenReturn(response);
+        when(service.acceptSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR)).thenReturn(response);
 
         mockMvc.perform(post("/api/projects/{projectId}/import-review/snapshots/{snapshotId}/accept", projectId, snapshotId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.message").value(response.message()));
 
-        verify(service).acceptSnapshot(projectId, snapshotId);
+        verify(service).acceptSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR);
     }
 
     @Test
@@ -108,14 +108,14 @@ class ImportReviewControllerTests {
                 snapshot(projectId, snapshotId, ProjectSnapshotStatus.REJECTED),
                 "Snapshot rejected for Shutdown Tracker review use only. No Microsoft Project file was written back."
         );
-        when(service.rejectSnapshot(projectId, snapshotId)).thenReturn(response);
+        when(service.rejectSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR)).thenReturn(response);
 
         mockMvc.perform(post("/api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject", projectId, snapshotId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snapshot.status").value("REJECTED"))
                 .andExpect(jsonPath("$.message").value(response.message()));
 
-        verify(service).rejectSnapshot(projectId, snapshotId);
+        verify(service).rejectSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR);
     }
 
     private ImportReviewSnapshotDetail detail(UUID projectId, UUID snapshotId) {

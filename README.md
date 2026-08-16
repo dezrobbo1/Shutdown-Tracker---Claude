@@ -37,7 +37,8 @@ Implemented foundations include:
   assignments, and aliased custom fields stored from a parsed Project file;
 - MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
-- append-only audit foundations;
+- append-only audit foundations, with import, snapshot-acceptance and lineage decisions
+  attributed to the acting user rather than recorded as system events;
 - approval-record capture that gates export eligibility, and terminal failure recording for import and export batches;
 - users, project-scoped roles, and enforced authorization resolved from stored membership;
 - task execution state and the field-to-export progress review chain, with supervisor and
@@ -67,8 +68,6 @@ Not production-complete yet:
 
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
-- capability checks on source-file upload, parse handoff, import review, task lineage, and
-  export artifact generation; those controllers accept a project-scoped write without one;
 - Critical Watch has no HTTP surface yet; the service and repository exist but no controller
   exposes them, so the console cannot reach them;
 - evidence binary upload in either app; evidence records and their per-task read exist and are

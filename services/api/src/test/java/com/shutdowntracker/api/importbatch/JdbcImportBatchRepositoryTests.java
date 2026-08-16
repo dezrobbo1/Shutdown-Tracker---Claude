@@ -22,6 +22,7 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
     private DatabaseFixtures fixtures;
     private UUID projectId;
     private UUID sourceFileId;
+    private UUID uploaderId;
 
     @BeforeEach
     void setUp() {
@@ -30,11 +31,12 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
         fixtures = new DatabaseFixtures(jdbcTemplate());
         projectId = fixtures.createProject("Import Batch Lifecycle");
         sourceFileId = fixtures.createSourceFile(projectId);
+        uploaderId = fixtures.createUser("planner@example.test", "Synthetic Planner");
     }
 
     @Test
     void createsABatchInPendingState() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
 
         assertThat(created.id()).isNotNull();
         assertThat(created.projectId()).isEqualTo(projectId);
@@ -44,9 +46,24 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
         assertThat(created.errorCount()).isZero();
     }
 
+    /**
+     * The column carries a foreign key to users, so this also proves the id is a real account
+     * rather than a value that merely looks like one.
+     */
+    @Test
+    void recordsWhoStartedTheImport() {
+        ImportBatchRecord created =
+                repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
+
+        UUID storedCreator = jdbcTemplate().queryForObject(
+                "SELECT created_by_user_id FROM import_batches WHERE id = ?", UUID.class, created.id());
+
+        assertThat(storedCreator).isEqualTo(uploaderId);
+    }
+
     @Test
     void findsABatchScopedToItsProject() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
 
         assertThat(repository.findByProjectIdAndId(projectId, created.id()))
                 .map(ImportBatchRecord::id)
@@ -55,7 +72,7 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
 
     @Test
     void doesNotReturnABatchBelongingToAnotherProject() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
         UUID otherProject = fixtures.createProject("Unrelated Project");
 
         Optional<ImportBatchRecord> found = repository.findByProjectIdAndId(otherProject, created.id());
@@ -67,7 +84,7 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
 
     @Test
     void movesThroughTheParsingLifecycle() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
 
         ImportBatchRecord parsing = repository.updateStatus(created.id(), ImportBatchStatus.PARSING);
         assertThat(parsing.status()).isEqualTo(ImportBatchStatus.PARSING);
@@ -83,7 +100,7 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
 
     @Test
     void recordsATerminalParseFailure() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
         repository.updateStatus(created.id(), ImportBatchStatus.PARSING);
 
         ImportBatchRecord failed = repository.recordParseFailure(created.id(), "Unsupported file format.");
@@ -99,7 +116,7 @@ class JdbcImportBatchRepositoryTests extends AbstractDatabaseTest {
 
     @Test
     void storesTheParseSummaryAsQueryableJsonb() {
-        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+        ImportBatchRecord created = repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, uploaderId));
         repository.recordParseSummary(new ImportBatchParseSummaryUpdate(
                 created.id(), "mpxj", "16.4.0", 0, 0, parseSummary()));
 

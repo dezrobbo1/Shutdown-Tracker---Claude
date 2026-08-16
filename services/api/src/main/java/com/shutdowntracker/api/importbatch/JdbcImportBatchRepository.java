@@ -45,12 +45,14 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
                     project_id,
                     source_file_id,
                     status,
+                    created_by_user_id,
                     parse_summary
                 )
                 VALUES (
                     :projectId,
                     :sourceFileId,
                     CAST(:status AS import_batch_status),
+                    :createdByUserId,
                     '{}'::jsonb
                 )
                 RETURNING id, project_id, source_file_id, status, parser_name, parser_version, warning_count, error_count
@@ -59,6 +61,7 @@ public class JdbcImportBatchRepository implements ImportBatchRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("projectId", request.projectId())
                 .addValue("sourceFileId", request.sourceFileId())
+                .addValue("createdByUserId", request.createdByUserId())
                 .addValue("status", ImportBatchStatus.PENDING.databaseValue());
 
         return jdbcTemplate.queryForObject(sql, parameters, this::mapRecord);

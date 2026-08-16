@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.sourcefile;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
@@ -46,8 +47,9 @@ public class SourceFileUploadService {
     }
 
     @Transactional
-    public SourceFileUploadResponse upload(UUID projectId, MultipartFile file) {
+    public SourceFileUploadResponse upload(UUID projectId, Actor actor, MultipartFile file) {
         Objects.requireNonNull(projectId, "projectId is required.");
+        Objects.requireNonNull(actor, "actor is required.");
         Objects.requireNonNull(file, "file is required.");
 
         SourceFileValidationResponse validation = validationService.validate(file);
@@ -56,10 +58,10 @@ public class SourceFileUploadService {
         }
 
         StoredSourceFile storedSourceFile = store(file, validation);
-        SourceFileMetadataRecord sourceFile = metadataService.create(projectId, storedSourceFile);
-        ImportBatchRecord importBatch = importBatchService.createPending(projectId, sourceFile.id());
+        SourceFileMetadataRecord sourceFile = metadataService.create(projectId, actor, storedSourceFile);
+        ImportBatchRecord importBatch = importBatchService.createPending(projectId, actor, sourceFile.id());
 
-        auditEventRecorder.record(uploadAuditEvent(projectId, sourceFile, importBatch));
+        auditEventRecorder.record(uploadAuditEvent(projectId, actor, sourceFile, importBatch));
 
         return SourceFileUploadResponse.accepted(validation, sourceFile, importBatch);
     }
@@ -78,11 +80,16 @@ public class SourceFileUploadService {
 
     private AuditEventCreateRequest uploadAuditEvent(
             UUID projectId,
+            Actor actor,
             SourceFileMetadataRecord sourceFile,
             ImportBatchRecord importBatch
     ) {
-        return AuditEventCreateRequest.systemEvent(
+        // A person uploads a schedule, so the audit row names them rather than the system.
+        return AuditEventCreateRequest.userEvent(
                 projectId,
+                actor.userId(),
+                actor.displayName(),
+                actor.role(),
                 AuditEventCategory.IMPORT,
                 AuditEventTypes.SOURCE_FILE_UPLOADED,
                 "source_file",

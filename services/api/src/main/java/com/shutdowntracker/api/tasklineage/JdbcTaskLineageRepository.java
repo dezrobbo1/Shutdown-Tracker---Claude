@@ -163,7 +163,8 @@ public class JdbcTaskLineageRepository implements TaskLineageRepository {
     public Optional<TaskLineageRecord> updateReviewState(
             UUID projectId,
             UUID lineageLinkId,
-            TaskLineageReviewState reviewState
+            TaskLineageReviewState reviewState,
+            UUID reviewedByUserId
     ) {
         String sql = """
                 UPDATE task_lineage_links
@@ -171,6 +172,10 @@ public class JdbcTaskLineageRepository implements TaskLineageRepository {
                     reviewed_at = CASE
                         WHEN :reviewState IN ('accepted', 'rejected') THEN now()
                         ELSE reviewed_at
+                    END,
+                    reviewed_by_user_id = CASE
+                        WHEN :reviewState IN ('accepted', 'rejected') THEN :reviewedByUserId
+                        ELSE reviewed_by_user_id
                     END
                 WHERE project_id = :projectId
                   AND id = :lineageLinkId
@@ -183,7 +188,8 @@ public class JdbcTaskLineageRepository implements TaskLineageRepository {
                 Map.of(
                         "projectId", projectId,
                         "lineageLinkId", lineageLinkId,
-                        "reviewState", reviewState.databaseValue()
+                        "reviewState", reviewState.databaseValue(),
+                        "reviewedByUserId", reviewedByUserId
                 ),
                 (rs, rowNum) -> rs.getObject("id", UUID.class)
         );

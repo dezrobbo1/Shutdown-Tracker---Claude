@@ -5,11 +5,13 @@ import java.util.UUID;
 
 public record ImportBatchCreateRequest(
         UUID projectId,
-        UUID sourceFileId
+        UUID sourceFileId,
+        UUID createdByUserId
 ) {
 
     public ImportBatchCreateRequest {
         Objects.requireNonNull(projectId, "projectId is required.");
         Objects.requireNonNull(sourceFileId, "sourceFileId is required.");
+        Objects.requireNonNull(createdByUserId, "createdByUserId is required.");
     }
 }

@@ -22,6 +22,7 @@ public interface ImportReviewRepository {
     Optional<ImportReviewSnapshotSummary> recordSnapshotDecision(
             UUID projectId,
             UUID snapshotId,
-            ProjectSnapshotStatus status
+            ProjectSnapshotStatus status,
+            UUID decidedByUserId
     );
 }

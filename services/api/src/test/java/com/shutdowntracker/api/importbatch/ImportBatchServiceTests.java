@@ -6,6 +6,7 @@ import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import org.junit.jupiter.api.Test;
 
 class ImportBatchServiceTests {
@@ -17,7 +18,7 @@ class ImportBatchServiceTests {
         FakeImportBatchRepository repository = new FakeImportBatchRepository();
         ImportBatchService service = new ImportBatchService(repository);
 
-        ImportBatchRecord record = service.createPending(projectId, sourceFileId);
+        ImportBatchRecord record = service.createPending(projectId, StubActorConfiguration.ACTOR, sourceFileId);
 
         assertThat(repository.createRequest.projectId()).isEqualTo(projectId);
         assertThat(repository.createRequest.sourceFileId()).isEqualTo(sourceFileId);

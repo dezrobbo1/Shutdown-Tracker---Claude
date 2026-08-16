@@ -94,7 +94,7 @@ class SourceFileUploadControllerTests {
                 ),
                 "Source file stored and pending import batch created. No file was parsed, forwarded to the worker, imported, or written back to Microsoft Project."
         );
-        when(uploadService.upload(eq(projectId), any(MultipartFile.class))).thenReturn(response);
+        when(uploadService.upload(eq(projectId), eq(StubActorConfiguration.ACTOR), any(MultipartFile.class))).thenReturn(response);
 
         mockMvc.perform(multipart("/api/projects/{projectId}/source-files", projectId).file(file))
                 .andExpect(status().isOk())
@@ -105,7 +105,7 @@ class SourceFileUploadControllerTests {
                 .andExpect(jsonPath("$.importBatch.status").value("PENDING"))
                 .andExpect(jsonPath("$.message").value(containsString("No file was parsed")));
 
-        verify(uploadService).upload(eq(projectId), any(MultipartFile.class));
+        verify(uploadService).upload(eq(projectId), eq(StubActorConfiguration.ACTOR), any(MultipartFile.class));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.sourcefile.metadata;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.sourcefile.storage.StoredSourceFile;
 import java.util.Optional;
 import java.util.Objects;
@@ -23,11 +24,13 @@ public class SourceFileMetadataService {
         return repository.findByProjectIdAndId(projectId, sourceFileId);
     }
 
-    public SourceFileMetadataRecord create(UUID projectId, StoredSourceFile storedSourceFile) {
+    public SourceFileMetadataRecord create(UUID projectId, Actor actor, StoredSourceFile storedSourceFile) {
+        Objects.requireNonNull(actor, "actor is required.");
         SourceFileKind fileKind = SourceFileKind.fromOriginalFilename(storedSourceFile.originalFilename());
 
         return repository.create(new SourceFileMetadataCreateRequest(
                 projectId,
+                actor.userId(),
                 storedSourceFile.originalFilename(),
                 fileKind,
                 storedSourceFile.storageUri(),

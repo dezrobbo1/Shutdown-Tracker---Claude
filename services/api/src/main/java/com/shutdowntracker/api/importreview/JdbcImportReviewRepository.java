@@ -217,14 +217,21 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
     public Optional<ImportReviewSnapshotSummary> recordSnapshotDecision(
             UUID projectId,
             UUID snapshotId,
-            ProjectSnapshotStatus status
+            ProjectSnapshotStatus status,
+            UUID decidedByUserId
     ) {
+        // The acceptor is recorded only on acceptance: a rejected snapshot was never accepted by
+        // anyone, and writing a name into that column would say otherwise.
         String sql = """
                 UPDATE project_snapshots
                 SET status = CAST(:status AS project_snapshot_status),
                     accepted_at = CASE
                         WHEN :status = 'accepted' THEN now()
                         ELSE accepted_at
+                    END,
+                    accepted_by_user_id = CASE
+                        WHEN :status = 'accepted' THEN :decidedByUserId
+                        ELSE accepted_by_user_id
                     END
                 WHERE project_id = :projectId
                   AND id = :snapshotId
@@ -235,6 +242,7 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("projectId", projectId)
                 .addValue("snapshotId", snapshotId)
+                .addValue("decidedByUserId", decidedByUserId)
                 .addValue("status", status.databaseValue());
 
         List<UUID> importBatchIds = jdbcTemplate.query(

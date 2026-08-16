@@ -75,7 +75,7 @@ class TaskLineageControllerTests {
         UUID previousImportedTaskId = UUID.randomUUID();
         UUID currentImportedTaskId = UUID.randomUUID();
         TaskLineageRecord record = record(projectId, TaskLineageReviewState.SUGGESTED);
-        when(service.createSuggested(eq(projectId), any(TaskLineageCreateRequest.class))).thenReturn(record);
+        when(service.createSuggested(eq(projectId), any(TaskLineageCreateRequest.class), eq(StubActorConfiguration.ACTOR))).thenReturn(record);
 
         String body = """
                 {
@@ -103,7 +103,7 @@ class TaskLineageControllerTests {
                 .andExpect(jsonPath("$.reviewState").value("SUGGESTED"))
                 .andExpect(jsonPath("$.matchMethod").value("external_uid"));
 
-        verify(service).createSuggested(eq(projectId), any(TaskLineageCreateRequest.class));
+        verify(service).createSuggested(eq(projectId), any(TaskLineageCreateRequest.class), eq(StubActorConfiguration.ACTOR));
     }
 
     @Test
@@ -115,7 +115,7 @@ class TaskLineageControllerTests {
                 "Task lineage link accepted for import review only. "
                         + "No schedule calculation or Microsoft Project write-back was run."
         );
-        when(service.accept(projectId, lineageLinkId)).thenReturn(response);
+        when(service.accept(projectId, lineageLinkId, StubActorConfiguration.ACTOR)).thenReturn(response);
 
         mockMvc.perform(post(
                         "/api/projects/{projectId}/import-review/lineage-links/{lineageLinkId}/accept",
@@ -126,7 +126,7 @@ class TaskLineageControllerTests {
                 .andExpect(jsonPath("$.lineageLink.reviewState").value("ACCEPTED"))
                 .andExpect(jsonPath("$.message").value(response.message()));
 
-        verify(service).accept(projectId, lineageLinkId);
+        verify(service).accept(projectId, lineageLinkId, StubActorConfiguration.ACTOR);
     }
 
     @Test
@@ -138,7 +138,7 @@ class TaskLineageControllerTests {
                 "Task lineage link rejected for import review only. "
                         + "No schedule calculation or Microsoft Project write-back was run."
         );
-        when(service.reject(projectId, lineageLinkId)).thenReturn(response);
+        when(service.reject(projectId, lineageLinkId, StubActorConfiguration.ACTOR)).thenReturn(response);
 
         mockMvc.perform(post(
                         "/api/projects/{projectId}/import-review/lineage-links/{lineageLinkId}/reject",
@@ -149,7 +149,7 @@ class TaskLineageControllerTests {
                 .andExpect(jsonPath("$.lineageLink.reviewState").value("REJECTED"))
                 .andExpect(jsonPath("$.message").value(response.message()));
 
-        verify(service).reject(projectId, lineageLinkId);
+        verify(service).reject(projectId, lineageLinkId, StubActorConfiguration.ACTOR);
     }
 
     private TaskLineageRecord record(UUID projectId, TaskLineageReviewState reviewState) {

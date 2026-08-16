@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -47,10 +48,13 @@ class ImportReviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ImportReviewService service = new ImportReviewService(repository, audit);
 
-        ImportReviewDecisionResponse response = service.acceptSnapshot(projectId, snapshotId);
+        ImportReviewDecisionResponse response = service.acceptSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR);
         AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.decisionStatus).isEqualTo(ProjectSnapshotStatus.ACCEPTED);
+        // Accepting a snapshot is what admits a schedule downstream, so it must name a person.
+        assertThat(repository.decidedBy).isEqualTo(StubActorConfiguration.ACTOR.userId());
+        assertThat(event.actorUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(response.snapshot().status()).isEqualTo(ProjectSnapshotStatus.ACCEPTED);
         assertThat(response.message()).contains("No Microsoft Project file was written back.");
         assertThat(event.eventType()).isEqualTo(AuditEventTypes.IMPORT_SNAPSHOT_ACCEPTED);
@@ -69,7 +73,7 @@ class ImportReviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ImportReviewService service = new ImportReviewService(repository, audit);
 
-        ImportReviewDecisionResponse response = service.rejectSnapshot(projectId, snapshotId);
+        ImportReviewDecisionResponse response = service.rejectSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR);
         AuditEventCreateRequest event = audit.singleEvent();
 
         assertThat(repository.decisionStatus).isEqualTo(ProjectSnapshotStatus.REJECTED);
@@ -92,7 +96,7 @@ class ImportReviewServiceTests {
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
         ImportReviewService service = new ImportReviewService(repository, audit);
 
-        assertThatThrownBy(() -> service.acceptSnapshot(projectId, snapshotId))
+        assertThatThrownBy(() -> service.acceptSnapshot(projectId, snapshotId, StubActorConfiguration.ACTOR))
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT))
                 .hasMessageContaining("Only parsed snapshots can be accepted or rejected.");
@@ -121,6 +125,7 @@ class ImportReviewServiceTests {
         private boolean snapshotExists = true;
         private ProjectSnapshotStatus currentStatus = ProjectSnapshotStatus.PARSED;
         private ProjectSnapshotStatus decisionStatus;
+        private UUID decidedBy;
 
         private FakeImportReviewRepository(UUID projectId, UUID snapshotId) {
             this.projectId = projectId;
@@ -223,9 +228,11 @@ class ImportReviewServiceTests {
         public Optional<ImportReviewSnapshotSummary> recordSnapshotDecision(
                 UUID projectId,
                 UUID snapshotId,
-                ProjectSnapshotStatus status
+                ProjectSnapshotStatus status,
+                UUID decidedByUserId
         ) {
             decisionStatus = status;
+            decidedBy = decidedByUserId;
             currentStatus = status;
             return findSnapshot(projectId, snapshotId);
         }

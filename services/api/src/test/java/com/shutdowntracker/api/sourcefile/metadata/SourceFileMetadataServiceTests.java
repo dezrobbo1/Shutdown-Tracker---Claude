@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.shutdowntracker.api.sourcefile.storage.StoredSourceFile;
 import java.util.Optional;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import org.junit.jupiter.api.Test;
 
 class SourceFileMetadataServiceTests {
@@ -22,7 +23,7 @@ class SourceFileMetadataServiceTests {
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         );
 
-        SourceFileMetadataRecord record = service.create(projectId, storedSourceFile);
+        SourceFileMetadataRecord record = service.create(projectId, StubActorConfiguration.ACTOR, storedSourceFile);
 
         assertThat(repository.createRequest.projectId()).isEqualTo(projectId);
         assertThat(repository.createRequest.originalFilename()).isEqualTo("synthetic-basic-wbs.mspdi.xml");
@@ -30,6 +31,8 @@ class SourceFileMetadataServiceTests {
         assertThat(repository.createRequest.storageUri()).isEqualTo("file:///tmp/synthetic-basic-wbs.mspdi.xml");
         assertThat(repository.createRequest.contentHash()).isEqualTo(storedSourceFile.contentHashSha256());
         assertThat(repository.createRequest.sizeBytes()).isEqualTo(9);
+        // Who uploaded it comes from the resolved actor, not from anything the caller sent.
+        assertThat(repository.createRequest.uploadedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(record.projectId()).isEqualTo(projectId);
         assertThat(record.fileKind()).isEqualTo(SourceFileKind.MSPDI_XML);
     }

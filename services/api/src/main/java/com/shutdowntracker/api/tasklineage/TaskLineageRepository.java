@@ -15,6 +15,7 @@ public interface TaskLineageRepository {
     Optional<TaskLineageRecord> updateReviewState(
             UUID projectId,
             UUID lineageLinkId,
-            TaskLineageReviewState reviewState
+            TaskLineageReviewState reviewState,
+            UUID reviewedByUserId
     );
 }

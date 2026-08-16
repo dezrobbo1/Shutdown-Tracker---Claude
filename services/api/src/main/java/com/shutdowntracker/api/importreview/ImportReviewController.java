@@ -48,7 +48,7 @@ public class ImportReviewController {
             Actor actor
     ) {
         authorization.requireCapability(projectId, actor, Capability.ACCEPT_IMPORT_SNAPSHOT);
-        return service.acceptSnapshot(projectId, snapshotId);
+        return service.acceptSnapshot(projectId, snapshotId, actor);
     }
 
     @PostMapping("/snapshots/{snapshotId}/reject")
@@ -58,6 +58,6 @@ public class ImportReviewController {
             Actor actor
     ) {
         authorization.requireCapability(projectId, actor, Capability.REJECT_IMPORT_SNAPSHOT);
-        return service.rejectSnapshot(projectId, snapshotId);
+        return service.rejectSnapshot(projectId, snapshotId, actor);
     }
 }

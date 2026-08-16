@@ -2,6 +2,7 @@ package com.shutdowntracker.api.tasklineage;
 
 import static com.shutdowntracker.api.tasklineage.TaskLineageRecordValidation.requireNonNull;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
@@ -34,13 +35,18 @@ public class TaskLineageService {
     }
 
     @Transactional
-    public TaskLineageRecord createSuggested(UUID projectId, TaskLineageCreateRequest request) {
+    public TaskLineageRecord createSuggested(UUID projectId, TaskLineageCreateRequest request, Actor actor) {
+        requireNonNull(actor, "actor is required.");
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         TaskLineageCreateRequest requiredRequest = requireNonNull(request, "request is required.");
         TaskLineageRecord record = repository.create(requiredProjectId, requiredRequest);
 
-        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+        // A person proposes a lineage match, so the audit row names them rather than the system.
+        auditEventRecorder.record(AuditEventCreateRequest.userEvent(
                 requiredProjectId,
+                actor.userId(),
+                actor.displayName(),
+                actor.role(),
                 AuditEventCategory.REIMPORT,
                 AuditEventTypes.REIMPORT_LINEAGE_LINK_CREATED,
                 "task_lineage_link",
@@ -71,21 +77,25 @@ public class TaskLineageService {
     }
 
     @Transactional
-    public TaskLineageDecisionResponse accept(UUID projectId, UUID lineageLinkId) {
-        return recordReviewDecision(projectId, lineageLinkId, TaskLineageReviewState.ACCEPTED, ACCEPTED_MESSAGE);
+    public TaskLineageDecisionResponse accept(UUID projectId, UUID lineageLinkId, Actor actor) {
+        return recordReviewDecision(
+                projectId, lineageLinkId, actor, TaskLineageReviewState.ACCEPTED, ACCEPTED_MESSAGE);
     }
 
     @Transactional
-    public TaskLineageDecisionResponse reject(UUID projectId, UUID lineageLinkId) {
-        return recordReviewDecision(projectId, lineageLinkId, TaskLineageReviewState.REJECTED, REJECTED_MESSAGE);
+    public TaskLineageDecisionResponse reject(UUID projectId, UUID lineageLinkId, Actor actor) {
+        return recordReviewDecision(
+                projectId, lineageLinkId, actor, TaskLineageReviewState.REJECTED, REJECTED_MESSAGE);
     }
 
     private TaskLineageDecisionResponse recordReviewDecision(
             UUID projectId,
             UUID lineageLinkId,
+            Actor actor,
             TaskLineageReviewState targetState,
             String message
     ) {
+        requireNonNull(actor, "actor is required.");
         UUID requiredProjectId = requireNonNull(projectId, "projectId is required.");
         UUID requiredLineageLinkId = requireNonNull(lineageLinkId, "lineageLinkId is required.");
         TaskLineageRecord existing = find(requiredProjectId, requiredLineageLinkId);
@@ -98,14 +108,18 @@ public class TaskLineageService {
         }
 
         TaskLineageRecord updated = repository
-                .updateReviewState(requiredProjectId, requiredLineageLinkId, targetState)
+                .updateReviewState(requiredProjectId, requiredLineageLinkId, targetState, actor.userId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Task lineage review decision could not be recorded because the link is no longer suggested."
                 ));
 
-        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+        // Reconciling lineage across a re-import is a planner's judgement, so name them.
+        auditEventRecorder.record(AuditEventCreateRequest.userEvent(
                 requiredProjectId,
+                actor.userId(),
+                actor.displayName(),
+                actor.role(),
                 AuditEventCategory.REIMPORT,
                 auditEventType(targetState),
                 "task_lineage_link",

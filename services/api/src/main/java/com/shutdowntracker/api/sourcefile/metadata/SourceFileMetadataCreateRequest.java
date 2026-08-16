@@ -3,8 +3,15 @@ package com.shutdowntracker.api.sourcefile.metadata;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * A stored upload, and who uploaded it.
+ *
+ * <p>{@code uploadedByUserId} comes from the resolved actor, never from the request: the column is
+ * a foreign key to {@code users} and is what the audit trail reads to say who brought a schedule in.
+ */
 public record SourceFileMetadataCreateRequest(
         UUID projectId,
+        UUID uploadedByUserId,
         String originalFilename,
         SourceFileKind fileKind,
         String storageUri,
@@ -14,6 +21,7 @@ public record SourceFileMetadataCreateRequest(
 
     public SourceFileMetadataCreateRequest {
         Objects.requireNonNull(projectId, "projectId is required.");
+        Objects.requireNonNull(uploadedByUserId, "uploadedByUserId is required.");
         if (originalFilename == null || originalFilename.isBlank()) {
             throw new IllegalArgumentException("originalFilename is required.");
         }

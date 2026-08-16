@@ -45,7 +45,7 @@ public class TaskLineageController {
             @RequestBody TaskLineageCreateRequest request
     ) {
         authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
-        return service.createSuggested(projectId, request);
+        return service.createSuggested(projectId, request, actor);
     }
 
     @PostMapping("/{lineageLinkId}/accept")
@@ -55,7 +55,7 @@ public class TaskLineageController {
             Actor actor
     ) {
         authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
-        return service.accept(projectId, lineageLinkId);
+        return service.accept(projectId, lineageLinkId, actor);
     }
 
     @PostMapping("/{lineageLinkId}/reject")
@@ -65,6 +65,6 @@ public class TaskLineageController {
             Actor actor
     ) {
         authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
-        return service.reject(projectId, lineageLinkId);
+        return service.reject(projectId, lineageLinkId, actor);
     }
 }

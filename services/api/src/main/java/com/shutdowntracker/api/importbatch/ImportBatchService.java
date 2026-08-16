@@ -1,6 +1,7 @@
 package com.shutdowntracker.api.importbatch;
 
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
+import com.shutdowntracker.api.actor.Actor;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,8 +25,9 @@ public class ImportBatchService {
         return repository.findByProjectIdAndId(projectId, importBatchId);
     }
 
-    public ImportBatchRecord createPending(UUID projectId, UUID sourceFileId) {
-        return repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
+    public ImportBatchRecord createPending(UUID projectId, Actor actor, UUID sourceFileId) {
+        Objects.requireNonNull(actor, "actor is required.");
+        return repository.create(new ImportBatchCreateRequest(projectId, sourceFileId, actor.userId()));
     }
 
     @Transactional

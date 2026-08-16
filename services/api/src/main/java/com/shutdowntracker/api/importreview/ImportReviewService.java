@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.importreview;
 
+import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
@@ -54,21 +55,23 @@ public class ImportReviewService {
     }
 
     @Transactional
-    public ImportReviewDecisionResponse acceptSnapshot(UUID projectId, UUID snapshotId) {
-        return recordDecision(projectId, snapshotId, ProjectSnapshotStatus.ACCEPTED, ACCEPTED_MESSAGE);
+    public ImportReviewDecisionResponse acceptSnapshot(UUID projectId, UUID snapshotId, Actor actor) {
+        return recordDecision(projectId, snapshotId, actor, ProjectSnapshotStatus.ACCEPTED, ACCEPTED_MESSAGE);
     }
 
     @Transactional
-    public ImportReviewDecisionResponse rejectSnapshot(UUID projectId, UUID snapshotId) {
-        return recordDecision(projectId, snapshotId, ProjectSnapshotStatus.REJECTED, REJECTED_MESSAGE);
+    public ImportReviewDecisionResponse rejectSnapshot(UUID projectId, UUID snapshotId, Actor actor) {
+        return recordDecision(projectId, snapshotId, actor, ProjectSnapshotStatus.REJECTED, REJECTED_MESSAGE);
     }
 
     private ImportReviewDecisionResponse recordDecision(
             UUID projectId,
             UUID snapshotId,
+            Actor actor,
             ProjectSnapshotStatus targetStatus,
             String message
     ) {
+        Objects.requireNonNull(actor, "actor is required.");
         UUID requiredProjectId = requireUuid(projectId, "projectId is required.");
         UUID requiredSnapshotId = requireUuid(snapshotId, "snapshotId is required.");
         ImportReviewSnapshotSummary existing = findSnapshot(requiredProjectId, requiredSnapshotId);
@@ -81,14 +84,18 @@ public class ImportReviewService {
         }
 
         ImportReviewSnapshotSummary updated = repository
-                .recordSnapshotDecision(requiredProjectId, requiredSnapshotId, targetStatus)
+                .recordSnapshotDecision(requiredProjectId, requiredSnapshotId, targetStatus, actor.userId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Snapshot decision could not be recorded because the snapshot is no longer parsed."
                 ));
 
-        auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
+        // Accepting a schedule is a person's decision, so the audit row names them.
+        auditEventRecorder.record(AuditEventCreateRequest.userEvent(
                 requiredProjectId,
+                actor.userId(),
+                actor.displayName(),
+                actor.role(),
                 AuditEventCategory.IMPORT,
                 auditEventType(targetStatus),
                 "project_snapshot",

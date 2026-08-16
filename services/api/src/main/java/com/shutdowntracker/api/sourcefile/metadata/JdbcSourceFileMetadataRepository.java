@@ -44,6 +44,7 @@ public class JdbcSourceFileMetadataRepository implements SourceFileMetadataRepos
                     storage_uri,
                     content_hash,
                     size_bytes,
+                    uploaded_by_user_id,
                     metadata
                 )
                 VALUES (
@@ -53,6 +54,7 @@ public class JdbcSourceFileMetadataRepository implements SourceFileMetadataRepos
                     :storageUri,
                     :contentHash,
                     :sizeBytes,
+                    :uploadedByUserId,
                     '{}'::jsonb
                 )
                 RETURNING id, project_id, original_filename, file_kind, storage_uri, content_hash, size_bytes
@@ -64,7 +66,8 @@ public class JdbcSourceFileMetadataRepository implements SourceFileMetadataRepos
                 .addValue("fileKind", request.fileKind().databaseValue())
                 .addValue("storageUri", request.storageUri())
                 .addValue("contentHash", request.contentHash())
-                .addValue("sizeBytes", request.sizeBytes());
+                .addValue("sizeBytes", request.sizeBytes())
+                .addValue("uploadedByUserId", request.uploadedByUserId());
 
         return jdbcTemplate.queryForObject(sql, parameters, this::mapRecord);
     }
