@@ -7,6 +7,13 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * A decision recorded against one authoritative export candidate.
+ *
+ * <p>{@code reviewedByUserId} is nullable because a caller must not be able to assert it. The
+ * controller overwrites whatever arrives with the resolved actor, so the identity bound to the
+ * approval is always the authenticated reviewer rather than one the request named.
+ */
 public record ExportCandidateApprovalEventRequest(
         ApprovalState approvalState,
         OffsetDateTime requestedAt,

@@ -210,6 +210,7 @@ export type ExportCandidateRecord = {
 export type ExportCandidateApprovalEventCreateRequest = {
   approvalState: ApprovalState;
   requestedAt?: string | null;
+  /** Server-derived from the actor headers. A value sent here is overwritten, never trusted. */
   reviewedByUserId?: string | null;
   reviewedAt?: string | null;
   reason?: string | null;
