@@ -1,5 +1,8 @@
 package com.shutdowntracker.api.tasklineage;
 
+import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,41 +20,51 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskLineageController {
 
     private final TaskLineageService service;
+    private final ProjectAuthorizationService authorization;
 
-    public TaskLineageController(TaskLineageService service) {
+    public TaskLineageController(TaskLineageService service, ProjectAuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @GetMapping
     public List<TaskLineageRecord> listBySnapshotPair(
             @PathVariable UUID projectId,
             @RequestParam UUID previousSnapshotId,
-            @RequestParam UUID currentSnapshotId
+            @RequestParam UUID currentSnapshotId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.VIEW_PROJECT);
         return service.listBySnapshotPair(projectId, previousSnapshotId, currentSnapshotId);
     }
 
     @PostMapping
     public TaskLineageRecord createSuggested(
             @PathVariable UUID projectId,
+            Actor actor,
             @RequestBody TaskLineageCreateRequest request
     ) {
+        authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
         return service.createSuggested(projectId, request);
     }
 
     @PostMapping("/{lineageLinkId}/accept")
     public TaskLineageDecisionResponse accept(
             @PathVariable UUID projectId,
-            @PathVariable UUID lineageLinkId
+            @PathVariable UUID lineageLinkId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
         return service.accept(projectId, lineageLinkId);
     }
 
     @PostMapping("/{lineageLinkId}/reject")
     public TaskLineageDecisionResponse reject(
             @PathVariable UUID projectId,
-            @PathVariable UUID lineageLinkId
+            @PathVariable UUID lineageLinkId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.RECONCILE_TASK_LINEAGE);
         return service.reject(projectId, lineageLinkId);
     }
 }

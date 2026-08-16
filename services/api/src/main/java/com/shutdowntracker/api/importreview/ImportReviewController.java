@@ -1,5 +1,8 @@
 package com.shutdowntracker.api.importreview;
 
+import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,37 +18,46 @@ import org.springframework.web.bind.annotation.RestController;
 public class ImportReviewController {
 
     private final ImportReviewService service;
+    private final ProjectAuthorizationService authorization;
 
-    public ImportReviewController(ImportReviewService service) {
+    public ImportReviewController(ImportReviewService service, ProjectAuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @GetMapping("/snapshots")
-    public List<ImportReviewSnapshotSummary> listSnapshots(@PathVariable UUID projectId) {
+    public List<ImportReviewSnapshotSummary> listSnapshots(@PathVariable UUID projectId, Actor actor) {
+        authorization.requireCapability(projectId, actor, Capability.VIEW_PROJECT);
         return service.listSnapshots(projectId);
     }
 
     @GetMapping("/snapshots/{snapshotId}")
     public ImportReviewSnapshotDetail getSnapshot(
             @PathVariable UUID projectId,
-            @PathVariable UUID snapshotId
+            @PathVariable UUID snapshotId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.VIEW_PROJECT);
         return service.getSnapshot(projectId, snapshotId);
     }
 
     @PostMapping("/snapshots/{snapshotId}/accept")
     public ImportReviewDecisionResponse acceptSnapshot(
             @PathVariable UUID projectId,
-            @PathVariable UUID snapshotId
+            @PathVariable UUID snapshotId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.ACCEPT_IMPORT_SNAPSHOT);
         return service.acceptSnapshot(projectId, snapshotId);
     }
 
     @PostMapping("/snapshots/{snapshotId}/reject")
     public ImportReviewDecisionResponse rejectSnapshot(
             @PathVariable UUID projectId,
-            @PathVariable UUID snapshotId
+            @PathVariable UUID snapshotId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.REJECT_IMPORT_SNAPSHOT);
         return service.rejectSnapshot(projectId, snapshotId);
     }
 }

@@ -2,7 +2,9 @@ package com.shutdowntracker.api.tasklineage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,15 +14,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @WebMvcTest(TaskLineageController.class)
+@Import({ActorWebMvcConfiguration.class, StubActorConfiguration.class})
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
 class TaskLineageControllerTests {
 
@@ -29,6 +39,13 @@ class TaskLineageControllerTests {
 
     @MockBean
     private TaskLineageService service;
+
+    /**
+     * Authorisation itself is covered by ProjectAuthorizationServiceTests against the real
+     * membership store; here it is mocked so a slice test can assert the controller consults it.
+     */
+    @MockBean
+    private ProjectAuthorizationService authorization;
 
     @Test
     void listsLineageLinksForSnapshotPair() throws Exception {
@@ -154,4 +171,22 @@ class TaskLineageControllerTests {
                 null
         );
     }
+
+    @Test
+    void refusesToAcceptALineageLinkWhenTheActorLacksTheCapability() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID lineageLinkId = UUID.randomUUID();
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role admin may not reconcile lineage."))
+                .when(authorization)
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.RECONCILE_TASK_LINEAGE);
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/import-review/lineage-links/{lineageLinkId}/accept",
+                        projectId,
+                        lineageLinkId))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
 }

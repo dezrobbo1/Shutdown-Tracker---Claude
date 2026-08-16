@@ -11,8 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.shutdowntracker.api.actor.Actor;
-import com.shutdowntracker.api.actor.ActorResolver;
 import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import com.shutdowntracker.api.identity.Capability;
 import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.time.OffsetDateTime;
@@ -22,9 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
@@ -32,21 +30,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ExportPreviewController.class)
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
-@Import({ActorWebMvcConfiguration.class, ExportPreviewControllerTests.StubActorConfiguration.class})
+@Import({ActorWebMvcConfiguration.class, StubActorConfiguration.class})
 class ExportPreviewControllerTests {
 
-    private static final Actor ACTOR =
-            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
-
-    /** Controller slice tests assert routing and delegation; header parsing is covered by the resolver tests. */
-    @TestConfiguration
-    static class StubActorConfiguration {
-
-        @Bean
-        ActorResolver actorResolver() {
-            return request -> ACTOR;
-        }
-    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -270,7 +256,7 @@ class ExportPreviewControllerTests {
         ArgumentCaptor<ExportBatchDecisionRequest> captured =
                 ArgumentCaptor.forClass(ExportBatchDecisionRequest.class);
         verify(service).approveBatch(eq(projectId), eq(exportBatchId), captured.capture());
-        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(ACTOR.userId());
+        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(captured.getValue().reason()).isEqualTo("Synthetic approval");
     }
 
@@ -300,7 +286,7 @@ class ExportPreviewControllerTests {
         ArgumentCaptor<ExportBatchProjectOpenRequest> captured =
                 ArgumentCaptor.forClass(ExportBatchProjectOpenRequest.class);
         verify(service).markOpenedInMicrosoftProject(eq(projectId), eq(exportBatchId), captured.capture());
-        assertThat(captured.getValue().openedByUserId()).isEqualTo(ACTOR.userId());
+        assertThat(captured.getValue().openedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(captured.getValue().reason()).isEqualTo("Synthetic reopen");
     }
 
@@ -325,7 +311,7 @@ class ExportPreviewControllerTests {
         ArgumentCaptor<ExportBatchVerificationRequest> captured =
                 ArgumentCaptor.forClass(ExportBatchVerificationRequest.class);
         verify(service).verifyBatch(eq(projectId), eq(exportBatchId), captured.capture());
-        assertThat(captured.getValue().verifiedByUserId()).isEqualTo(ACTOR.userId());
+        assertThat(captured.getValue().verifiedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
     }
 
     @Test
@@ -335,7 +321,7 @@ class ExportPreviewControllerTests {
         org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.FORBIDDEN, "Role supervisor may not approve."))
                 .when(authorization)
-                .requireCapability(projectId, ACTOR, Capability.APPROVE_EXPORT_BATCH);
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.APPROVE_EXPORT_BATCH);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-preview/{id}/approve", projectId, exportBatchId)
                         .contentType(MediaType.APPLICATION_JSON)

@@ -1,5 +1,8 @@
 package com.shutdowntracker.api.sourcefile;
 
+import com.shutdowntracker.api.actor.Actor;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -16,16 +19,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class SourceFileUploadController {
 
     private final SourceFileUploadService uploadService;
+    private final ProjectAuthorizationService authorization;
 
-    public SourceFileUploadController(SourceFileUploadService uploadService) {
+    public SourceFileUploadController(SourceFileUploadService uploadService, ProjectAuthorizationService authorization) {
         this.uploadService = uploadService;
+        this.authorization = authorization;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SourceFileUploadResponse upload(
             @PathVariable UUID projectId,
+            Actor actor,
             @RequestParam("file") MultipartFile file
     ) {
+        authorization.requireCapability(projectId, actor, Capability.UPLOAD_SOURCE_FILE);
         return uploadService.upload(projectId, file);
     }
 }

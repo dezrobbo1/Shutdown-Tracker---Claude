@@ -46,8 +46,10 @@ public class ExportPreviewController {
     @GetMapping("/{exportBatchId}")
     public ExportPreviewDetail getPreview(
             @PathVariable UUID projectId,
-            @PathVariable UUID exportBatchId
+            @PathVariable UUID exportBatchId,
+            Actor actor
     ) {
+        authorization.requireCapability(projectId, actor, Capability.VIEW_PROJECT);
         return service.getPreview(projectId, exportBatchId);
     }
 

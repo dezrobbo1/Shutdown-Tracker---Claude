@@ -1,6 +1,8 @@
 package com.shutdowntracker.api.importreview;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,14 +15,22 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @WebMvcTest(ImportReviewController.class)
+@Import({ActorWebMvcConfiguration.class, StubActorConfiguration.class})
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
 class ImportReviewControllerTests {
 
@@ -29,6 +39,13 @@ class ImportReviewControllerTests {
 
     @MockBean
     private ImportReviewService service;
+
+    /**
+     * Authorisation itself is covered by ProjectAuthorizationServiceTests against the real
+     * membership store; here it is mocked so a slice test can assert the controller consults it.
+     */
+    @MockBean
+    private ProjectAuthorizationService authorization;
 
     @Test
     void listsSnapshotsForProjectReview() throws Exception {
@@ -166,4 +183,34 @@ class ImportReviewControllerTests {
                 1
         );
     }
+
+    /** Accepting a snapshot admits a schedule into everything downstream, so it is planner-gated. */
+    @Test
+    void refusesToAcceptASnapshotWhenTheActorLacksTheCapability() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID snapshotId = UUID.randomUUID();
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role supervisor may not accept a snapshot."))
+                .when(authorization)
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.ACCEPT_IMPORT_SNAPSHOT);
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/accept", projectId, snapshotId))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void refusesToListSnapshotsWithoutProjectVisibility() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a member of this project."))
+                .when(authorization)
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.VIEW_PROJECT);
+
+        mockMvc.perform(get("/api/projects/{projectId}/import-review/snapshots", projectId))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
 }

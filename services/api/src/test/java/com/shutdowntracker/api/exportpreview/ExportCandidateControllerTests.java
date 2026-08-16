@@ -13,8 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.shutdowntracker.api.ApiStrictJsonConfiguration;
 import com.shutdowntracker.api.actor.Actor;
-import com.shutdowntracker.api.actor.ActorResolver;
 import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
 import com.shutdowntracker.api.identity.Capability;
 import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.time.OffsetDateTime;
@@ -24,9 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -39,24 +37,12 @@ import org.springframework.web.server.ResponseStatusException;
 @Import({
     ApiStrictJsonConfiguration.class,
     ActorWebMvcConfiguration.class,
-    ExportCandidateControllerTests.StubActorConfiguration.class
+    StubActorConfiguration.class
 })
 class ExportCandidateControllerTests {
 
-    private static final Actor ACTOR =
-            new Actor(UUID.fromString("00000000-0000-0000-0000-0000000000a1"), "planner", "Synthetic Planner");
-
     private static final UUID FORGED_REVIEWER = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
-    /** Controller slice tests assert routing and delegation; header parsing is covered by the resolver tests. */
-    @TestConfiguration
-    static class StubActorConfiguration {
-
-        @Bean
-        ActorResolver actorResolver() {
-            return request -> ACTOR;
-        }
-    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -200,7 +186,7 @@ class ExportCandidateControllerTests {
         ArgumentCaptor<ExportCandidateApprovalEventRequest> captured =
                 ArgumentCaptor.forClass(ExportCandidateApprovalEventRequest.class);
         verify(service).recordApprovalEvent(eq(projectId), eq(candidateId), captured.capture());
-        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(ACTOR.userId());
+        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
         assertThat(captured.getValue().reviewedByUserId()).isNotEqualTo(FORGED_REVIEWER);
         assertThat(captured.getValue().approvalState()).isEqualTo(ApprovalState.APPROVED_FOR_EXPORT);
         assertThat(captured.getValue().reason()).isEqualTo("Synthetic approval");
@@ -230,7 +216,7 @@ class ExportCandidateControllerTests {
         ArgumentCaptor<ExportCandidateApprovalEventRequest> captured =
                 ArgumentCaptor.forClass(ExportCandidateApprovalEventRequest.class);
         verify(service).recordApprovalEvent(eq(projectId), eq(candidateId), captured.capture());
-        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(ACTOR.userId());
+        assertThat(captured.getValue().reviewedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
     }
 
     @Test
@@ -239,7 +225,7 @@ class ExportCandidateControllerTests {
         UUID candidateId = UUID.randomUUID();
         doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role supervisor may not record approvals."))
                 .when(authorization)
-                .requireCapability(projectId, ACTOR, Capability.RECORD_APPROVAL);
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.RECORD_APPROVAL);
 
         mockMvc.perform(post(
                                 "/api/projects/{projectId}/export-candidates/{candidateId}/approval-events",
@@ -261,7 +247,7 @@ class ExportCandidateControllerTests {
         UUID projectId = UUID.randomUUID();
         doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role supervisor may not preview exports."))
                 .when(authorization)
-                .requireCapability(projectId, ACTOR, Capability.CREATE_EXPORT_PREVIEW);
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.CREATE_EXPORT_PREVIEW);
 
         mockMvc.perform(post("/api/projects/{projectId}/export-candidates", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -281,7 +267,7 @@ class ExportCandidateControllerTests {
                 ApprovalState.APPROVED_FOR_EXPORT,
                 null,
                 OffsetDateTime.parse("2026-01-01T07:00:00Z"),
-                ACTOR.userId(),
+                StubActorConfiguration.ACTOR.userId(),
                 OffsetDateTime.parse("2026-01-01T08:00:00Z"),
                 "Synthetic planner approval",
                 OffsetDateTime.parse("2026-01-01T08:00:01Z"),

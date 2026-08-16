@@ -1,7 +1,11 @@
 package com.shutdowntracker.api.exportpreview.handoff;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,15 +22,24 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.shutdowntracker.api.actor.ActorWebMvcConfiguration;
+import com.shutdowntracker.api.actor.StubActorConfiguration;
+import com.shutdowntracker.api.identity.Capability;
+import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @WebMvcTest(ExportArtifactHandoffController.class)
+@Import({ActorWebMvcConfiguration.class, StubActorConfiguration.class})
 @TestPropertySource(properties = "shutdown-tracker.persistence.enabled=true")
 class ExportArtifactHandoffControllerTests {
 
@@ -35,6 +48,13 @@ class ExportArtifactHandoffControllerTests {
 
     @MockBean
     private ExportArtifactHandoffService service;
+
+    /**
+     * Authorisation itself is covered by ProjectAuthorizationServiceTests against the real
+     * membership store; here it is mocked so a slice test can assert the controller consults it.
+     */
+    @MockBean
+    private ProjectAuthorizationService authorization;
 
     @Test
     void requestsWorkerExportArtifactGeneration() throws Exception {
@@ -61,6 +81,79 @@ class ExportArtifactHandoffControllerTests {
                 .andExpect(jsonPath("$.message").value(response.message()));
 
         verify(service).generateArtifact(any(UUID.class), any(UUID.class), any(ExportArtifactGenerationRequest.class));
+    }
+
+    /**
+     * This endpoint writes the same generated-by column as the guarded route on
+     * ExportPreviewController, so it must not let a caller name the generator.
+     */
+    @Test
+    void recordsTheResolvedActorAsGeneratorEvenWhenTheBodyClaimsSomeoneElse() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        when(service.generateArtifact(any(UUID.class), any(UUID.class), any(ExportArtifactGenerationRequest.class)))
+                .thenReturn(response(projectId, exportBatchId));
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact",
+                        projectId,
+                        exportBatchId
+                )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "generatedByUserId": "99999999-9999-9999-9999-999999999999",
+                                  "reason": "Synthetic worker artifact generation"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<ExportArtifactGenerationRequest> captured =
+                ArgumentCaptor.forClass(ExportArtifactGenerationRequest.class);
+        verify(service).generateArtifact(eq(projectId), eq(exportBatchId), captured.capture());
+        assertThat(captured.getValue().generatedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
+        assertThat(captured.getValue().generatedByUserId())
+                .isNotEqualTo(UUID.fromString("99999999-9999-9999-9999-999999999999"));
+        assertThat(captured.getValue().reason()).isEqualTo("Synthetic worker artifact generation");
+    }
+
+    /** A body-less request is allowed; the actor still reaches the service. */
+    @Test
+    void recordsTheResolvedActorWhenNoBodyIsSent() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        when(service.generateArtifact(any(UUID.class), any(UUID.class), any(ExportArtifactGenerationRequest.class)))
+                .thenReturn(response(projectId, exportBatchId));
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact",
+                        projectId,
+                        exportBatchId
+                ))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<ExportArtifactGenerationRequest> captured =
+                ArgumentCaptor.forClass(ExportArtifactGenerationRequest.class);
+        verify(service).generateArtifact(eq(projectId), eq(exportBatchId), captured.capture());
+        assertThat(captured.getValue().generatedByUserId()).isEqualTo(StubActorConfiguration.ACTOR.userId());
+    }
+
+    @Test
+    void refusesGenerationWhenTheActorLacksTheCapability() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role supervisor may not generate artifacts."))
+                .when(authorization)
+                .requireCapability(projectId, StubActorConfiguration.ACTOR, Capability.GENERATE_EXPORT_ARTIFACT);
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact",
+                        projectId,
+                        exportBatchId
+                ))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
     }
 
     private ExportArtifactGenerationResponse response(UUID projectId, UUID exportBatchId) {
