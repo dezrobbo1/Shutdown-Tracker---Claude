@@ -337,8 +337,9 @@ describe("design tokens", () => {
   // The stylesheets carried ~65 literal colours between them, so a restyle meant a
   // find-and-replace rather than a change of palette. Every colour is now declared once, and
   // this keeps it that way.
+  const consoleCss = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const stylesheets = [
-    ["console", readFileSync(new URL("./styles.css", import.meta.url), "utf8")],
+    ["console", consoleCss],
     ["field app", readFileSync(new URL("../../mobile-pwa/src/styles.css", import.meta.url), "utf8")]
   ] as const;
 
@@ -354,8 +355,7 @@ describe("design tokens", () => {
   }
 
   it("keeps the page header compact rather than a marketing hero", () => {
-    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-    const header = css.slice(css.indexOf(".workspace-header h1 {"));
+    const header = consoleCss.slice(consoleCss.indexOf(".workspace-header h1 {"));
 
     expect(header).not.toContain("clamp(2rem");
     expect(header.slice(0, 80)).toContain("1.35rem");
