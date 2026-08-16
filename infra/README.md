@@ -5,8 +5,8 @@ This directory contains the local PostgreSQL migration-validation configuration 
 ## Contents
 
 - [`docker/docker-compose.postgres.yml`](docker/docker-compose.postgres.yml): PostgreSQL 16 Compose service for local migration validation.
-- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V007`.
-- [`../scripts/db`](../scripts/db): Bash and PowerShell runners that reset the validation database, apply every migration file in its own transaction, verify the 21-table baseline, and run populated-upgrade and export-integrity regressions.
+- [`migrations`](migrations): Flyway-compatible PostgreSQL migrations `V001` through `V011`.
+- [`../scripts/db`](../scripts/db): Bash and PowerShell runners that reset the validation database, apply every migration file in its own transaction, verify the 33-table baseline, and run populated-upgrade and export-integrity regressions.
 
 ## Local validation
 

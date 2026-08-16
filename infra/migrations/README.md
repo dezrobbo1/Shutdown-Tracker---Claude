@@ -4,7 +4,7 @@ This directory contains the PostgreSQL schema migrations used by Shutdown Tracke
 
 ## Current baseline
 
-The baseline is `V001` through `V007` and creates 21 application tables:
+The baseline is `V001` through `V011` and creates 33 application tables:
 
 - `V001__baseline_extensions_and_enums.sql`: enables `pgcrypto` and defines the initial enum types; creates no tables.
 - `V002__projects_snapshots_and_imports.sql`: creates `projects`, `source_files`, `import_batches`, and `project_snapshots`.
@@ -13,6 +13,10 @@ The baseline is `V001` through `V007` and creates 21 application tables:
 - `V005__approval_and_export_batches.sql`: creates `approval_records`, `export_batches`, and `export_batch_lines`.
 - `V006__critical_watchlists_reporting.sql`: creates `critical_watchlists`, `critical_work_packages`, `critical_work_package_sources`, `reporting_policy_versions`, `reporting_periods`, `critical_updates`, and `critical_update_lines`.
 - `V007__enforce_export_candidate_integrity.sql`: creates `export_candidate_records`; preserves V006 export history as unversioned, read-only records; and makes policy 1 the current export-integrity policy with immutable candidate facts, separate candidate-bound approval history, sealed preview membership, exact task/field/value authority, deterministic event ordering, authoritative Microsoft Project open identity, and database-enforced lifecycle/provenance immutability.
+- `V008__users_roles_and_memberships.sql`: creates `users` and `project_memberships`, and constrains every `*_by_user_id` attribution column with a foreign key so the audit trail cannot name a user that does not exist.
+- `V009__task_execution_and_progress.sql`: creates `task_execution_states` and `task_progress_updates`.
+- `V010__problems_actions_evidence_handover.sql`: creates `problems`, `actions`, `evidence`, and `handover_notes`.
+- `V011__import_profiles_and_operational_categories.sql`: creates `import_profiles`, `operational_categories`, `operational_category_aliases`, and `task_category_values`.
 
 Critical Watchlists and Critical Work Packages are reporting constructs. They do not calculate critical path, float, or recovery schedules.
 

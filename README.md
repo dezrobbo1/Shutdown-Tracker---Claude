@@ -33,26 +33,48 @@ Implemented foundations include:
 
 - Java 21 Spring Boot API and project-worker services;
 - PostgreSQL and Flyway-compatible migrations;
-- immutable Project source/snapshot and imported-entity persistence foundations;
+- immutable Project source/snapshot persistence, including imported tasks, resources,
+  assignments, and aliased custom fields stored from a parsed Project file;
 - MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
 - append-only audit foundations;
-- React/Vite Master Console and Mobile Field App visual shells;
+- approval-record capture that gates export eligibility, and terminal failure recording for import and export batches;
+- users, project-scoped roles, and enforced authorization resolved from stored membership;
+- task execution state and the field-to-export progress review chain, with supervisor and
+  planner review as separate decisions;
+- problems, actions, evidence, and handover records;
+- versioned Import Profiles and Operational Categories resolved from task fields, summary
+  ancestry, and assigned-resource Groups, with mapping health on re-import;
+- Critical Watchlists, Critical Work Packages, and Critical Update reporting;
+- a Master Console with working import review, execution, supervisor and planner progress
+  review, problems and actions, handover, operational mapping, and controlled export zones,
+  each reading and writing through the API;
+- a Mobile Field App with an offline execution queue: progress is stored on the device before
+  it is sent, carries a device-generated idempotency key so a retry cannot double-report, and
+  shows sync state rather than implying delivery;
+- role-aware controls in both apps, checked against a capability map that a test compares
+  against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
 - synthetic MSPDI regression fixtures and expected-output tests;
+- repository tests that run the migrations and every SQL statement against a real
+  PostgreSQL server;
 - local migration and import/export smoke tooling.
 
 Not production-complete yet:
 
-- live task-execution and progress-write workflows;
-- supervisor/planner production review workflows;
-- production authentication and authorization enforcement;
-- mobile offline execution queue;
+- production authentication; authorization is enforced, but the actor still arrives
+  through a gateway-trusted header rather than a validated token;
+- Critical Watch has no HTTP surface yet; the service and repository exist but no controller
+  exposes them, so the console cannot reach them;
+- evidence capture in the field app, and evidence binary upload in either app;
+- assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
+  rather than only the work assigned to the signed-in user;
+- Saved Operational Views and global operational Scope;
+- reporting policy cadences and generated reporting periods;
 - production object storage;
 - durable background-job/queue integration;
 - full human Microsoft Project round-trip evidence;
-- communications implementation;
-- Project Operational Mapping and configurable operational scope.
+- communications implementation.
 
 Current implementation details belong in the app/service READMEs and source code rather than this root overview.
 
@@ -127,7 +149,11 @@ npm test
 npm run build
 ```
 
-Database migration validation:
+`mvn test` includes repository tests that start a real PostgreSQL server and apply
+`infra/migrations` to it. Docker is not required: the server binary is unpacked from a
+Maven artifact, so the same tests run locally and in CI.
+
+Static migration linting (naming and content checks only):
 
 ```text
 ./scripts/db/validate-migrations.sh

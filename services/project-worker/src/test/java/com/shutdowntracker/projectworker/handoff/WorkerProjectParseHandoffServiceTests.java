@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryRequest;
 import com.shutdowntracker.projectimport.contract.ProjectParseSummaryResponse;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummary;
+import com.shutdowntracker.projectworker.importer.MpxjProjectEntityExtractionService;
+import com.shutdowntracker.projectworker.importer.MpxjProjectImportSummaryService;
+import com.shutdowntracker.projectworker.importer.MpxjProjectParseService;
 import com.shutdowntracker.projectworker.importer.ProjectImportSummaryService;
 import com.shutdowntracker.projectworker.storage.WorkerStoragePathResolver;
 import com.shutdowntracker.projectworker.storage.WorkerStorageProperties;
@@ -25,7 +28,15 @@ class WorkerProjectParseHandoffServiceTests {
     private Path sourceFileRoot;
 
     private WorkerProjectParseHandoffService service(ProjectImportSummaryService summaryService) {
-        return new WorkerProjectParseHandoffService(summaryService, new WorkerStoragePathResolver(
+        return new WorkerProjectParseHandoffService(
+                summaryService,
+                new MpxjProjectParseService(
+                        new MpxjProjectImportSummaryService(), new MpxjProjectEntityExtractionService()),
+                resolver());
+    }
+
+    private WorkerStoragePathResolver resolver() {
+        return new WorkerStoragePathResolver(
                 new WorkerStorageProperties(sourceFileRoot, sourceFileRoot.resolve("artifacts"))
         ));
     }

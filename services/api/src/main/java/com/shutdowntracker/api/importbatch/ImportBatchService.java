@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @ConditionalOnProperty(prefix = "shutdown-tracker.persistence", name = "enabled", havingValue = "true")
@@ -27,14 +28,22 @@ public class ImportBatchService {
         return repository.create(new ImportBatchCreateRequest(projectId, sourceFileId));
     }
 
+    @Transactional
     public ImportBatchRecord updateStatus(UUID importBatchId, ImportBatchStatus status) {
         Objects.requireNonNull(importBatchId, "importBatchId is required.");
         Objects.requireNonNull(status, "status is required.");
         return repository.updateStatus(importBatchId, status);
     }
 
+    @Transactional
     public ImportBatchRecord recordParsedSummary(ProjectParseSummaryResponse response) {
         Objects.requireNonNull(response, "response is required.");
         return repository.recordParseSummary(ImportBatchParseSummaryUpdate.from(response));
+    }
+
+    @Transactional
+    public ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason) {
+        Objects.requireNonNull(importBatchId, "importBatchId is required.");
+        return repository.recordParseFailure(importBatchId, failureReason);
     }
 }

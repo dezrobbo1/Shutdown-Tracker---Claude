@@ -49,7 +49,12 @@ class HttpProjectParseJobClientTests {
         HttpProjectParseJobClient client = new HttpProjectParseJobClient(
                 RestClient.builder(),
                 new ProjectParseWorkerClientProperties(
-                        baseUrl, null, null, Duration.ofSeconds(2), Duration.ofMillis(400)
+                        baseUrl,
+                        null,
+                        null,
+                        null,
+                        Duration.ofSeconds(2),
+                        Duration.ofMillis(400)
                 )
         );
         ProjectParseSummaryRequest request = new ProjectParseSummaryRequest(

@@ -12,3 +12,7 @@ spring:
 shutdown-tracker:
   persistence:
     enabled: true
+  actor:
+    trusted-header:
+      # Local development only. Nothing authenticates these headers here, so any caller can claim any actor.
+      enabled: true

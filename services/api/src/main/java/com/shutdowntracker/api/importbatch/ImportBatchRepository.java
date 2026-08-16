@@ -12,4 +12,10 @@ public interface ImportBatchRepository {
     ImportBatchRecord updateStatus(UUID importBatchId, ImportBatchStatus status);
 
     ImportBatchRecord recordParseSummary(ImportBatchParseSummaryUpdate update);
+
+    /**
+     * Moves the batch to {@code failed} and records why, so a failed parse stays visible instead of
+     * silently reverting to its previous status.
+     */
+    ImportBatchRecord recordParseFailure(UUID importBatchId, String failureReason);
 }

@@ -271,6 +271,87 @@ describe("shutdown tracker api client", () => {
     } satisfies Partial<ShutdownTrackerApiError>);
   });
 
+  it("submits task progress without asserting who submitted it", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {}),
+      headers: { "X-Shutdown-Tracker-Actor-Id": "actor-1" }
+    });
+
+    await client.taskProgress.submit("project-1", {
+      importedTaskId: "task-1",
+      executionState: "IN_PROGRESS",
+      percentComplete: 50,
+      idempotencyKey: "device-key-1"
+    });
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/project-1/task-progress");
+    expect(calls[0].method).toBe("POST");
+    // The server resolves the actor from the request; the body must not carry a user id.
+    expect(String(calls[0].body)).not.toContain("UserId");
+    expect(String(calls[0].body)).toContain("device-key-1");
+  });
+
+  it("routes supervisor and planner review to separate endpoints", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.taskProgress.supervisorReview("p1", "u1", { decision: "SUPERVISOR_ACCEPTED" });
+    await client.taskProgress.plannerReview("p1", "u1", { approved: true });
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/task-progress/u1/supervisor-review");
+    expect(calls[1].input).toBe("https://example.test/api/projects/p1/task-progress/u1/planner-review");
+  });
+
+  it("exposes problems, actions, evidence, and handover", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.problems.raise("p1", { title: "Scaffold missing", blocksExecution: true });
+    await client.actions.create("p1", { title: "Order scaffold" });
+    await client.evidence.register("p1", { importedTaskId: "t1", originalFilename: "photo.jpg" });
+    await client.handover.create("p1", {
+      shiftLabel: "Night",
+      note: "Valve left isolated.",
+      requiresAcknowledgement: true
+    });
+
+    expect(calls.map((call) => call.input)).toEqual([
+      "https://example.test/api/projects/p1/problems",
+      "https://example.test/api/projects/p1/actions",
+      "https://example.test/api/projects/p1/evidence",
+      "https://example.test/api/projects/p1/handover-notes"
+    ]);
+  });
+
+  it("configures operational categories and resolves a snapshot", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.importProfiles.addCategory("p1", "profile-1", {
+      name: "Work Group",
+      sourceMode: "TASK_FIELD",
+      sourceField: "Work Group",
+      multiValued: false,
+      requiredForExecution: true
+    });
+    await client.importProfiles.resolveSnapshot("p1", "snapshot-1");
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/import-profiles/profile-1/categories");
+    expect(calls[1].input).toBe("https://example.test/api/projects/p1/import-profiles/resolve/snapshot-1");
+    expect(calls[1].method).toBe("POST");
+  });
+
   it("describes the import and export review API surface", () => {
     expect(shutdownTrackerReviewApiSurfaces.map((surface) => surface.label)).toEqual(
       expect.arrayContaining([

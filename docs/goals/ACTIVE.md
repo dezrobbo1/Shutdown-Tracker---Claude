@@ -70,7 +70,7 @@ The corrected branch must provide:
 - protected, sectioned lifecycle provenance with authoritative generation, artifact, Project-open, and verification identity;
 - state-specific candidate approval audit event types;
 - real Spring/JDBC/PostgreSQL transaction integration tests, including a controlled HTTP worker failure that proves complete rollback and a later successful revalidation;
-- a 21-table V001–V007 baseline;
+- a 33-table V001–V011 baseline;
 - passing Java, TypeScript, frontend build, and migration validation.
 
 Treat each item as a claim requiring evidence, not as an established fact.

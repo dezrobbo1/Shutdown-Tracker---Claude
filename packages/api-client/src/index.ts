@@ -1,3 +1,5 @@
+export * from "./identity";
+
 export type JsonObject = Record<string, unknown>;
 
 export type ProjectSnapshotStatus = "PARSED" | "ACCEPTED" | "REJECTED" | "SUPERSEDED" | "FAILED";
@@ -359,13 +361,15 @@ export type ExportBatchDecisionRequest = {
 };
 
 export type ExportBatchProjectOpenRequest = {
-  openedByUserId: string;
+  /** Server-derived from the actor headers. A value sent here is overwritten, never trusted. */
+  openedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
 
 export type ExportBatchVerificationRequest = {
-  verifiedByUserId: string;
+  /** Server-derived from the actor headers. A value sent here is overwritten, never trusted. */
+  verifiedByUserId?: string | null;
   reason?: string | null;
   metadata?: JsonObject | null;
 };
@@ -399,6 +403,275 @@ export type ExportArtifactGenerationResponse = {
   exportPreview: ExportPreviewDetail;
   workerResponse: ProjectExportArtifactGenerationResponse;
   message: string;
+};
+
+/**
+ * Task execution and progress. The dimensions are deliberately separate: a task can be
+ * blocked, awaiting planner review, and not export-eligible at the same time.
+ */
+export type TaskExecutionState =
+  | "NOT_STARTED"
+  | "READY"
+  | "IN_PROGRESS"
+  | "PAUSED"
+  | "BLOCKED"
+  | "COMPLETED";
+
+export type ProgressReviewState =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "SUPERVISOR_ACCEPTED"
+  | "CORRECTION_REQUESTED"
+  | "REJECTED"
+  | "SUPERSEDED";
+
+export type PlannerReviewState =
+  | "NOT_REQUIRED"
+  | "NEEDS_PLANNER_REVIEW"
+  | "PLANNER_APPROVED"
+  | "PLANNER_REJECTED";
+
+export type ProgressExportState =
+  | "NOT_ELIGIBLE"
+  | "ELIGIBLE"
+  | "EXPORT_BLOCKED"
+  | "APPROVED_FOR_EXPORT"
+  | "IN_EXPORT_PREVIEW"
+  | "ARTIFACT_GENERATED"
+  | "OPENED_IN_MICROSOFT_PROJECT"
+  | "VERIFIED"
+  | "SUPERSEDED";
+
+/**
+ * A field submission.
+ *
+ * The submitter is not part of the request: the server resolves the actor from the
+ * authenticated request, so a caller cannot submit progress as somebody else.
+ *
+ * Supply `idempotencyKey` from the device so a retry over a poor connection returns the
+ * original submission rather than double-reporting progress.
+ */
+export type TaskProgressSubmitRequest = {
+  importedTaskId: string;
+  executionState: TaskExecutionState;
+  percentComplete?: number | null;
+  actualStart?: string | null;
+  actualFinish?: string | null;
+  physicalPercentComplete?: number | null;
+  comment?: string | null;
+  idempotencyKey?: string | null;
+  offlineLocalId?: string | null;
+  supersedesProgressUpdateId?: string | null;
+};
+
+export type TaskProgressUpdateRecord = {
+  id: string;
+  projectId: string;
+  projectSnapshotId: string;
+  importedTaskId: string;
+  executionState: TaskExecutionState;
+  percentComplete: number | null;
+  actualStart: string | null;
+  actualFinish: string | null;
+  physicalPercentComplete: number | null;
+  comment: string | null;
+  submittedByUserId: string;
+  progressReviewState: ProgressReviewState;
+  plannerReviewState: PlannerReviewState;
+  exportState: ProgressExportState;
+  supersedesProgressUpdateId: string | null;
+};
+
+export type SupervisorReviewRequest = {
+  /** Accept, request correction, or reject. Acceptance is not export approval. */
+  decision: "SUPERVISOR_ACCEPTED" | "CORRECTION_REQUESTED" | "REJECTED";
+  note?: string | null;
+};
+
+export type PlannerReviewRequest = {
+  approved: boolean;
+  note?: string | null;
+};
+
+export type ProblemSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export type ProblemStatus =
+  | "OPEN"
+  | "ASSIGNED"
+  | "ESCALATED"
+  | "CLOSED"
+  | "REOPENED"
+  | "SUPERSEDED";
+
+export type ProblemCreateRequest = {
+  importedTaskId?: string | null;
+  title: string;
+  description?: string | null;
+  severity?: ProblemSeverity;
+  blocksExecution: boolean;
+};
+
+export type ProblemRecord = {
+  id: string;
+  projectId: string;
+  importedTaskId: string | null;
+  title: string;
+  description: string | null;
+  status: ProblemStatus;
+  severity: ProblemSeverity;
+  blocksExecution: boolean;
+  raisedByUserId: string;
+  assignedToUserId: string | null;
+  resolvedAt: string | null;
+  resolvedByUserId: string | null;
+};
+
+export type ActionStatus =
+  | "OPEN"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "VERIFIED"
+  | "CLOSED"
+  | "REOPENED"
+  | "SUPERSEDED";
+
+export type ActionCreateRequest = {
+  problemId?: string | null;
+  importedTaskId?: string | null;
+  title: string;
+  description?: string | null;
+  assignedToUserId?: string | null;
+  dueAt?: string | null;
+};
+
+export type ActionRecord = {
+  id: string;
+  projectId: string;
+  problemId: string | null;
+  importedTaskId: string | null;
+  title: string;
+  description: string | null;
+  status: ActionStatus;
+  assignedToUserId: string | null;
+  dueAt: string | null;
+  createdByUserId: string;
+  completedAt: string | null;
+  completedByUserId: string | null;
+};
+
+export type EvidenceStatus =
+  | "PENDING_UPLOAD"
+  | "UPLOADED"
+  | "LINKED"
+  | "UNLINKED"
+  | "SUPERSEDED"
+  | "FAILED";
+
+/**
+ * Evidence metadata. Binary content is not sent here: it goes to object storage and
+ * `storageUri` points at it.
+ */
+export type EvidenceCreateRequest = {
+  importedTaskId?: string | null;
+  problemId?: string | null;
+  actionId?: string | null;
+  taskProgressUpdateId?: string | null;
+  originalFilename: string;
+  contentType?: string | null;
+  storageUri?: string | null;
+  sizeBytes?: number | null;
+  caption?: string | null;
+};
+
+export type EvidenceRecord = {
+  id: string;
+  projectId: string;
+  importedTaskId: string | null;
+  problemId: string | null;
+  actionId: string | null;
+  taskProgressUpdateId: string | null;
+  originalFilename: string;
+  contentType: string | null;
+  storageUri: string | null;
+  status: EvidenceStatus;
+  capturedByUserId: string;
+  caption: string | null;
+};
+
+export type HandoverNoteCreateRequest = {
+  importedTaskId?: string | null;
+  problemId?: string | null;
+  shiftLabel: string;
+  note: string;
+  requiresAcknowledgement: boolean;
+};
+
+export type HandoverNoteRecord = {
+  id: string;
+  projectId: string;
+  importedTaskId: string | null;
+  problemId: string | null;
+  shiftLabel: string;
+  note: string;
+  requiresAcknowledgement: boolean;
+  createdByUserId: string;
+  acknowledgedByUserId: string | null;
+  acknowledgedAt: string | null;
+};
+
+/** Where an Operational Category reads its values from in the imported Project data. */
+export type CategorySourceMode = "TASK_FIELD" | "HIERARCHY_ANCESTOR" | "RESOURCE_GROUP";
+
+/** Re-import validation outcome. An uncertain source is never silently remapped. */
+export type MappingHealth =
+  | "HEALTHY"
+  | "HEALTHY_WITH_NEW_VALUES"
+  | "CONFIGURATION_CHANGED"
+  | "CONFIRMATION_REQUIRED"
+  | "BROKEN"
+  | "PROFILE_MISMATCH";
+
+export type ImportProfileRecord = {
+  id: string;
+  projectId: string;
+  name: string;
+  version: number;
+  active: boolean;
+  description: string | null;
+};
+
+export type OperationalCategoryCreateRequest = {
+  name: string;
+  sourceMode: CategorySourceMode;
+  /** Required for TASK_FIELD: the field name or the planner's custom-field alias. */
+  sourceField?: string | null;
+  /** Required for HIERARCHY_ANCESTOR: the outline level of the ancestor to read. */
+  sourceOutlineLevel?: number | null;
+  multiValued: boolean;
+  requiredForExecution: boolean;
+};
+
+export type OperationalCategoryRecord = {
+  id: string;
+  importProfileId: string;
+  projectId: string;
+  name: string;
+  sourceMode: CategorySourceMode;
+  sourceField: string | null;
+  sourceOutlineLevel: number | null;
+  multiValued: boolean;
+  requiredForExecution: boolean;
+  health: MappingHealth;
+};
+
+export type CategoryResolutionSummary = {
+  operationalCategoryId: string;
+  categoryName: string;
+  sourceMode: CategorySourceMode;
+  taskCount: number;
+  distinctValueCount: number;
+  health: MappingHealth;
 };
 
 export type ReviewApiSurface = {
@@ -444,6 +717,12 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export type ShutdownTrackerApiClientOptions = {
   baseUrl?: string;
   fetchImpl?: FetchLike;
+  /**
+   * Headers sent with every request, used to carry the authenticated actor.
+   *
+   * The API rejects operations that must be attributed to a user when no actor reaches it.
+   */
+  headers?: Record<string, string>;
 };
 
 export class ShutdownTrackerApiError extends Error {
@@ -461,6 +740,7 @@ export class ShutdownTrackerApiError extends Error {
 export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClientOptions = {}) {
   const transport = options.fetchImpl ?? defaultFetch();
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? "");
+  const defaultHeaders = options.headers ?? {};
 
   return {
     sourceFiles: {
@@ -471,7 +751,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         } else {
           formData.append("file", file);
         }
-        return requestJson<SourceFileUploadResponse>(transport, baseUrl, sourceFilesPath(projectId), {
+        return requestJson<SourceFileUploadResponse>(transport, baseUrl, defaultHeaders, sourceFilesPath(projectId), {
           method: "POST",
           formData
         });
@@ -482,19 +762,21 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportBatchParseHandoffResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importBatchPath(projectId, importBatchId, "request-parse-summary"),
           { method: "POST" }
         )
     },
     importReview: {
       listSnapshots: (projectId: string) =>
-        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, importReviewPath(projectId, "snapshots")),
+        requestJson<ImportReviewSnapshotSummary[]>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "snapshots")),
       getSnapshot: (projectId: string, snapshotId: string) =>
-        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, importReviewPath(projectId, `snapshots/${snapshotId}`)),
+        requestJson<ImportReviewSnapshotDetail>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, `snapshots/${snapshotId}`)),
       acceptSnapshot: (projectId: string, snapshotId: string) =>
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/accept`),
           { method: "POST" }
         ),
@@ -502,6 +784,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ImportReviewDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `snapshots/${snapshotId}/reject`),
           { method: "POST" }
         )
@@ -511,11 +794,12 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageRecord[]>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, "lineage-links"),
           { query: { previousSnapshotId, currentSnapshotId } }
         ),
       createSuggested: (projectId: string, request: TaskLineageCreateRequest) =>
-        requestJson<TaskLineageRecord>(transport, baseUrl, importReviewPath(projectId, "lineage-links"), {
+        requestJson<TaskLineageRecord>(transport, baseUrl, defaultHeaders, importReviewPath(projectId, "lineage-links"), {
           method: "POST",
           body: request
         }),
@@ -523,6 +807,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/accept`),
           { method: "POST" }
         ),
@@ -530,6 +815,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<TaskLineageDecisionResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           importReviewPath(projectId, `lineage-links/${lineageLinkId}/reject`),
           { method: "POST" }
         )
@@ -537,7 +823,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
     exportCandidates: {
       create: (projectId: string, request: ExportCandidateCreateRequest) => {
         assertOnlySupportedRequestFields("Export candidate request", request, exportCandidateCreateRequestFields);
-        return requestJson<ExportCandidateRecord>(transport, baseUrl, exportCandidatesPath(projectId), {
+        return requestJson<ExportCandidateRecord>(transport, baseUrl, defaultHeaders, exportCandidatesPath(projectId), {
           method: "POST",
           body: {
             projectSnapshotId: request.projectSnapshotId,
@@ -567,6 +853,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         return requestJson<ExportCandidateApprovalEventRecord>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportCandidatesPath(projectId, `${candidateId}/approval-events`),
           {
             method: "POST",
@@ -585,7 +872,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
     exportPreview: {
       create: (projectId: string, request: ExportPreviewCreateRequest) => {
         assertOnlySupportedRequestFields("Export preview request", request, exportPreviewCreateRequestFields);
-        return requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId), {
+        return requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId), {
           method: "POST",
           body: {
             projectSnapshotId: request.projectSnapshotId,
@@ -595,14 +882,14 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         });
       },
       get: (projectId: string, exportBatchId: string) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, exportBatchId)),
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, exportBatchId)),
       approve: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
           method: "POST",
           body: request
         }),
       reject: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
-        requestJson<ExportPreviewDetail>(transport, baseUrl, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
+        requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/reject`), {
           method: "POST",
           body: request
         }),
@@ -610,6 +897,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/mark-opened-in-microsoft-project`),
           { method: "POST", body: request }
         ),
@@ -617,6 +905,7 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportPreviewDetail>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/verify`),
           { method: "POST", body: request }
         ),
@@ -624,9 +913,153 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         requestJson<ExportArtifactGenerationResponse>(
           transport,
           baseUrl,
+          defaultHeaders,
           exportPreviewPath(projectId, `${exportBatchId}/generate-artifact`),
           { method: "POST", body: request ?? {} }
         )
+    },
+    taskProgress: {
+      submit: (projectId: string, request: TaskProgressSubmitRequest) =>
+        requestJson<TaskProgressUpdateRecord>(transport, baseUrl, defaultHeaders, taskProgressPath(projectId), {
+          method: "POST",
+          body: request
+        }),
+      supervisorQueue: (projectId: string) =>
+        requestJson<TaskProgressUpdateRecord[]>(
+          transport, baseUrl, defaultHeaders, taskProgressPath(projectId, "supervisor-queue")),
+      supervisorReview: (projectId: string, progressUpdateId: string, request: SupervisorReviewRequest) =>
+        requestJson<TaskProgressUpdateRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          taskProgressPath(projectId, `${progressUpdateId}/supervisor-review`),
+          { method: "POST", body: request }
+        ),
+      plannerQueue: (projectId: string) =>
+        requestJson<TaskProgressUpdateRecord[]>(
+          transport, baseUrl, defaultHeaders, taskProgressPath(projectId, "planner-queue")),
+      plannerReview: (projectId: string, progressUpdateId: string, request: PlannerReviewRequest) =>
+        requestJson<TaskProgressUpdateRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          taskProgressPath(projectId, `${progressUpdateId}/planner-review`),
+          { method: "POST", body: request }
+        )
+    },
+    problems: {
+      raise: (projectId: string, request: ProblemCreateRequest) =>
+        requestJson<ProblemRecord>(transport, baseUrl, defaultHeaders, projectPath(projectId, "problems"), {
+          method: "POST",
+          body: request
+        }),
+      listOpen: (projectId: string) =>
+        requestJson<ProblemRecord[]>(transport, baseUrl, defaultHeaders, projectPath(projectId, "problems")),
+      assign: (projectId: string, problemId: string, assigneeUserId: string) =>
+        requestJson<ProblemRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `problems/${problemId}/assign`),
+          { method: "POST", query: { assigneeUserId } }
+        ),
+      close: (projectId: string, problemId: string, resolutionNote?: string) =>
+        requestJson<ProblemRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `problems/${problemId}/close`),
+          { method: "POST", body: { resolutionNote: resolutionNote ?? null } }
+        )
+    },
+    actions: {
+      create: (projectId: string, request: ActionCreateRequest) =>
+        requestJson<ActionRecord>(transport, baseUrl, defaultHeaders, projectPath(projectId, "actions"), {
+          method: "POST",
+          body: request
+        }),
+      listOpen: (projectId: string) =>
+        requestJson<ActionRecord[]>(transport, baseUrl, defaultHeaders, projectPath(projectId, "actions")),
+      complete: (projectId: string, actionId: string) =>
+        requestJson<ActionRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `actions/${actionId}/complete`),
+          { method: "POST" }
+        )
+    },
+    evidence: {
+      register: (projectId: string, request: EvidenceCreateRequest) =>
+        requestJson<EvidenceRecord>(transport, baseUrl, defaultHeaders, projectPath(projectId, "evidence"), {
+          method: "POST",
+          body: request
+        }),
+      listForTask: (projectId: string, importedTaskId: string) =>
+        requestJson<EvidenceRecord[]>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `tasks/${importedTaskId}/evidence`))
+    },
+    handover: {
+      create: (projectId: string, request: HandoverNoteCreateRequest) =>
+        requestJson<HandoverNoteRecord>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "handover-notes"),
+          { method: "POST", body: request }
+        ),
+      listUnacknowledged: (projectId: string) =>
+        requestJson<HandoverNoteRecord[]>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "handover-notes/unacknowledged")),
+      acknowledge: (projectId: string, handoverNoteId: string) =>
+        requestJson<HandoverNoteRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `handover-notes/${handoverNoteId}/acknowledge`),
+          { method: "POST" }
+        )
+    },
+    importProfiles: {
+      create: (projectId: string, name: string, description?: string) =>
+        requestJson<ImportProfileRecord>(transport, baseUrl, defaultHeaders, importProfilesPath(projectId), {
+          method: "POST",
+          body: { name, description: description ?? null }
+        }),
+      activate: (projectId: string, importProfileId: string) =>
+        requestJson<ImportProfileRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          importProfilesPath(projectId, `${importProfileId}/activate`),
+          { method: "POST" }
+        ),
+      getActive: (projectId: string) =>
+        requestJson<ImportProfileRecord>(transport, baseUrl, defaultHeaders, importProfilesPath(projectId, "active")),
+      addCategory: (projectId: string, importProfileId: string, request: OperationalCategoryCreateRequest) =>
+        requestJson<OperationalCategoryRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          importProfilesPath(projectId, `${importProfileId}/categories`),
+          { method: "POST", body: request }
+        ),
+      listCategories: (projectId: string, importProfileId: string) =>
+        requestJson<OperationalCategoryRecord[]>(
+          transport, baseUrl, defaultHeaders, importProfilesPath(projectId, `${importProfileId}/categories`)),
+      /** Resolves the active profile against a snapshot and reports each category's health. */
+      resolveSnapshot: (projectId: string, projectSnapshotId: string) =>
+        requestJson<CategoryResolutionSummary[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          importProfilesPath(projectId, `resolve/${projectSnapshotId}`),
+          { method: "POST" }
+        ),
+      /** Leaf tasks missing a classification the project requires. */
+      executionReadiness: (projectId: string, projectSnapshotId: string) =>
+        requestJson<string[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          importProfilesPath(projectId, `execution-readiness/${projectSnapshotId}`))
     }
   };
 }
@@ -636,16 +1069,20 @@ type RequestOptions = {
   body?: unknown;
   formData?: FormData;
   query?: Record<string, string>;
+  headers?: Record<string, string>;
 };
 
 async function requestJson<T>(
   fetchImpl: FetchLike,
   baseUrl: string,
+  defaultHeaders: Record<string, string>,
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: "application/json"
+    Accept: "application/json",
+    ...defaultHeaders,
+    ...(options.headers ?? {})
   };
   let body: BodyInit | undefined;
 
@@ -708,6 +1145,20 @@ function assertOnlySupportedRequestFields(
   if (unsupported.length > 0) {
     throw new TypeError(`${requestName} contains unsupported field(s): ${unsupported.join(", ")}.`);
   }
+}
+
+function taskProgressPath(projectId: string, path = "") {
+  const suffix = path ? `/${encodePath(path)}` : "";
+  return `/api/projects/${encodePathSegment(projectId)}/task-progress${suffix}`;
+}
+
+function projectPath(projectId: string, path: string) {
+  return `/api/projects/${encodePathSegment(projectId)}/${encodePath(path)}`;
+}
+
+function importProfilesPath(projectId: string, path = "") {
+  const suffix = path ? `/${encodePath(path)}` : "";
+  return `/api/projects/${encodePathSegment(projectId)}/import-profiles${suffix}`;
 }
 
 function encodePath(value: string) {

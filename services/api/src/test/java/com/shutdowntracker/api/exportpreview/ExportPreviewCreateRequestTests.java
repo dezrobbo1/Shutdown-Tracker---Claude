@@ -132,26 +132,27 @@ class ExportPreviewCreateRequestTests {
                 .hasMessage("exportFileHash is required.");
     }
 
+    /**
+     * The actor is no longer taken from the body, so a request that omits it is well formed. The
+     * controller fills it from the resolved actor; refusing it here would only force a caller to
+     * name an identity the server discards.
+     */
     @Test
-    void rejectsProjectOpenRequestWithoutActor() {
-        assertThatThrownBy(() -> new ExportBatchProjectOpenRequest(
-                null,
-                "Synthetic Microsoft Project reopen",
-                null
-        ))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("openedByUserId is required.");
+    void acceptsProjectOpenRequestWithoutACallerAssertedActor() {
+        ExportBatchProjectOpenRequest request =
+                new ExportBatchProjectOpenRequest(null, "Synthetic Microsoft Project reopen", null);
+
+        assertThat(request.openedByUserId()).isNull();
+        assertThat(request.reason()).isEqualTo("Synthetic Microsoft Project reopen");
     }
 
     @Test
-    void rejectsVerificationRequestWithoutActor() {
-        assertThatThrownBy(() -> new ExportBatchVerificationRequest(
-                null,
-                "Synthetic manual verification complete",
-                null
-        ))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("verifiedByUserId is required.");
+    void acceptsVerificationRequestWithoutACallerAssertedActor() {
+        ExportBatchVerificationRequest request =
+                new ExportBatchVerificationRequest(null, "Synthetic manual verification complete", null);
+
+        assertThat(request.verifiedByUserId()).isNull();
+        assertThat(request.reason()).isEqualTo("Synthetic manual verification complete");
     }
 
     private UUID line() {

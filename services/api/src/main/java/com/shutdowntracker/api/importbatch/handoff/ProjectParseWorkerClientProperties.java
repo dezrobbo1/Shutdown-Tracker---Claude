@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ProjectParseWorkerClientProperties(
         String baseUrl,
         String parseSummaryPath,
+        String parseEntitiesPath,
         String sharedSecret,
         Duration connectTimeout,
         Duration readTimeout
@@ -20,6 +21,9 @@ public record ProjectParseWorkerClientProperties(
         }
         if (parseSummaryPath == null || parseSummaryPath.isBlank()) {
             parseSummaryPath = "/worker/project-import/parse-summary";
+        }
+        if (parseEntitiesPath == null || parseEntitiesPath.isBlank()) {
+            parseEntitiesPath = "/worker/project-import/parse-entities";
         }
         if (sharedSecret != null && sharedSecret.isBlank()) {
             sharedSecret = null;

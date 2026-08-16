@@ -92,6 +92,57 @@ public record AuditEventCreateRequest(
         );
     }
 
+    /**
+     * Records an event attributed to an authenticated user.
+     *
+     * <p>Actor identity comes from the resolved request actor, never from a request body.
+     */
+    public static AuditEventCreateRequest userEvent(
+            UUID projectId,
+            UUID actorUserId,
+            String actorDisplayName,
+            String actorRole,
+            AuditEventCategory eventCategory,
+            String eventType,
+            String targetEntityType,
+            UUID targetEntityId,
+            String targetDisplayName,
+            Map<String, Object> oldValueSummary,
+            Map<String, Object> newValueSummary,
+            String reason,
+            UUID projectSnapshotId,
+            UUID exportBatchId,
+            Map<String, Object> metadata
+    ) {
+        return new AuditEventCreateRequest(
+                projectId,
+                eventCategory,
+                eventType,
+                null,
+                Objects.requireNonNull(actorUserId, "actorUserId is required."),
+                actorDisplayName,
+                actorRole,
+                null,
+                AuditActorType.USER,
+                targetEntityType,
+                targetEntityId,
+                targetDisplayName,
+                oldValueSummary,
+                newValueSummary,
+                reason,
+                Map.of("entrypoint", "api"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                projectSnapshotId,
+                exportBatchId,
+                null,
+                metadata
+        );
+    }
+
     private static String requireText(String value, String message) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);

@@ -48,6 +48,18 @@ reporting_policy_versions
 reporting_periods
 critical_updates
 critical_update_lines
+users
+project_memberships
+task_execution_states
+task_progress_updates
+problems
+actions
+evidence
+handover_notes
+import_profiles
+operational_categories
+operational_category_aliases
+task_category_values
 "
 
 compose() {
