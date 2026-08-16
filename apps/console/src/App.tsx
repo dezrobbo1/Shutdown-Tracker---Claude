@@ -5,28 +5,30 @@ import type { ProjectRole } from "@shutdown-tracker/api-client";
 import { consoleBaseUrl, createConsoleApiClient, initialConsoleSession } from "./consoleApi";
 import { describeSession, writeStoredRole } from "./session";
 import type { ConsoleSession } from "./session";
-import { consoleZones, useZoneRoute, zoneById, zoneHref } from "./router";
-import type { ConsoleZoneId } from "./router";
+import { consoleZones, sectionById, useZoneRoute, zoneById, zoneHref } from "./router";
+import type { ConsoleRoute } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
 import { ImportReviewZone } from "./zones/ImportReviewZone";
 import { ExecutionZone } from "./zones/ExecutionZone";
-import { ReviewQueueZone } from "./zones/ReviewQueueZone";
+import { PlannerReviewZone, SupervisorReviewZone } from "./zones/ReviewQueueZone";
 import { ProblemsZone } from "./zones/ProblemsZone";
 import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
 import { ExportZone } from "./zones/ExportZone";
+import { TodayZone } from "./zones/TodayZone";
+import { EvidenceZone } from "./zones/EvidenceZone";
 
 /**
  * The Master Console.
  *
- * One workspace per operational question, rather than one page per database table. The zones
- * follow the controlled path a shutdown actually runs on: a schedule comes in, work is done
- * against it, what was done is reviewed twice, and only then can anything go back to
- * Microsoft Project.
+ * Five zones: Today, Tasks, Problems, Evidence, Exports. Today asks what needs attention now;
+ * the rest are the places the work is actually done. The controlled path back to Microsoft
+ * Project — import review, mapping, planner approval, artifact, verification — is gathered
+ * under Exports, because it is one sequence rather than five separate destinations.
  */
 export function App() {
   const [session, setSession] = useState<ConsoleSession>(initialConsoleSession);
-  const [zoneId, navigate] = useZoneRoute();
+  const [route, navigate] = useZoneRoute();
   const [reloadToken, setReloadToken] = useState(0);
 
   // Rebuilt with the session so a request is never attributed to a role that is no longer
@@ -34,7 +36,8 @@ export function App() {
   const client = useMemo(() => createConsoleApiClient(session), [session]);
   const zoneSession = useMemo(() => buildZoneSession(session), [session]);
 
-  const zone = zoneById(zoneId);
+  const zone = zoneById(route.zoneId);
+  const section = sectionById(route.zoneId, route.sectionId);
 
   const changeRole = (role: ProjectRole) => {
     if (session.actor === null) {
@@ -57,10 +60,10 @@ export function App() {
         <nav className="nav-list">
           {consoleZones.map((item) => (
             <a
-              className={item.id === zoneId ? "nav-item active" : "nav-item"}
+              className={item.id === route.zoneId ? "nav-item active" : "nav-item"}
               href={zoneHref(item.id)}
               key={item.id}
-              aria-current={item.id === zoneId ? "page" : undefined}
+              aria-current={item.id === route.zoneId ? "page" : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 navigate(item.id);
@@ -98,8 +101,8 @@ export function App() {
       <main className="workspace">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">{zone.eyebrow}</p>
-            <h1>{zone.title}</h1>
+            <p className="eyebrow">{section.eyebrow}</p>
+            <h1>{section.title}</h1>
           </div>
           <div className="header-actions" aria-label="Console actions">
             <span className="connection-pill">
@@ -116,38 +119,68 @@ export function App() {
           </div>
         </header>
 
-        <ZoneOutlet key={`${zoneId}-${reloadToken}`} zoneId={zoneId} session={zoneSession} client={client} />
+        {zone.sections.length > 1 ? (
+          <nav className="section-tabs" aria-label={`${zone.label} sections`}>
+            {zone.sections.map((item) => (
+              <a
+                className={item.id === section.id ? "section-tab active" : "section-tab"}
+                href={zoneHref(zone.id, item.id)}
+                key={item.id}
+                aria-current={item.id === section.id ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate(zone.id, item.id);
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+
+        <ZoneOutlet
+          key={`${route.zoneId}-${section.id}-${reloadToken}`}
+          route={{ zoneId: route.zoneId, sectionId: section.id }}
+          session={zoneSession}
+          client={client}
+        />
       </main>
     </div>
   );
 }
 
 function ZoneOutlet({
-  zoneId,
+  route,
   session,
   client
 }: {
-  zoneId: ConsoleZoneId;
+  route: ConsoleRoute;
   session: ReturnType<typeof buildZoneSession>;
   client: ReturnType<typeof createConsoleApiClient>;
 }) {
   const props = { session, client };
 
-  switch (zoneId) {
-    case "execution":
+  switch (`${route.zoneId}/${route.sectionId}`) {
+    case "tasks/execution":
       return <ExecutionZone {...props} />;
-    case "review-queue":
-      return <ReviewQueueZone {...props} />;
-    case "problems":
+    case "tasks/supervisor-review":
+      return <SupervisorReviewZone {...props} />;
+    case "problems/records":
       return <ProblemsZone {...props} />;
-    case "handover":
+    case "problems/handover":
       return <HandoverZone {...props} />;
-    case "mapping":
-      return <MappingZone {...props} />;
-    case "export":
-      return <ExportZone {...props} />;
-    case "import-review":
-    default:
+    case "evidence/task-evidence":
+      return <EvidenceZone {...props} />;
+    case "exports/import-review":
       return <ImportReviewZone {...props} />;
+    case "exports/mapping":
+      return <MappingZone {...props} />;
+    case "exports/planner-review":
+      return <PlannerReviewZone {...props} />;
+    case "exports/batches":
+      return <ExportZone {...props} />;
+    case "today/attention":
+    default:
+      return <TodayZone {...props} />;
   }
 }

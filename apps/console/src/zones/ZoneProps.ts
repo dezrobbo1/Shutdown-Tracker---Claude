@@ -20,6 +20,7 @@ export type ZoneSession = ConsoleSession & {
   canManageProblem: boolean;
   canManageAction: boolean;
   canRecordHandover: boolean;
+  canCaptureEvidence: boolean;
   canManageMapping: boolean;
   canCreateExportPreview: boolean;
   canApproveExport: boolean;
@@ -44,6 +45,7 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
     canManageProblem: sessionAllows(session, "MANAGE_PROBLEM"),
     canManageAction: sessionAllows(session, "MANAGE_ACTION"),
     canRecordHandover: sessionAllows(session, "RECORD_HANDOVER"),
+    canCaptureEvidence: sessionAllows(session, "CAPTURE_EVIDENCE"),
     canManageMapping: sessionAllows(session, "MANAGE_IMPORT_PROFILE"),
     canCreateExportPreview: sessionAllows(session, "CREATE_EXPORT_PREVIEW"),
     canApproveExport: sessionAllows(session, "APPROVE_EXPORT_BATCH"),

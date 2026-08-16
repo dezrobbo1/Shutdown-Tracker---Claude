@@ -4,7 +4,7 @@ import { capabilityAllows } from "@shutdown-tracker/api-client";
 import type { TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
 import { App } from "./App";
 import { buildConsoleSession, describeSession, resolveRole, sessionAllows } from "./session";
-import { consoleZones, parseZoneId, zoneById, zoneHref } from "./router";
+import { consoleZones, parseRoute, parseZoneId, sectionById, zoneById, zoneHref } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
 import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
@@ -12,11 +12,13 @@ import { canApprove, canGenerate, canMarkOpened, canVerify, candidateRequestsFor
 import { validateCategoryInput } from "./zones/MappingZone";
 import { ImportReviewZone, newestSnapshotId } from "./zones/ImportReviewZone";
 import { ExecutionZone } from "./zones/ExecutionZone";
-import { ReviewQueueZone } from "./zones/ReviewQueueZone";
+import { PlannerReviewZone, SupervisorReviewZone } from "./zones/ReviewQueueZone";
 import { ProblemsZone } from "./zones/ProblemsZone";
 import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
 import { ExportZone } from "./zones/ExportZone";
+import { TodayZone } from "./zones/TodayZone";
+import { EvidenceZone } from "./zones/EvidenceZone";
 import { createConsoleApiClient } from "./consoleApi";
 import { formatPercent, toneForState } from "./formatting";
 
@@ -24,14 +26,14 @@ describe("console shell", () => {
   it("offers every operational zone as a linkable route", () => {
     const html = renderToString(<App />);
 
+    // The baseline information architecture from the concept pack. Adding a top-level zone
+    // is a product decision, so this list is deliberately pinned.
     expect(consoleZones.map((zone) => zone.label)).toEqual([
-      "Import review",
-      "Execution",
-      "Progress review",
+      "Today",
+      "Tasks",
       "Problems",
-      "Handover",
-      "Mapping",
-      "Export"
+      "Evidence",
+      "Exports"
     ]);
 
     for (const zone of consoleZones) {
@@ -40,12 +42,33 @@ describe("console shell", () => {
     }
   });
 
-  it("opens on import review, because a shutdown starts with a schedule", () => {
-    expect(parseZoneId("")).toBe("import-review");
-    expect(parseZoneId("#/nonsense")).toBe("import-review");
-    expect(parseZoneId("#/export")).toBe("export");
-    expect(parseZoneId("export")).toBe("export");
-    expect(zoneById("mapping").title).toBe("Operational categories");
+  it("opens on Today, because the first question is what needs attention now", () => {
+    expect(parseZoneId("")).toBe("today");
+    expect(parseZoneId("#/nonsense")).toBe("today");
+    expect(parseZoneId("#/exports")).toBe("exports");
+    expect(parseZoneId("exports")).toBe("exports");
+    expect(zoneById("exports").sections[0].title).toBe("Imported snapshots");
+  });
+
+  it("addresses a section inside a zone so a link can point at the exact surface", () => {
+    expect(parseRoute("#/exports/mapping")).toEqual({ zoneId: "exports", sectionId: "mapping" });
+    expect(zoneHref("exports", "mapping")).toBe("#/exports/mapping");
+
+    // An unknown section falls back to the zone's first, rather than rendering nothing.
+    expect(parseRoute("#/exports/nonsense").sectionId).toBe("import-review");
+    expect(sectionById("tasks", "supervisor-review").title).toBe("Supervisor review queue");
+  });
+
+  it("keeps the surfaces that lost a sidebar entry reachable as sections", () => {
+    const sections = consoleZones.flatMap((zone) =>
+      zone.sections.map((section) => `${zone.id}/${section.id}`)
+    );
+
+    expect(sections).toContain("exports/import-review");
+    expect(sections).toContain("exports/mapping");
+    expect(sections).toContain("exports/planner-review");
+    expect(sections).toContain("problems/handover");
+    expect(sections).toContain("tasks/supervisor-review");
   });
 
   it("says plainly when it is not configured rather than showing empty panels", () => {
@@ -280,11 +303,14 @@ describe("every zone renders", () => {
   });
 
   const zones = [
+    ["today", TodayZone],
     ["import-review", ImportReviewZone],
     ["execution", ExecutionZone],
-    ["review-queue", ReviewQueueZone],
+    ["supervisor-review", SupervisorReviewZone],
+    ["planner-review", PlannerReviewZone],
     ["problems", ProblemsZone],
     ["handover", HandoverZone],
+    ["evidence", EvidenceZone],
     ["mapping", MappingZone],
     ["export", ExportZone]
   ] as const;

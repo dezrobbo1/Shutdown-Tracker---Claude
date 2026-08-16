@@ -23,14 +23,14 @@ import type { SnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
 
 /**
- * The two progress review queues.
+ * Step one of two: a supervisor confirms that what was reported actually happened.
  *
- * They are kept side by side because the distinction between them is the point of the
- * product. A supervisor confirms that what was reported actually happened in the field. A
- * planner separately decides whether that confirmed fact should change the master schedule.
- * Neither decision implies the other, and neither one writes to Microsoft Project.
+ * The two review queues live in different zones because the distinction between them is the
+ * point of the product. Supervisor acceptance is an operational fact; the separate planner
+ * decision under Exports is what may change the master schedule. Neither implies the other,
+ * and neither writes to Microsoft Project.
  */
-export function ReviewQueueZone({ session, client }: ZoneProps) {
+export function SupervisorReviewZone({ session, client }: ZoneProps) {
   const projectId = session.projectId;
   const tasks = useSnapshotTasks(client, projectId, session.live);
   const snapshotTasks = tasks.state.status === "loaded" ? tasks.state.value : null;
@@ -40,13 +40,7 @@ export function ReviewQueueZone({ session, client }: ZoneProps) {
     { enabled: session.live, idleMessage: "Configure a project and actor to load the supervisor queue." }
   );
 
-  const plannerQueue = useAsyncResource<TaskProgressUpdateRecord[]>(
-    useCallback(() => client.taskProgress.plannerQueue(projectId), [client, projectId]),
-    { enabled: session.live, idleMessage: "Configure a project and actor to load the planner queue." }
-  );
-
   const supervisorWrite = useWriteAction();
-  const plannerWrite = useWriteAction();
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const noteFor = (id: string) => notes[id] ?? "";
@@ -65,24 +59,6 @@ export function ReviewQueueZone({ session, client }: ZoneProps) {
     if (ok) {
       setNote(update.id, "");
       await supervisorQueue.reload();
-      await plannerQueue.reload();
-    }
-  };
-
-  const decidePlanner = async (update: TaskProgressUpdateRecord, approved: boolean) => {
-    const ok = await plannerWrite.run(
-      approved
-        ? "Approved. The update becomes an export candidate; nothing has been written to Microsoft Project."
-        : "Rejected. The reported progress stays on record and is not export eligible.",
-      () =>
-        client.taskProgress.plannerReview(projectId, update.id, {
-          approved,
-          note: noteFor(update.id) || null
-        })
-    );
-    if (ok) {
-      setNote(update.id, "");
-      await plannerQueue.reload();
     }
   };
 
@@ -94,7 +70,7 @@ export function ReviewQueueZone({ session, client }: ZoneProps) {
         </PanelHeading>
         <BoundaryNote>
           Supervisor acceptance confirms the work was done as reported. It is not approval to
-          change the schedule — that decision belongs to the planner queue below.
+          change the schedule — that decision belongs to the planner queue under Exports.
         </BoundaryNote>
 
         <ResourceView
@@ -151,7 +127,51 @@ export function ReviewQueueZone({ session, client }: ZoneProps) {
         </ResourceView>
         <WriteFeedback state={supervisorWrite.state} />
       </article>
+    </div>
+  );
+}
 
+/**
+ * Step two of two: a planner decides whether a confirmed fact may change the master schedule.
+ *
+ * This sits under Exports rather than beside the supervisor queue because it is the first
+ * decision on the controlled path back to Microsoft Project.
+ */
+export function PlannerReviewZone({ session, client }: ZoneProps) {
+  const projectId = session.projectId;
+  const tasks = useSnapshotTasks(client, projectId, session.live);
+  const snapshotTasks = tasks.state.status === "loaded" ? tasks.state.value : null;
+
+  const plannerQueue = useAsyncResource<TaskProgressUpdateRecord[]>(
+    useCallback(() => client.taskProgress.plannerQueue(projectId), [client, projectId]),
+    { enabled: session.live, idleMessage: "Configure a project and actor to load the planner queue." }
+  );
+
+  const plannerWrite = useWriteAction();
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  const noteFor = (id: string) => notes[id] ?? "";
+  const setNote = (id: string, value: string) => setNotes((current) => ({ ...current, [id]: value }));
+
+  const decidePlanner = async (update: TaskProgressUpdateRecord, approved: boolean) => {
+    const ok = await plannerWrite.run(
+      approved
+        ? "Approved. The update becomes an export candidate; nothing has been written to Microsoft Project."
+        : "Rejected. The reported progress stays on record and is not export eligible.",
+      () =>
+        client.taskProgress.plannerReview(projectId, update.id, {
+          approved,
+          note: noteFor(update.id) || null
+        })
+    );
+    if (ok) {
+      setNote(update.id, "");
+      await plannerQueue.reload();
+    }
+  };
+
+  return (
+    <div className="zone-grid">
       <article className="work-panel">
         <PanelHeading eyebrow="Step two" title="Planner review">
           <StatusChip label={queueLabel(plannerQueue.state.status === "loaded" ? plannerQueue.state.value.length : null)} />

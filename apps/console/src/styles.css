@@ -1040,3 +1040,71 @@ button {
 .nav-item {
   text-decoration: none;
 }
+
+/* In-zone section switcher. Sub-surfaces inside a zone, not new top-level navigation. */
+.section-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #dbe1d6;
+}
+
+.section-tab {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #66756a;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.section-tab:hover {
+  color: #1d473d;
+}
+
+.section-tab.active {
+  color: #1d473d;
+  border-bottom-color: #1d473d;
+}
+
+/* One attention line on Today: a count and where to act on it. */
+.attention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e8ece4;
+}
+
+.attention-row:last-child {
+  border-bottom: none;
+}
+
+.attention-row > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.attention-row strong {
+  font-size: 1.3rem;
+  color: #1d473d;
+}
+
+.attention-row span {
+  color: #3d4a3f;
+}
+
+.attention-row.settled span {
+  color: #66756a;
+  font-size: 0.9rem;
+}
+
+.resource-note {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: #66756a;
+}
