@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { capabilityAllows } from "@shutdown-tracker/api-client";
@@ -329,5 +330,34 @@ describe("every zone renders", () => {
 
     expect(html).toContain("does not write the master");
     expect(html).toContain("recalculates nothing");
+  });
+});
+
+describe("design tokens", () => {
+  // The stylesheets carried ~65 literal colours between them, so a restyle meant a
+  // find-and-replace rather than a change of palette. Every colour is now declared once, and
+  // this keeps it that way.
+  const stylesheets = [
+    ["console", readFileSync(new URL("./styles.css", import.meta.url), "utf8")],
+    ["field app", readFileSync(new URL("../../mobile-pwa/src/styles.css", import.meta.url), "utf8")]
+  ] as const;
+
+  for (const [name, css] of stylesheets) {
+    it(`declares every ${name} colour once, in :root`, () => {
+      const root = css.slice(0, css.indexOf("\n}"));
+      const rest = css.slice(css.indexOf("\n}"));
+
+      expect(root).toContain("--brand:");
+      expect(root).toContain("--radius:");
+      expect(rest.match(/#[0-9a-fA-F]{6}/g)).toBeNull();
+    });
+  }
+
+  it("keeps the page header compact rather than a marketing hero", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const header = css.slice(css.indexOf(".workspace-header h1 {"));
+
+    expect(header).not.toContain("clamp(2rem");
+    expect(header.slice(0, 80)).toContain("1.35rem");
   });
 });

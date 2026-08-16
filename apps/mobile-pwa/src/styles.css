@@ -1,6 +1,44 @@
 :root {
-  color: #17201a;
-  background: #e9eee7;
+  /* Palette. Declared once so the field app can be restyled from this block alone, and so it
+     stays legible next to the console rather than drifting into a second visual language. */
+  --ink: #17201a;
+  --ink-strong: #24322b;
+  --ink-soft: #526259;
+  --ink-quiet: #657568;
+
+  --ground: #e9eee7;
+  --surface: #ffffff;
+  --surface-raised: #fbfcf8;
+  --surface-sunken: #f8faf5;
+  --surface-header: #f2f5ef;
+
+  --rule: #d8dfd3;
+  --rule-soft: #e2e6de;
+  --rule-strong: #cbd6ca;
+
+  --brand: #1d473d;
+  --brand-deep: #12362d;
+  --brand-wash: #e8f1ec;
+  --brand-accent: #f0c07a;
+
+  --tone-green: #2f7a5a;
+  --tone-green-ink: #1f705a;
+  --tone-green-wash: #dff0e8;
+  --tone-blue: #4361a3;
+  --tone-blue-ink: #35568f;
+  --tone-blue-wash: #e4ebf7;
+  --tone-blue-veil: #f3f6fb;
+  --tone-amber: #b7792a;
+  --tone-amber-ink: #7b481d;
+  --tone-amber-wash: #faeddd;
+  --tone-red-ink: #8a3028;
+  --tone-red-wash: #f8e2df;
+
+  /* Shape. Flat surfaces; a pill is reserved for state, a rectangle for a value. */
+  --radius: 8px;
+  --radius-chip: 999px;
+
+  color: var(--ink);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -28,8 +66,8 @@ button {
   grid-template-rows: auto 1fr auto;
   max-width: 520px;
   margin: 0 auto;
-  background: #f8faf5;
-  box-shadow: 0 0 0 1px #d8dfd3;
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 1px var(--rule);
 }
 
 .mobile-header {
@@ -38,13 +76,13 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 22px 18px 16px;
-  background: #1d473d;
-  color: #f7f9f4;
+  background: var(--brand);
+  color: var(--surface-sunken);
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #f0c07a;
+  color: var(--brand-accent);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -57,9 +95,9 @@ button {
 }
 
 .connection-pill {
-  border-radius: 999px;
-  background: #f7f9f4;
-  color: #1d473d;
+  border-radius: var(--radius-chip);
+  background: var(--surface-sunken);
+  color: var(--brand);
   font-size: 0.78rem;
   font-weight: 800;
   padding: 7px 10px;
@@ -76,9 +114,9 @@ button {
 
 .sync-banner,
 .work-card {
-  border: 1px solid #d8dfd3;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .sync-banner {
@@ -101,7 +139,7 @@ button {
   height: 9px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #b7792a;
+  background: var(--tone-amber);
 }
 
 .sync-banner-main > div {
@@ -112,7 +150,7 @@ button {
 .sync-banner span,
 .work-card p,
 .work-card span {
-  color: #657568;
+  color: var(--ink-quiet);
   font-size: 0.78rem;
 }
 
@@ -122,7 +160,7 @@ button {
 }
 
 .sync-banner-main strong {
-  color: #1d473d;
+  color: var(--brand);
   font-size: 0.92rem;
 }
 
@@ -131,12 +169,12 @@ button {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px 12px;
-  color: #657568;
+  color: var(--ink-quiet);
   text-align: right;
 }
 
 .sync-banner-details strong {
-  color: #1d473d;
+  color: var(--brand);
 }
 
 .work-list {
@@ -158,16 +196,6 @@ button {
   font-size: 1.05rem;
 }
 
-.work-state {
-  border-radius: 999px;
-  background: #e4ebf7;
-  color: #35568f;
-  font-size: 0.75rem;
-  padding: 6px 9px;
-  text-align: center;
-  white-space: nowrap;
-}
-
 .work-card-side {
   display: grid;
   justify-items: end;
@@ -175,12 +203,11 @@ button {
 }
 
 .work-card-side button,
-.mobile-action-row button,
-.shortcut-grid button {
-  border: 1px solid #cbd6ca;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #24322b;
+.mobile-action-row button {
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-strong);
   font-weight: 800;
 }
 
@@ -190,8 +217,7 @@ button {
 }
 
 .work-card-side button:disabled,
-.mobile-action-row button:disabled,
-.shortcut-grid button:disabled {
+.mobile-action-row button:disabled {
   cursor: default;
   opacity: 0.72;
 }
@@ -202,15 +228,14 @@ button {
   min-height: 34px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d8dfd3;
-  border-radius: 8px;
-  background: #f2f5ef;
-  color: #1d473d;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface-header);
+  color: var(--brand);
   font-weight: 900;
 }
 
-.mobile-chip-row,
-.mobile-state-stack {
+.mobile-chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
@@ -221,36 +246,36 @@ button {
   display: inline-flex;
   min-height: 25px;
   align-items: center;
-  border-radius: 999px;
-  background: #e4ebf7;
-  color: #35568f;
+  border-radius: var(--radius-chip);
+  background: var(--tone-blue-wash);
+  color: var(--tone-blue-ink);
   font-size: 0.72rem;
   font-weight: 800;
   padding: 4px 7px;
 }
 
 .mobile-chip.green {
-  background: #dff0e8;
-  color: #1f705a;
+  background: var(--tone-green-wash);
+  color: var(--tone-green-ink);
 }
 
 .mobile-chip.amber {
-  background: #faeddd;
-  color: #7b481d;
+  background: var(--tone-amber-wash);
+  color: var(--tone-amber-ink);
 }
 
 .mobile-chip.red {
-  background: #f8e2df;
-  color: #8a3028;
+  background: var(--tone-red-wash);
+  color: var(--tone-red-ink);
 }
 
 .progress-flow,
 .sync-queue {
   display: grid;
   gap: 12px;
-  border: 1px solid #d8dfd3;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
   padding: 14px;
 }
 
@@ -261,9 +286,9 @@ button {
 
 .boundary-copy {
   margin: 0;
-  border-left: 4px solid #4361a3;
-  background: #f3f6fb;
-  color: #526259;
+  border-left: 4px solid var(--tone-blue);
+  background: var(--tone-blue-veil);
+  color: var(--ink-soft);
   line-height: 1.42;
   padding: 10px;
 }
@@ -280,7 +305,7 @@ button {
 }
 
 .progress-form span {
-  color: #657568;
+  color: var(--ink-quiet);
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -289,10 +314,10 @@ button {
 .progress-form input,
 .progress-form textarea {
   width: 100%;
-  border: 1px solid #cbd6ca;
-  border-radius: 8px;
-  background: #f8faf5;
-  color: #17201a;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
   font: inherit;
   padding: 10px;
 }
@@ -305,14 +330,12 @@ button {
   grid-column: 1 / -1;
 }
 
-.shortcut-grid,
 .mobile-action-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.shortcut-grid button,
 .mobile-action-row button {
   min-height: 44px;
 }
@@ -329,9 +352,9 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
-  border: 1px solid #e2e6de;
-  border-radius: 8px;
-  background: #f8faf5;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
   padding: 12px;
 }
 
@@ -343,7 +366,7 @@ button {
 
 .sync-queue-card span,
 .sync-queue-card p {
-  color: #657568;
+  color: var(--ink-quiet);
   font-size: 0.78rem;
 }
 
@@ -366,16 +389,16 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #cbd6ca;
-  background: #ffffff;
-  color: #24322b;
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink-strong);
   cursor: pointer;
 }
 
 .action-band button {
   min-height: 48px;
   gap: 8px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-weight: 800;
 }
 
@@ -384,22 +407,22 @@ button {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   padding: 8px;
-  border-top: 1px solid #d8dfd3;
-  background: #fbfcf8;
+  border-top: 1px solid var(--rule);
+  background: var(--surface-raised);
 }
 
 .bottom-nav button {
   flex-direction: column;
   gap: 4px;
   min-height: 56px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 0.72rem;
 }
 
 .bottom-nav button.active {
-  border-color: #1d473d;
-  background: #e8f1ec;
-  color: #12362d;
+  border-color: var(--brand);
+  background: var(--brand-wash);
+  color: var(--brand-deep);
   font-weight: 800;
 }
 
@@ -429,9 +452,8 @@ button {
   }
 
   .progress-form,
-  .shortcut-grid,
-  .mobile-action-row,
-  .sync-queue-card {
+.mobile-action-row,
+.sync-queue-card {
     grid-template-columns: 1fr;
   }
 }
@@ -439,25 +461,25 @@ button {
 /* Field app additions ------------------------------------------------------ */
 
 .connection-pill.offline {
-  background: #f8e2df;
-  color: #8a3028;
+  background: var(--tone-red-wash);
+  color: var(--tone-red-ink);
 }
 
 .sync-status-dot.waiting {
-  background: #c9822d;
+  background: var(--tone-amber);
 }
 
 .sync-status-dot.clear {
-  background: #2f7a5a;
+  background: var(--tone-green);
 }
 
 /* A problem the reporter has to see before the report leaves the device. */
 .field-alert {
   margin: 8px 0 0;
   padding: 9px 11px;
-  border-radius: 8px;
-  background: #f8e2df;
-  color: #8a3028;
+  border-radius: var(--radius);
+  background: var(--tone-red-wash);
+  color: var(--tone-red-ink);
   font-size: 0.88rem;
 }
 
@@ -486,9 +508,9 @@ button {
   /* Comfortable for a gloved thumb, and large enough that iOS does not zoom on focus. */
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid #cdd5c8;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
   font: inherit;
   font-size: 16px;
 }
@@ -515,28 +537,28 @@ button {
   align-items: baseline;
   gap: 8px;
   padding: 12px;
-  background: #ffffff;
-  border: 1px solid #d8dfd3;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
 }
 
 .today-row strong {
   font-size: 1.4rem;
-  color: #1d473d;
+  color: var(--brand);
 }
 
 .today-row span {
   font-size: 0.88rem;
-  color: #526259;
+  color: var(--ink-soft);
 }
 
 .today-row.settled {
-  background: #f8faf5;
+  background: var(--surface-sunken);
 }
 
 .today-row.settled span {
   font-size: 0.82rem;
-  color: #657568;
+  color: var(--ink-quiet);
 }
 
 .today-detail {
@@ -552,7 +574,7 @@ button {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #657568;
+  color: var(--ink-quiet);
 }
 
 .problem-list,
