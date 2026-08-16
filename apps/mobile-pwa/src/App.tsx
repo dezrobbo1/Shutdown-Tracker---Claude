@@ -518,9 +518,7 @@ function ProblemCapture({
               setDescription("");
               setMessage("Problem raised.");
             })
-            .catch((error: unknown) =>
-              setMessage(error instanceof Error ? error.message : "The problem could not be raised.")
-            )
+            .catch((error: unknown) => setMessage(describeRaiseFailure(error)))
             .finally(() => setBusy(false));
         }}
       >
@@ -852,6 +850,22 @@ function NavButton({
  * An unsent report is the newer fact for the person holding the device, so it wins over the
  * server value — with the sync chip beside it saying the server does not have it yet.
  */
+/**
+ * Why a problem could not be raised.
+ *
+ * Raising a problem needs a connection: unlike a progress report it is not queued, because
+ * the server has no idempotency key for it and a retry could raise the same problem twice.
+ * That makes it important to say the record was not kept, rather than showing a bare network
+ * error that leaves someone assuming it was.
+ */
+export function describeRaiseFailure(error: unknown) {
+  const detail = error instanceof Error ? error.message : "";
+  if (detail === "" || /fetch|network|load failed/i.test(detail)) {
+    return "Could not send, and this is not saved on this device. Raise it again when you have a connection.";
+  }
+  return detail;
+}
+
 export function workCardPercent(
   task: ImportReviewTaskRow,
   unsent: QueuedProgressUpdate | undefined

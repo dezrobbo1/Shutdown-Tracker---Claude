@@ -180,22 +180,27 @@ export class OfflineProgressQueue {
           continue;
         }
 
-        items = replace(items, { ...item, syncState: "SENDING", attempts: item.attempts + 1 });
+        // The outcome is written on top of the sending item, not the item as it was read, so
+        // the attempt count is raised exactly once and nothing recorded at send time is lost.
+        const sending: QueuedProgressUpdate = {
+          ...item,
+          syncState: "SENDING",
+          attempts: item.attempts + 1
+        };
+        items = replace(items, sending);
         await this.store.writeAll(items);
 
         try {
-          const record = await this.submit(item.request);
+          const record = await this.submit(sending.request);
           items = replace(items, {
-            ...item,
-            attempts: item.attempts + 1,
+            ...sending,
             syncState: "SYNCED",
             serverId: record.id,
             lastError: null
           });
         } catch (error) {
           items = replace(items, {
-            ...item,
-            attempts: item.attempts + 1,
+            ...sending,
             // A rejection is final; anything else goes back to pending for the next attempt.
             syncState: isPermanentRejection(error) ? "REJECTED" : "PENDING",
             lastError: describeQueueError(error)

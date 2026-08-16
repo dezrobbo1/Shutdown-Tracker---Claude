@@ -2,7 +2,14 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 import type { TaskProgressSubmitRequest, TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
-import { App, mobileChipTone, toInstant, validateFieldProgress, workCardPercent } from "./App";
+import {
+  App,
+  describeRaiseFailure,
+  mobileChipTone,
+  toInstant,
+  validateFieldProgress,
+  workCardPercent
+} from "./App";
 import { buildFieldSession, describeFieldSession, fieldSessionAllows } from "./fieldSession";
 import {
   OfflineProgressQueue,
@@ -78,6 +85,18 @@ describe("field app shell", () => {
 
     expect(html).toContain("No project configured for this device.");
     expect(html).not.toContain("Review mode");
+  });
+
+  it("says a problem was not kept when it could not be sent", () => {
+    // A progress report survives a dead connection; a problem does not, and the difference
+    // has to be visible or someone walks away believing it was recorded.
+    expect(describeRaiseFailure(new TypeError("Failed to fetch"))).toContain("not saved on this device");
+    expect(describeRaiseFailure(new Error("Network request failed"))).toContain("not saved on this device");
+
+    // A real answer from the server is more useful than the generic line.
+    expect(describeRaiseFailure(new Error("Your role on this project cannot raise problems."))).toBe(
+      "Your role on this project cannot raise problems."
+    );
   });
 
   it("names the sync states so saved and sent are not confused", () => {
