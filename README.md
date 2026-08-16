@@ -46,12 +46,15 @@ Implemented foundations include:
 - versioned Import Profiles and Operational Categories resolved from task fields, summary
   ancestry, and assigned-resource Groups, with mapping health on re-import;
 - Critical Watchlists, Critical Work Packages, and Critical Update reporting;
-- a Master Console with working import review, execution, supervisor and planner progress
-  review, problems and actions, handover, operational mapping, and controlled export zones,
-  each reading and writing through the API;
-- a Mobile Field App with an offline execution queue: progress is stored on the device before
-  it is sent, carries a device-generated idempotency key so a retry cannot double-report, and
-  shows sync state rather than implying delivery;
+- a Master Console on the baseline zones — Today, Tasks, Problems, Evidence, Exports — with
+  import review, operational mapping, planner review and the export lifecycle gathered under
+  Exports as addressable sections, each reading and writing through the API;
+- a Today attention surface that reports what is awaiting review, what is blocking work, and
+  what is waiting to be acknowledged, and links to the zone that owns each decision;
+- a Mobile Field App on the baseline zones — My Work, Today, Problems, Evidence, Sync — with an
+  offline execution queue: progress is stored on the device before it is sent, carries a
+  device-generated idempotency key so a retry cannot double-report, shows sync state rather
+  than implying delivery, and marks an unsent report on the work card itself;
 - role-aware controls in both apps, checked against a capability map that a test compares
   against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
@@ -64,9 +67,16 @@ Not production-complete yet:
 
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
+- capability checks on source-file upload, parse handoff, import review, task lineage, and
+  export artifact generation; those controllers accept a project-scoped write without one;
 - Critical Watch has no HTTP surface yet; the service and repository exist but no controller
   exposes them, so the console cannot reach them;
-- evidence capture in the field app, and evidence binary upload in either app;
+- evidence binary upload in either app; evidence records and their per-task read exist and are
+  wired in both, but nothing uploads a file, so a record without a storage location means the
+  evidence itself is still outstanding;
+- a project-wide evidence list; evidence is readable per task only;
+- offline problem raising; raising a problem needs a connection, because problem creation has
+  no server-side idempotency key and a queued retry could raise the same problem twice;
 - assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
   rather than only the work assigned to the signed-in user;
 - Saved Operational Views and global operational Scope;

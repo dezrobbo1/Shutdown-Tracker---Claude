@@ -4,6 +4,23 @@ This directory is reserved for **Design C UX/UI review artifacts** for Shutdown 
 
 These files are design references only. They are **not production application code**, are not an approved implementation specification, and should not be copied directly into the production frontend without review.
 
+## Status
+
+Design C is adopted as **visual and density guidance only**.
+
+Its zone names — Control, Work, Resolve, Project bridge — are **not** the product information architecture and are not built. The baseline zones come from the [concept pack](../../../concept/README.md) and are repeated in [ADR-009](../../../adr/ADR-009-ux-ui-architecture.md), the navigation freeze in [UX Anti-Slop Rules](../../../product/ux-anti-slop-rules.md), and [Frontend Visual Review Scope](../../../product/frontend-visual-review-scope.md):
+
+```text
+Master Console:  Today | Tasks | Problems | Evidence | Exports
+Field App:       My Work | Today | Problems | Evidence | Sync
+```
+
+Both applications now implement those zones. Where Design C describes a surface that does not map to one, it belongs inside a zone as a section rather than as new top-level navigation.
+
+What Design C usefully contributes, and what has been acted on, is its visual direction: flat operational surfaces, restraint in radius and shadow, limited card containment, hierarchy through typography and rules, and semantic colour reserved for operational state. Both stylesheets now declare their palette and radii as tokens in `:root`, so that direction can be applied by changing a palette rather than editing literals throughout.
+
+The prototype files named below (`shutdown-tracker-console-v4.html`, `shutdown-tracker-mobile-v4.html`) are **not present in this repository** and do not appear in any branch or in its history. Treat the descriptions here as the only record of Design C until they are recovered.
+
 ## Application surfaces
 
 Design C deliberately treats the product as two separate application surfaces that share the same backend/domain and selected design-system primitives:

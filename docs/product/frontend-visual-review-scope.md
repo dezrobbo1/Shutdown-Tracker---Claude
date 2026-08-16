@@ -6,9 +6,13 @@ It exists because the current Task Progress Review visual shell is useful for re
 
 ## Current visual shell status
 
-The current console and mobile apps contain a static/synthetic Task Progress Review visual shell.
+**This section described the apps before they were wired to the API and is retained for history.
+It no longer describes the code.** Both applications now read and write through the shared API
+client, the field app has a durable IndexedDB progress queue, and the console implements the
+five baseline zones. See [Verified current frontend capability](#verified-current-frontend-capability)
+below for the current position.
 
-It shows the intended workflow:
+The original visual shell showed the intended workflow:
 
 ```text
 field progress update
@@ -52,12 +56,19 @@ Every future visual surface must be labelled with one of these statuses in the b
 
 | Area | Current status |
 | --- | --- |
-| Console shell | React/Vite app exists |
-| Mobile shell | React/Vite PWA shell exists |
-| Console API client | Shared API client is imported and can fetch read-only import/export review data when explicitly configured |
-| Import/export review display | Synthetic by default, optional read-only live import/export review data |
-| Task Progress Review surfaces | Static/synthetic visual shell only |
-| Mobile progress/sync examples | Static/synthetic visual shell only |
+| Console shell | Five baseline zones, hash-routed, with addressable sections inside a zone |
+| Mobile shell | Five baseline zones; progress capture opens from a task rather than being a tab |
+| Console API client | Reads and writes through the shared client, carrying the actor headers |
+| Import review | Read and accept/reject, wired |
+| Operational mapping | Import profiles, categories, snapshot resolution, execution readiness, wired |
+| Task progress | Submit, supervisor queue and review, planner queue and review, wired |
+| Problems, actions, handover | Wired; reads are open/unacknowledged queues only |
+| Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired |
+| Evidence | Register and per-task read, wired. **No binary upload exists in either app or the API** |
+| Critical Watch | Service and repository exist server-side; **no controller and no UI** |
+| Mobile offline queue | Durable IndexedDB queue for progress, with idempotency keys and visible sync state |
+| Mobile problem raising | Online only; not queued, because problem creation has no server-side idempotency key |
+| Role-aware controls | Write controls gated by capability in both apps, checked against the server's own enum |
 
 ## Visual-only areas
 
@@ -121,7 +132,7 @@ The initial frontend cleanup pass addresses the visual-shell debt without adding
 - The mobile three-card sync strip is a compact sync/status banner.
 - Mobile task cards show only the minimum operational fields and status indicators.
 - Console card/chip density is reduced.
-- All write-like controls remain disabled until APIs exist.
+- Write controls are disabled with a stated reason when the acting role lacks the capability, rather than hidden.
 - Project-boundary warnings and explicit offline wording remain visible.
 
 Remaining visual review scope includes Critical Watch, Critical Updates, and entity-linked Discussion. These remain static visual-only surfaces until the related product/API contracts are approved.
