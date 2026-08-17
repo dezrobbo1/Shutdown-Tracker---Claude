@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Project xmlns="http://schemas.microsoft.com/project">
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Project xmlns="http://schemas.microsoft.com/project">
   <Name>Synthetic Basic WBS</Name>
   <Title>Synthetic Basic WBS</Title>
   <ScheduleFromStart>1</ScheduleFromStart>
@@ -110,6 +109,8 @@
       <UID>1</UID>
       <ID>1</ID>
       <Name>Synthetic Summary A</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -123,13 +124,13 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>1</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
     </Task>
     <Task>
       <UID>2</UID>
       <ID>2</ID>
       <Name>Synthetic Task A1</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -143,13 +144,13 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>0</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
     </Task>
     <Task>
       <UID>3</UID>
       <ID>3</ID>
       <Name>Synthetic Task A2</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -163,13 +164,17 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>0</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
+      <PredecessorLink>
+        <PredecessorUID>2</PredecessorUID>
+        <Type>1</Type>
+      </PredecessorLink>
     </Task>
     <Task>
       <UID>4</UID>
       <ID>4</ID>
       <Name>Synthetic Summary B</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -183,13 +188,13 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>1</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
     </Task>
     <Task>
       <UID>5</UID>
       <ID>5</ID>
       <Name>Synthetic Task B1</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -203,13 +208,13 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>0</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
     </Task>
     <Task>
       <UID>6</UID>
       <ID>6</ID>
       <Name>Synthetic Task B2</Name>
+      <Active>1</Active>
+      <Manual>0</Manual>
       <Type>1</Type>
       <IsNull>0</IsNull>
       <CreateDate>2026-01-01T08:00:00</CreateDate>
@@ -223,8 +228,6 @@
       <DurationFormat>7</DurationFormat>
       <Work>PT0H0M0S</Work>
       <Summary>0</Summary>
-      <Manual>0</Manual>
-      <Active>1</Active>
     </Task>
   </Tasks>
   <Resources/>

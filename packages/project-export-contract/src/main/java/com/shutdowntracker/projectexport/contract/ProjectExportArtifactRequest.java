@@ -2,16 +2,27 @@ package com.shutdowntracker.projectexport.contract;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
+/**
+ * One approved export batch, expressed as the accepted source schedule plus the exact execution
+ * inputs to apply to it.
+ *
+ * <p>{@code projectName} labels the batch. It is not written into the generated candidate: the
+ * candidate keeps the source schedule's own project name, because renaming a planner's project
+ * would itself be an unapproved change.
+ */
 public record ProjectExportArtifactRequest(
         String projectName,
+        ProjectExportArtifactSource source,
         List<ProjectExportArtifactTask> tasks
 ) {
     public ProjectExportArtifactRequest {
         if (projectName == null || projectName.isBlank()) {
             throw new IllegalArgumentException("projectName is required.");
         }
+        Objects.requireNonNull(source, "source is required.");
         tasks = List.copyOf(tasks == null ? List.of() : tasks);
         if (tasks.isEmpty()) {
             throw new IllegalArgumentException("At least one export task is required.");

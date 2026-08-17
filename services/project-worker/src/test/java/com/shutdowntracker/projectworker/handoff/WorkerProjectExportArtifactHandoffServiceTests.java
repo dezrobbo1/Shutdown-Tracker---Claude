@@ -7,9 +7,12 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValu
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import com.shutdowntracker.projectworker.exporter.ProjectExportArtifactService;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -21,8 +24,25 @@ class WorkerProjectExportArtifactHandoffServiceTests {
     @TempDir
     private Path tempDir;
 
+    /**
+     * The handoff now resolves the accepted source through the same confinement the import path
+     * uses, so a source file has to exist on disk for the request to be servable at all.
+     */
+    private ProjectExportArtifactSource sourceIn(Path directory) throws IOException {
+        Path sourceFile = Files.writeString(
+                directory.resolve("accepted-source.mspdi.xml"),
+                "<Project xmlns=\"http://schemas.microsoft.com/project\"><Tasks/></Project>"
+        );
+        return new ProjectExportArtifactSource(
+                UUID.fromString("00000000-0000-0000-0000-0000000000f1"),
+                sourceFile.toUri().toString(),
+                "synthetic-source-hash"
+        );
+    }
+
     @Test
-    void generatesArtifactAndReturnsFileUriAndHash() {
+    void generatesArtifactAndReturnsFileUriAndHash() throws IOException {
+        ProjectExportArtifactSource TEST_SOURCE = sourceIn(tempDir);
         UUID projectId = UUID.randomUUID();
         UUID exportBatchId = UUID.randomUUID();
         CapturingProjectExportArtifactService artifactService = new CapturingProjectExportArtifactService();
@@ -35,6 +55,7 @@ class WorkerProjectExportArtifactHandoffServiceTests {
                 outputPath.toString(),
                 new ProjectExportArtifactRequest(
                         "Synthetic Export Preview",
+                        TEST_SOURCE,
                         List.of(new ProjectExportArtifactTask(
                                 "synthetic-task-a1",
                                 "101",
@@ -53,6 +74,8 @@ class WorkerProjectExportArtifactHandoffServiceTests {
 
         assertThat(artifactService.request).isEqualTo(request.artifactRequest());
         assertThat(artifactService.outputPath).isEqualTo(outputPath.toAbsolutePath().normalize());
+        assertThat(artifactService.sourcePath).isEqualTo(
+                Path.of(java.net.URI.create(TEST_SOURCE.storageUri())).toAbsolutePath().normalize());
         assertThat(response.exportBatchId()).isEqualTo(exportBatchId);
         assertThat(response.projectId()).isEqualTo(projectId);
         assertThat(response.exportFileUri()).isEqualTo(outputPath.toAbsolutePath().normalize().toUri().toString());
@@ -63,20 +86,28 @@ class WorkerProjectExportArtifactHandoffServiceTests {
     private static class CapturingProjectExportArtifactService implements ProjectExportArtifactService {
 
         private ProjectExportArtifactRequest request;
+        private Path sourcePath;
         private Path outputPath;
 
         @Override
-        public ProjectExportArtifactSummary generate(ProjectExportArtifactRequest request, Path outputPath) {
+        public ProjectExportArtifactSummary generate(
+                ProjectExportArtifactRequest request,
+                Path sourcePath,
+                Path outputPath
+        ) {
             this.request = request;
+            this.sourcePath = sourcePath;
             this.outputPath = outputPath;
             return new ProjectExportArtifactSummary(
                     outputPath.getFileName().toString(),
                     "mspdi_xml",
                     request.tasks().size(),
+                    6,
                     request.tasks().stream().mapToInt(task -> task.fieldValues().size()).sum(),
                     512,
                     "synthetic-sha256",
-                    List.of("MSPDI/XML artifact only; no schedule calculations or Microsoft Project write-back were run.")
+                    List.of("Candidate schedule derived from the accepted source; no schedule calculations "
+                            + "or Microsoft Project write-back were run by Shutdown Tracker.")
             );
         }
     }

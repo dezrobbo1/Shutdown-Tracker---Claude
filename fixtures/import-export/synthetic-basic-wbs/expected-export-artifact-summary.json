@@ -1,26 +1,29 @@
 {
   "fixture_id": "synthetic-basic-wbs",
-  "artifact_id": "synthetic-export-leaf-actuals",
-  "project_name": "Synthetic Export Preview",
+  "artifact_id": "synthetic-candidate-leaf-actuals",
+  "source_file": "synthetic-basic-wbs.mspdi.xml",
+  "project_name": "Synthetic Basic WBS",
   "synthetic_or_sanitized": "synthetic",
   "contains_real_project_data": false,
   "artifact_format": "mspdi_xml",
-  "output_filename": "synthetic-export.mspdi.xml",
+  "output_filename": "synthetic-candidate.mspdi.xml",
   "generated_artifact_committed": false,
+  "candidate_derived_from_accepted_source": true,
   "expected_summary": {
     "task_count": 2,
+    "source_task_count": 6,
     "exported_field_count": 3,
     "minimum_size_bytes": 1,
     "sha256_pattern": "^[0-9a-f]{64}$",
     "expected_notes": [
-      "MSPDI/XML artifact only; no schedule calculations or Microsoft Project write-back were run."
+      "Candidate schedule derived from the accepted source; no schedule calculations or Microsoft Project write-back were run by Shutdown Tracker."
     ]
   },
   "expected_tasks": [
     {
       "imported_task_id": "synthetic-task-a1",
-      "microsoft_project_task_uid": 101,
-      "microsoft_project_task_id": 1,
+      "microsoft_project_task_uid": 2,
+      "microsoft_project_task_id": 2,
       "task_name": "Synthetic Task A1",
       "leaf_task": true,
       "expected_fields": {
@@ -30,8 +33,8 @@
     },
     {
       "imported_task_id": "synthetic-task-a2",
-      "microsoft_project_task_uid": 102,
-      "microsoft_project_task_id": 2,
+      "microsoft_project_task_uid": 3,
+      "microsoft_project_task_id": 3,
       "task_name": "Synthetic Task A2",
       "leaf_task": true,
       "expected_fields": {
@@ -39,20 +42,31 @@
       }
     }
   ],
+  "expected_preserved_elements": [
+    "Calendars",
+    "PredecessorLink",
+    "WBS",
+    "OutlineNumber",
+    "OutlineLevel",
+    "Duration",
+    "Summary"
+  ],
   "excluded_scope": [
     "summary task exports",
     "native MPP writing",
     "Microsoft Project automation",
     "Project write-back",
-    "schedule calculations",
+    "schedule calculations by Shutdown Tracker",
     "critical path",
     "float",
     "resource levelling",
     "automatic date movement"
   ],
   "notes": [
-    "Synthetic expected export artifact summary only.",
-    "Generated MSPDI/XML artifacts remain temporary test output and must not be committed.",
+    "The candidate is the accepted source schedule with the approved execution inputs applied to it.",
+    "Task UIDs and the project name come from the source schedule, not from the export batch: renaming a planner's project or inventing a task would itself be an unapproved change.",
+    "Structure the candidate must carry through is listed in expected_preserved_elements. Microsoft Project needs it to recalculate, so its absence is what made the previous patch-shaped artifact unusable.",
+    "Generated MSPDI/XML candidates remain temporary test output and must not be committed.",
     "No real names, work orders, sites, assets, vendors, people, locations, costs, or commercial data."
   ]
 }

@@ -7,6 +7,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValu
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import com.shutdowntracker.projectworker.exporter.MpxjMspdiExportArtifactService;
@@ -26,11 +27,20 @@ import org.springframework.boot.json.JsonParserFactory;
 
 class WorkerProjectExportArtifactExpectedOutputTests {
 
-    private final WorkerProjectExportArtifactHandoffService service =
-            new WorkerProjectExportArtifactHandoffService(new MpxjMspdiExportArtifactService());
-
     @TempDir
     private Path tempDir;
+
+    /**
+     * The accepted source is the committed fixture, so the resolver is rooted at the repository
+     * rather than at the temporary directory the default test constructor confines to.
+     */
+    private WorkerProjectExportArtifactHandoffService service() {
+        return new WorkerProjectExportArtifactHandoffService(
+                new MpxjMspdiExportArtifactService(),
+                repositoryRoot(),
+                tempDir
+        );
+    }
 
     @Test
     void syntheticExportArtifactMatchesExpectedOutputSummary() {
@@ -44,7 +54,7 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         UUID exportBatchId = UUID.fromString("00000000-0000-0000-0000-000000000029");
         UUID projectId = UUID.fromString("00000000-0000-0000-0000-000000000030");
 
-        ProjectExportArtifactGenerationResponse response = service.generateArtifact(new ProjectExportArtifactGenerationRequest(
+        ProjectExportArtifactGenerationResponse response = service().generateArtifact(new ProjectExportArtifactGenerationRequest(
                 exportBatchId,
                 projectId,
                 outputPath.toString(),
@@ -69,17 +79,17 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         assertThat(response.exportFileHash()).isEqualTo(summary.sha256());
 
         assertGeneratedArtifactMatchesExpectedTasks(outputPath, expected);
+        // The candidate must carry the schedule, not a patch. These elements were previously
+        // asserted to be ABSENT, which is exactly why the artifact could not be opened and
+        // recalculated in Microsoft Project.
+        assertThat(summary.sourceTaskCount()).isEqualTo(intValue(expectedSummary, "source_task_count"));
         assertThat(readString(outputPath))
-                .doesNotContain(
-                        "<PhysicalPercentComplete>",
-                        "<WBS>",
-                        "<Duration>",
-                        "<PredecessorLink>",
-                        "<Calendars>",
-                        "<Resources>",
-                        "<Assignments>"
-                );
-        assertThat(root.resolve("fixtures/import-export/synthetic-basic-wbs/synthetic-export.mspdi.xml"))
+                .contains(stringList(expected.get("expected_preserved_elements")).stream()
+                        .map(element -> "<" + element + ">")
+                        .toArray(String[]::new));
+        // Still never export a field the product does not authorise as a direct input.
+        assertThat(readString(outputPath)).doesNotContain("<PhysicalPercentComplete>");
+        assertThat(root.resolve("fixtures/import-export/synthetic-basic-wbs/synthetic-candidate.mspdi.xml"))
                 .doesNotExist();
     }
 
@@ -91,7 +101,7 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         ));
 
         assertThat(expected.get("fixture_id")).isEqualTo("synthetic-basic-wbs");
-        assertThat(expected.get("artifact_id")).isEqualTo("synthetic-export-leaf-actuals");
+        assertThat(expected.get("artifact_id")).isEqualTo("synthetic-candidate-leaf-actuals");
         assertThat(expected.get("synthetic_or_sanitized")).isEqualTo("synthetic");
         assertThat(expected.get("contains_real_project_data")).isEqualTo(Boolean.FALSE);
         assertThat(expected.get("generated_artifact_committed")).isEqualTo(Boolean.FALSE);
@@ -105,11 +115,11 @@ class WorkerProjectExportArtifactExpectedOutputTests {
                         "native MPP writing",
                         "Microsoft Project automation",
                         "Project write-back",
-                        "schedule calculations"
+                        "schedule calculations by Shutdown Tracker"
                 );
         assertThat(stringList(expected.get("notes")))
                 .contains(
-                        "Generated MSPDI/XML artifacts remain temporary test output and must not be committed.",
+                        "Generated MSPDI/XML candidates remain temporary test output and must not be committed.",
                         "No real names, work orders, sites, assets, vendors, people, locations, costs, or commercial data."
                 );
     }
@@ -118,7 +128,27 @@ class WorkerProjectExportArtifactExpectedOutputTests {
         List<ProjectExportArtifactTask> tasks = objectList(expected.get("expected_tasks")).stream()
                 .map(this::artifactTask)
                 .toList();
-        return new ProjectExportArtifactRequest(stringValue(expected, "project_name"), tasks);
+        Path sourceFile = repositoryRoot().resolve("fixtures/import-export/synthetic-basic-wbs")
+                .resolve(stringValue(expected, "source_file"));
+        return new ProjectExportArtifactRequest(
+                stringValue(expected, "project_name"),
+                new ProjectExportArtifactSource(
+                        UUID.fromString("00000000-0000-0000-0000-0000000000f1"),
+                        sourceFile.toUri().toString(),
+                        sha256(sourceFile)
+                ),
+                tasks
+        );
+    }
+
+    private String sha256(Path path) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not hash the synthetic source schedule.", exception);
+        }
     }
 
     private ProjectExportArtifactTask artifactTask(Map<String, Object> expectedTask) {

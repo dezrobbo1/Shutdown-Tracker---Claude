@@ -453,9 +453,9 @@ class ExportIntegrityPostgresIntegrationTests {
 
         jdbcTemplate.update("INSERT INTO projects (id, name, timezone) VALUES (?, 'Integration project', 'Australia/Perth')", PROJECT_ID);
         jdbcTemplate.update("""
-                INSERT INTO source_files (id, project_id, original_filename, file_kind, storage_uri)
-                VALUES (?, ?, 'synthetic-integration.xml', 'mspdi_xml', 'validation://integration/source')
-                """, SOURCE_FILE_ID, PROJECT_ID);
+                INSERT INTO source_files (id, project_id, original_filename, file_kind, storage_uri, content_hash)
+                VALUES (?, ?, 'synthetic-integration.xml', 'mspdi_xml', 'validation://integration/source', ?)
+                """, SOURCE_FILE_ID, PROJECT_ID, "a".repeat(64));
         jdbcTemplate.update("""
                 INSERT INTO import_batches (id, project_id, source_file_id, status, parser_name, parser_version)
                 VALUES (?, ?, ?, 'accepted', 'integration-test', '1')
