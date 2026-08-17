@@ -72,19 +72,14 @@ apply_v007() {
   apply_migration "$database" "$1"
 }
 
+# The current-policy scenarios run on the current schema, so they apply every migration.
+# The upgrade and atomicity scenarios above deliberately do not: they validate a historical
+# V006-to-V007 transition and have to stay at the migration levels where it happened.
 apply_all_migrations() {
   database=$1
-  count=0
-  last_name=
   for migration in /migrations/V*.sql; do
-    count=$((count + 1))
-    last_name=$(basename "$migration")
     apply_migration "$database" "$migration"
   done
-  if [ "$count" -ne 7 ] || [ "$last_name" != "V007__enforce_export_candidate_integrity.sql" ]; then
-    echo "Expected exactly V001-V007 for current-policy validation." >&2
-    exit 1
-  fi
 }
 
 wait_until_true() {
@@ -578,4 +573,4 @@ if ! grep -F "division by zero" "$LOG_DIR/atomic-v007.log" >/dev/null; then
 fi
 db_psql "$ATOMIC_DB" -f /validation/assertions/export-integrity-atomicity-v007.sql
 
-echo "PostgreSQL V001-V007 export-integrity validation passed."
+echo "PostgreSQL export-integrity validation passed."
