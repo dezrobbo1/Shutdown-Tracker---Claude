@@ -9,8 +9,15 @@ $ComposeFile = Join-Path $RepoRoot "infra\docker\docker-compose.postgres.yml"
 $MigrationsDir = Join-Path $RepoRoot "infra\migrations"
 $Migrations = @(Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" | Sort-Object Name)
 
-if ($Migrations.Count -ne 7 -or $Migrations[-1].Name -ne "V007__enforce_export_candidate_integrity.sql") {
-    throw "Expected exactly V001-V007 ending with V007__enforce_export_candidate_integrity.sql."
+# Only V007 is pinned, because the export-integrity suite this calls builds a V006-to-V007
+# upgrade scenario by that filename. The total count is deliberately not pinned: doing so
+# meant every migration added after V007 failed this script instead of being validated by it.
+if ($Migrations.Count -lt 7) {
+    throw "Expected at least V001-V007 in $MigrationsDir; found $($Migrations.Count)."
+}
+
+if ($Migrations[6].Name -ne "V007__enforce_export_candidate_integrity.sql") {
+    throw "Expected V007__enforce_export_candidate_integrity.sql as the seventh migration."
 }
 
 $ExpectedTables = @(
@@ -112,7 +119,7 @@ if (-not $ready) {
     throw "PostgreSQL did not become ready in time."
 }
 
-Write-Host "Applying exactly V001-V007..."
+Write-Host "Applying every migration in order..."
 foreach ($Migration in $Migrations) {
     Write-Host "Applying $($Migration.Name)"
     Invoke-Compose @("exec", "-T", "postgres", "psql", "--single-transaction", "-v", "ON_ERROR_STOP=1", "-U", $DbUser, "-d", $DbName, "-f", "/migrations/$($Migration.Name)")

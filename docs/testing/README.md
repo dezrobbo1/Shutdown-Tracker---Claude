@@ -16,7 +16,7 @@ mvn test
 
 Backend tests should cover service/domain validation, persistence boundaries, API contracts, audit events, import/export handoffs, review/approval state transitions, and rejection of scheduler-like or uncontrolled write-back behavior.
 
-Persistence and transaction claims that depend on PostgreSQL must use real PostgreSQL, the real Spring transaction proxy, and the JDBC implementation rather than H2 or fake repositories. The export-integrity integration suite uses a uniquely named repository-local Docker container, applies V001-V007 through Flyway, exercises controlled local HTTP worker failure and rollback, and must clean up its exact container and temporary artifact storage on exit. Fake-repository tests remain useful unit evidence but are not PostgreSQL or transaction-boundary evidence.
+Persistence and transaction claims that depend on PostgreSQL must use real PostgreSQL, the real Spring transaction proxy, and the JDBC implementation rather than H2 or fake repositories. Every such test, including the export-integrity integration suite, runs against the embedded PostgreSQL distribution started by `EmbeddedDatabase` with the full `infra/migrations` sequence applied. Docker is not required, and a database test must not make itself conditional on Docker: a test that skips itself where a tool is missing reports green without running, which is how the export-integrity suite came to pass locally while failing in CI. The export-integrity suite additionally exercises controlled local HTTP worker failure and rollback, and cleans up its temporary artifact storage on exit. Fake-repository tests remain useful unit evidence but are not PostgreSQL or transaction-boundary evidence.
 
 ### Frontend
 

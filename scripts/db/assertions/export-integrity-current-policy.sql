@@ -286,6 +286,26 @@ BEGIN
 END;
 $$;
 
+-- The actors the export lifecycle below records. Since V008 every *_by_user_id column
+-- carries a foreign key to `users`, so an actor has to exist before it can be recorded.
+--
+-- Each lifecycle step gets two: one that establishes the fact, and one that a later
+-- statement tries to overwrite it with. The overwriting actor is a real user too. It does
+-- not have to be -- the immutability rules are BEFORE-row triggers, and those run before
+-- the foreign key's AFTER-row trigger, so a dangling UUID would still be rejected with the
+-- immutability rule's own SQLSTATE. Using a real user keeps the fixture saying what it
+-- means, and keeps these assertions independent of that evaluation order.
+INSERT INTO users (id, email, display_name, status)
+VALUES
+  ('20000000-0000-0000-0000-000000000901', 'approver@current-policy.invalid', 'Batch approver', 'active'),
+  ('20000000-0000-0000-0000-000000000902', 'reapprover@current-policy.invalid', 'Attempted second approver', 'active'),
+  ('20000000-0000-0000-0000-000000000903', 'generator@current-policy.invalid', 'Artifact generator', 'active'),
+  ('20000000-0000-0000-0000-000000000904', 'regenerator@current-policy.invalid', 'Attempted second generator', 'active'),
+  ('20000000-0000-0000-0000-000000000905', 'opener@current-policy.invalid', 'Microsoft Project opener', 'active'),
+  ('20000000-0000-0000-0000-000000000906', 'reopener@current-policy.invalid', 'Attempted second opener', 'active'),
+  ('20000000-0000-0000-0000-000000000907', 'verifier@current-policy.invalid', 'Microsoft Project verifier', 'active'),
+  ('20000000-0000-0000-0000-000000000908', 'reverifier@current-policy.invalid', 'Attempted second verifier', 'active');
+
 INSERT INTO projects (id, name, timezone)
 VALUES ('20000000-0000-0000-0000-000000000001', 'Synthetic current-policy project', 'UTC');
 

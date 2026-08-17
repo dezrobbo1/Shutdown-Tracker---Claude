@@ -36,12 +36,14 @@ From the repository root:
 - Wait for PostgreSQL readiness.
 - Apply each `infra/migrations/V*.sql` file in sorted version order as its own PostgreSQL transaction.
 - Fail fast on SQL errors and roll back the complete failing migration file so it cannot leave partial database objects.
-- Verify the expected 21 baseline tables exist after migration.
+- Verify that every expected table exists after migration.
 - Upgrade populated synthetic V006 history through V007 without changing historical business values, duplicates, physical-percent lines, lifecycle records, or null legacy markers.
 - Exercise current policy-1 approval-neutral candidate creation, trusted fingerprints, separate exact candidate-bound approval history, candidate-ID-only preview lines, field and leaf authority, duplicates, sealing, deterministic latest-event ordering, and baseline freshness.
 - Prove same-state lifecycle rewrite rejection; immutable approval/generation/open/verification actor and time facts; immutable artifact URI/hash; collision-proof sectioned metadata; transition piggyback rejection; authoritative Microsoft Project open identity; and terminal-state immutability.
 - Prove task mutation versus candidate approval, line-versus-seal, concurrent duplicate, approval versus batch approval/generation, snapshot/task mutation versus generation, worker-failure rollback, and stable reversed multi-source contention behavior with separately synchronized PostgreSQL sessions.
 - Intentionally fail V007 near the end of its transaction and verify that it leaves no partial V007 objects while V006 data remains intact.
+
+The export-integrity scenarios build their own temporary databases. The current-policy scenarios apply the full migration sequence, so they assert against the schema the application actually runs on. The upgrade and late-failure scenarios stay at V006 and V007 on purpose: they validate a historical transition, and advancing them would stop them validating it.
 
 The populated data is fixed, synthetic validation data created only in temporary databases inside the local validation container. The suite does not run application code, create Project artifacts, or use operational data. Concurrency synchronization uses PostgreSQL locks and `pg_blocking_pids`, rather than assuming that a timed delay proves blocking.
 
