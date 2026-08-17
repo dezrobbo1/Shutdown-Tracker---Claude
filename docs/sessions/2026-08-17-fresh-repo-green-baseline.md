@@ -60,6 +60,9 @@ uses, and its fixture seeds the actors the schema has required since V008. The m
 guards stopped pinning a fixed migration count. The export-integrity suite's current-policy
 database moved onto the full migration sequence. `ACTIVE.md` was rewritten for this repository.
 
+Pull request [#2](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/2) then added this
+folder, later in the same session, and this entry with it.
+
 ## Decisions
 
 **Embedded PostgreSQL rather than Docker for the integration test.** The repository already runs
