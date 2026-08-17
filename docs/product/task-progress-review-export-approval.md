@@ -24,7 +24,7 @@ field progress update
 
 ## Product boundary
 
-Microsoft Project remains the schedule authority and final master-file control point.
+Microsoft Project remains the schedule calculation authority and final master-file control point. Shutdown Tracker holds execution-input authority, Microsoft Project holds calculation authority, and the planner holds adoption authority; see [Project Candidate Schedule Handoff](project-candidate-schedule-handoff.md).
 
 Shutdown Tracker owns:
 
@@ -115,6 +115,20 @@ Do not collapse every task condition into one status. A task can be blocked, que
 | Comment | Yes | Yes | Sometimes | No | Context only; not progress truth |
 | Evidence reference | Yes | Yes | Yes for completion-critical work | No direct Project export | Supports review confidence |
 | Blocker link | Yes | Yes | Yes if export affected | No direct Project export | May block candidate |
+
+## Field support is multi-dimensional
+
+Do not represent field support as a single boolean. For every possible Project input, track separately whether it is:
+
+1. recognised by the importer/candidate vocabulary;
+2. reviewable as an execution fact;
+3. authorised as a direct Project input by product policy;
+4. supported by the selected handoff mechanism;
+5. enabled for the current project/profile.
+
+A failed test of a patch-shaped MSPDI mechanism does not permanently prohibit the field. It proves only that the mechanism is not yet sufficient for that field.
+
+The whitelist below is dimension three — direct-input authority under the current policy. It is not a statement that the other fields can never change: once a candidate-schedule mechanism exists, Microsoft Project is expected to recalculate dependent values, and those appear in the candidate as **Project-calculated consequences**. A Project-calculated consequence never expands direct-input authority, and a direct-input restriction never means the value must stay frozen in a recalculated candidate. See [Project Candidate Schedule Handoff](project-candidate-schedule-handoff.md).
 
 ## MVP export whitelist
 

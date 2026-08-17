@@ -1,26 +1,33 @@
 # Shutdown Tracker
 
-Shutdown Tracker is a shutdown, turnaround, outage, and major-overhaul execution-control platform. It is intended to help planners, coordinators, supervisors, field teams, inspectors, contractors, and managers understand and control live execution without turning the product into a scheduling engine.
+Shutdown Tracker is a shutdown, turnaround, outage, and major-overhaul execution-control platform. It helps planners, coordinators, supervisors, field teams, inspectors, contractors, and managers control live execution while Microsoft Project remains the schedule calculation and master-file authority.
 
 ## Product boundary
 
-Microsoft Project remains the schedule authority. Shutdown Tracker is the live execution, review, evidence, handover, reporting, and controlled export system.
+Shutdown Tracker owns execution truth and reviewed execution inputs. Microsoft Project owns schedule recalculation. The planner owns adoption of the resulting candidate schedule.
 
 The controlled progress path is:
 
 ```text
-field progress update
+field execution update
 -> supervisor review
--> planner review
--> export eligibility
--> export preview
--> MSPDI/XML artifact generation
--> planner manually opens/checks in Microsoft Project
--> planner controls whether the master .mpp is saved
--> Shutdown Tracker records verification metadata and audit
+-> planner input review
+-> approved input manifest / preview
+-> disposable candidate schedule prepared
+-> Microsoft Project applies inputs and recalculates candidate
+-> source-versus-candidate delta reviewed
+-> planner accepts or rejects candidate
+-> planner may manually adopt a new master schedule
+-> Shutdown Tracker records provenance, decision, and audit
 ```
 
-Shutdown Tracker must not calculate CPM, critical path, or float; resource-level; optimise the schedule; automatically move dates; silently recalculate schedule logic; or silently write back to Microsoft Project. Critical Work Packages and Critical Watchlists are configurable execution-reporting constructs, not calculated critical-path features.
+Shutdown Tracker must not independently calculate CPM, critical path, float, resource levelling, recovery scheduling, dependency consequences, planned dates, or other schedule results. It must not silently update or overwrite the accepted master `.mpp`, and it does not provide a server-side native `.mpp` writer.
+
+Microsoft Project is expected to recalculate a disposable candidate after approved execution inputs are applied. Changes to planned dates, durations, summary roll-ups, work, slack, criticality, and related fields may therefore appear in the candidate. Those values are **Project-calculated consequences**, not hidden Shutdown Tracker-authored inputs, and must be visible to the planner in the candidate review.
+
+Critical Work Packages and Critical Watchlists are configurable execution-reporting constructs, not calculated critical-path features.
+
+See [Project Candidate Schedule Handoff](docs/product/project-candidate-schedule-handoff.md) for the durable handoff contract, and note the gap recorded under "Not production-complete yet" below: the shipped MSPDI/XML path does not implement it.
 
 ## Applications
 
@@ -68,6 +75,15 @@ Implemented foundations include:
 
 Not production-complete yet:
 
+- the candidate-schedule handoff described in
+  [docs/product/project-candidate-schedule-handoff.md](docs/product/project-candidate-schedule-handoff.md).
+  The shipped MSPDI/XML path builds a **new, empty** `ProjectFile` containing only the approved
+  leaf tasks and then prunes the generated XML to a root and per-task allowlist. That is a
+  patch-shaped artifact, not a candidate schedule: it carries no calendars, dependencies, WBS
+  ancestry, summary structure, or resource assignments, so Microsoft Project has nothing to
+  recalculate against and no source-versus-candidate delta can be produced. The authority,
+  approval, and immutability controls around it are sound and should be preserved; the artifact
+  shape is what has to change before a candidate mechanism exists;
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
 - Critical Update reporting in the field app; the console carries it, but a field user or
@@ -96,8 +112,9 @@ Current implementation details belong in the app/service READMEs and source code
 - Current mobile implementation: mobile-first PWA scaffold.
 - Backend: Java Spring Boot.
 - Database: PostgreSQL.
-- Microsoft Project parsing/export: MPXJ.
-- Controlled export format: MSPDI/XML, not native `.mpp` writing.
+- Microsoft Project processing: MPXJ, plus Microsoft Project itself where Project-native recalculation is required.
+- Interchange: MSPDI/XML remains the primary open format; native `.mpp` writing by the server is out of scope.
+- Candidate schedule: always separate from the accepted source/master until planner adoption.
 - File/evidence architecture: provider-neutral storage abstractions, local filesystem implementations for development/review, production object storage later.
 - Offline field direction: IndexedDB, service workers, Cache API, idempotency keys, and explicit sync states.
 - Communications direction: entity-linked Discussion around structured records, not generic chat as the source of truth.

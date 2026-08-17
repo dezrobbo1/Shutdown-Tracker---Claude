@@ -25,6 +25,20 @@ The generated MSPDI/XML artifact for that candidate must be created locally as t
 
 This evidence document covers artifact generation, open, and verification only. It does not claim that step eight occurred.
 
+## Important Distinction
+
+The test is not "did no schedule field change?"
+
+Microsoft Project is expected to recalculate dependent schedule state once a mechanism exists that gives it something to recalculate against. The durable questions are:
+
+1. Were the exact approved inputs applied?
+2. Did Microsoft Project produce a separate candidate schedule?
+3. Did the accepted source remain unchanged?
+4. Can the source-versus-candidate differences be classified and reviewed?
+5. Can the planner reject the candidate without affecting the master?
+
+Questions two and four cannot be answered by the mechanism this repository currently ships. See "Candidate-Schedule Evidence" below.
+
 ## Evidence Boundaries
 
 Allowed evidence:
@@ -116,3 +130,27 @@ The API already has metadata endpoints for:
 - `verified`
 
 Those statuses record lifecycle metadata only. They do not automate Microsoft Project, parse the opened artifact, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
+
+`verified` means the planner confirmed the artifact opened and behaved as expected. It does not mean a candidate schedule was recalculated, and it does not mean the master was adopted.
+
+## Candidate-Schedule Evidence
+
+This section defines the evidence required once a candidate-schedule mechanism exists. It is **not** satisfiable by the artifact this repository currently generates: the shipped MSPDI/XML path emits a pruned, patch-shaped document containing only approved leaf tasks and their approved fields, with no calendars, dependencies, WBS ancestry, summary structure, or resource assignments. Microsoft Project has nothing to recalculate against, so no source-versus-candidate delta can be produced.
+
+### Delta classification
+
+Every material source-versus-candidate difference should be classified as:
+
+- `approved_input` — exact planner-approved Shutdown Tracker fact;
+- `project_calculated_consequence` — dependent value created or recalculated by Microsoft Project;
+- `unexpected_difference` — unexplained change requiring investigation.
+
+Do not treat a Project-calculated planned-date, duration, summary, work, or slack change as an automatic failure merely because Shutdown Tracker was not allowed to directly author that field.
+
+### Current mechanism status
+
+The manual diagnostics performed during export-handoff investigation showed that minimal field-isolated MSPDI patches do not reliably reproduce the same tracking transaction as entering the fact through Microsoft Project.
+
+Those diagnostics are **mechanism evidence, not a permanent prohibition on the execution facts themselves**. A failed patch-shaped diagnostic says the patch mechanism is unsuitable; it does not say the underlying execution fact is unsupportable.
+
+No handoff mechanism should be marked production-ready until a synthetic candidate passes the procedure above.

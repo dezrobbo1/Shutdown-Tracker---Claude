@@ -42,12 +42,37 @@ A pending manual or external gate does not justify claiming completion. Finish t
 
 ## Product authority and non-negotiable boundaries
 
-- Microsoft Project remains the schedule authority. Shutdown Tracker is the execution, review, evidence, handover, operational-mapping, export-preparation, verification-metadata, and audit system.
-- Do not implement CPM, critical-path or float calculation, resource levelling, recovery scheduling, schedule optimization, dependency-map scheduling, hidden recalculation, or automatic date movement.
-- Do not live-feed, silently update, or save the master `.mpp`. Do not write native `.mpp` files.
-- Controlled Project handoff uses reviewed MSPDI/XML artifacts. Artifact generation and verification metadata do not update Microsoft Project.
-- Field progress must pass through supervisor review, planner review, export eligibility, and export preview before artifact generation.
-- Initial export authority is limited to explicitly approved leaf-task execution facts. Summary-task actuals, planned dates, dependencies, constraints, calendars, baselines, resources, and scheduler logic are outside write authority.
+Microsoft Project remains the schedule calculation and master-file authority. Shutdown Tracker is the execution-input, review, evidence, handover, operational-mapping, candidate-preparation, verification-metadata, and audit system.
+
+Three authorities are separate and must not be collapsed into one another:
+
+- **Execution-input authority — Shutdown Tracker.** Capture and approve field execution facts such as progress, actual starts/finishes, blockers, evidence, and handover.
+- **Calculation authority — Microsoft Project.** A disposable candidate schedule may be recalculated by Microsoft Project after approved inputs are applied. Project-calculated dates, durations, roll-ups, work, slack, criticality, and related consequences are not Shutdown Tracker-authored inputs.
+- **Adoption authority — Planner.** A planner reviews the candidate and its source-versus-candidate delta and decides whether to reject it, keep it for review, or manually adopt it as the next master schedule.
+
+The prohibition is on **hidden or independent scheduling by Shutdown Tracker**, not on Microsoft Project recalculating a separate review candidate. "Shutdown Tracker is not a scheduler" does not mean "the schedule must not change."
+
+Shutdown Tracker must not:
+
+- calculate CPM, critical path, float, resource levelling, recovery scheduling, schedule optimisation, or dependency consequences itself;
+- invent planned dates, durations, work, assignment values, slack, criticality, or other Project-calculated consequences;
+- silently update, overwrite, or save the accepted master `.mpp`, or write native `.mpp` files server-side;
+- imply that candidate approval, artifact generation, Project open, or verification has already updated the master schedule.
+
+Shutdown Tracker may:
+
+- prepare exact, reviewed execution inputs against an immutable accepted Project snapshot;
+- generate an approved-input manifest or candidate artifact;
+- invoke or support a planner-controlled Microsoft Project process against a disposable copy, subject to an accepted implementation ADR and safety controls;
+- allow Microsoft Project to recalculate the disposable candidate;
+- present a read-only source-versus-candidate impact comparison, including Project-calculated schedule consequences;
+- record candidate hashes, deltas, Project version, planner decision, and later master-adoption metadata.
+
+Other non-negotiable rules:
+
+- Field progress must pass through supervisor review, planner review, export/input eligibility, and preview before candidate generation.
+- Approved input authority is limited to explicitly reviewed facts under the active handoff policy. Summary-task actual inputs, dependencies, constraints, calendars, baselines, WBS structure, and unreviewed planned-date changes remain prohibited direct inputs.
+- A Project-calculated consequence may differ from the source after Microsoft Project recalculates. Label it as a Project-calculated consequence rather than as an approved Shutdown Tracker input; its presence never expands direct input authority.
 - Critical Work Packages and Critical Watchlists are configurable reporting constructs, not calculated critical-path features.
 - Project Operational Mapping may interpret imported fields, hierarchy, and resource-assignment metadata operationally, but imported source values remain immutable.
 - Project-derived category membership is not application authorization. Visibility/relevance, responsibility, update permission, review permission, and export authority remain separate.
@@ -57,29 +82,34 @@ A pending manual or external gate does not justify claiming completion. Finish t
 
 Relevant authority documents include:
 
+- [docs/adr/ADR-001-microsoft-project-integration.md](docs/adr/ADR-001-microsoft-project-integration.md)
 - [docs/adr/ADR-007-data-ownership-and-schedule-authority.md](docs/adr/ADR-007-data-ownership-and-schedule-authority.md)
 - [docs/adr/ADR-008-mvp-scope-boundary.md](docs/adr/ADR-008-mvp-scope-boundary.md)
 - [docs/adr/ADR-009-ux-ui-architecture.md](docs/adr/ADR-009-ux-ui-architecture.md)
 - [docs/adr/ADR-010-critical-work-package-reporting.md](docs/adr/ADR-010-critical-work-package-reporting.md)
 - [docs/adr/ADR-011-project-operational-mapping.md](docs/adr/ADR-011-project-operational-mapping.md)
+- [docs/product/project-candidate-schedule-handoff.md](docs/product/project-candidate-schedule-handoff.md)
 - [docs/product/project-operational-mapping.md](docs/product/project-operational-mapping.md)
 - [docs/architecture/project-operational-mapping-implementation.md](docs/architecture/project-operational-mapping-implementation.md)
 - [docs/product/task-progress-review-export-approval.md](docs/product/task-progress-review-export-approval.md)
+- [docs/product/approval-export-state-model.md](docs/product/approval-export-state-model.md)
 - [docs/product/communications-layer.md](docs/product/communications-layer.md)
 - [docs/product/offline-audit-sync-rules.md](docs/product/offline-audit-sync-rules.md)
 
 ## Current implementation guardrails
 
+- Do not infer that a documented target workflow already exists in runtime code. `docs/product/project-candidate-schedule-handoff.md` describes the intended candidate-schedule contract; the shipped MSPDI/XML path does not yet implement it.
 - Treat the current console and mobile PWA task-progress surfaces as static/synthetic visual-review shells unless the implementation and product documents explicitly say otherwise.
 - Keep write-like frontend controls disabled until the corresponding API, authorization, audit, error, and offline behaviours exist.
+- A read-only planner candidate-impact comparison is allowed; an editable Gantt, dependency editor, or replacement scheduling UI is not.
 - Keep the console top-level navigation fixed to Today, Tasks, Problems, Evidence, and Exports.
 - Keep the mobile top-level navigation fixed to My Work, Today, Problems, Evidence, and Sync.
 - Follow [docs/product/ux-anti-slop-rules.md](docs/product/ux-anti-slop-rules.md) and [docs/product/design-language-and-status-semantics.md](docs/product/design-language-and-status-semantics.md). Prefer narrow operational screens, realistic sanitized examples, limited semantic colours, and visible sync state. Avoid card walls, badge soup, marketing copy, scheduler visuals, and generic AI/copilot UI.
-- The API owns request/response workflows and persistence orchestration. Project parsing and artifact generation belong in the project worker; do not move parser execution into the API.
+- The API owns request/response workflows and persistence orchestration. Project parsing and candidate/artifact processing belong in the project worker or a separately reviewed planner companion; do not move Project processing into arbitrary API code.
 - For Project Operational Mapping, the worker returns Project source facts/metadata only. The API owns Tracker category/profile meaning, validation decisions, resolved membership orchestration, Scope/Saved Views, authorization, and audit.
 - Implement Operational Mapping in vertical slices. The first coding slice is Source Catalogue only; do not jump straight to editable categories, broad frontend configuration, Saved Views, or automatic responsibility rules.
 - Keep schema changes in versioned SQL files under `infra/migrations`. Do not rewrite an already applied migration; add the next migration and validate the full sequence.
-- Use only synthetic or explicitly approved sanitized fixtures. Do not commit real schedules, real Project files, customer data, secrets, generated export artifacts, screenshots containing operational data, or unrelated binaries.
+- Use only synthetic or explicitly approved sanitized fixtures. Do not commit real schedules, real Project files, customer data, secrets, generated export artifacts, generated candidate schedules, screenshots containing operational data, or unrelated binaries.
 
 ## Repository map
 
@@ -155,6 +185,14 @@ Use the guarded scripts in `scripts/review` only when their prerequisites and ex
 For migration changes, prove both a clean installation and an upgrade from the previous populated baseline. Use PostgreSQL integration tests for constraints, triggers, foreign keys, row locks, concurrency, and rollback behaviour; fake repositories are not sufficient evidence for database invariants.
 
 For export changes, prove that no unauthorized field, task, value, source, stale approval, stale baseline, summary-task actual, or unsupported policy version can reach the worker or generated MSPDI/XML.
+
+For Project handoff changes, keep three claims separate and never use evidence for one as proof of another:
+
+1. the approved input manifest is correct;
+2. Microsoft Project produced a candidate schedule and calculated consequences;
+3. a planner accepted or adopted that candidate.
+
+Manual Microsoft Project testing remains required for handoff milestones. A failed diagnostic for one handoff mechanism is evidence against that mechanism, not proof that the underlying execution fact is permanently unsupported.
 
 Before declaring completion, inspect the complete diff, confirm no temporary files remain, and verify unrelated worktrees are unchanged.
 
