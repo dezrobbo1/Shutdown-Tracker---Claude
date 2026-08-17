@@ -72,26 +72,14 @@ apply_v007() {
   apply_migration "$database" "$1"
 }
 
-# The current-policy scenarios below are written against the schema as it stood at V007:
-# export-integrity-clean.sql asserts an exact 21-table baseline, and
-# export-integrity-current-policy.sql records actor UUIDs that V008 later gave a foreign key
-# to `users`. Applying V008 and later here would fail on both counts for reasons that have
-# nothing to do with export integrity.
-#
-# So this stops at V007 on purpose, and says so, rather than globbing every migration and
-# then rejecting the result with a count check. Extending these scenarios to the current
-# schema is tracked in docs/goals/ACTIVE.md; until then, the export-integrity guarantees on
-# the current schema are covered by ExportIntegrityPostgresIntegrationTests, which runs
-# against the full migration sequence.
-apply_v001_through_v007() {
+# The current-policy scenarios run on the current schema, so they apply every migration.
+# The upgrade and atomicity scenarios above deliberately do not: they validate a historical
+# V006-to-V007 transition and have to stay at the migration levels where it happened.
+apply_all_migrations() {
   database=$1
-  for migration in /migrations/V00[1-7]__*.sql; do
+  for migration in /migrations/V*.sql; do
     apply_migration "$database" "$migration"
   done
-  if [ ! -f /migrations/V007__enforce_export_candidate_integrity.sql ]; then
-    echo "Expected V007__enforce_export_candidate_integrity.sql for current-policy validation." >&2
-    exit 1
-  fi
 }
 
 wait_until_true() {
@@ -552,7 +540,7 @@ db_psql "$UPGRADE_DB" -f /validation/assertions/export-integrity-upgrade.sql
 
 echo "Preparing clean current-policy database validation..."
 create_database "$CURRENT_DB"
-apply_v001_through_v007 "$CURRENT_DB"
+apply_all_migrations "$CURRENT_DB"
 db_psql "$CURRENT_DB" -f /validation/assertions/export-integrity-clean.sql
 db_psql "$CURRENT_DB" -f /validation/assertions/export-integrity-current-policy.sql
 
@@ -585,4 +573,4 @@ if ! grep -F "division by zero" "$LOG_DIR/atomic-v007.log" >/dev/null; then
 fi
 db_psql "$ATOMIC_DB" -f /validation/assertions/export-integrity-atomicity-v007.sql
 
-echo "PostgreSQL V001-V007 export-integrity validation passed."
+echo "PostgreSQL export-integrity validation passed."

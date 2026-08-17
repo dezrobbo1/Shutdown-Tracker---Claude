@@ -64,8 +64,11 @@ class ExportIntegrityPostgresIntegrationTests {
 
     /**
      * A second real user, used wherever a statement tries to overwrite an established actor.
-     * A random UUID would now be rejected by the {@code users} foreign key before the
-     * immutability rule was ever reached, so the assertion would pass for the wrong reason.
+     *
+     * <p>A random UUID would also be rejected, because the immutability rules are BEFORE-row
+     * triggers and those run before the {@code users} foreign key's AFTER-row trigger. Naming a
+     * real user keeps the fixture saying what it means, and keeps these assertions independent of
+     * that evaluation order.
      */
     private static final UUID OTHER_ACTOR_ID = UUID.fromString("30000000-0000-0000-0000-000000000012");
 

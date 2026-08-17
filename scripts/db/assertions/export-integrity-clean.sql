@@ -2,8 +2,12 @@
 
 DO $$
 DECLARE
-  actual_tables TEXT[];
-  expected_tables CONSTANT TEXT[] := ARRAY[
+  missing_tables TEXT[];
+  -- The tables the export-integrity policy depends on. This is a presence check, not an
+  -- exact match: an exact match failed the moment an unrelated migration added a table,
+  -- which said nothing about export integrity and stopped the rest of this file running.
+  -- Whether the full schema is the expected one is checked by validate-migrations.sh.
+  required_tables CONSTANT TEXT[] := ARRAY[
     'approval_records',
     'audit_events',
     'critical_update_lines',
@@ -27,14 +31,13 @@ DECLARE
     'task_lineage_links'
   ];
 BEGIN
-  SELECT array_agg(table_name ORDER BY table_name)
-    INTO actual_tables
-  FROM information_schema.tables
-  WHERE table_schema = 'public'
-    AND table_type = 'BASE TABLE';
+  SELECT array_agg(required_table ORDER BY required_table)
+    INTO missing_tables
+  FROM unnest(required_tables) AS required_table
+  WHERE to_regclass('public.' || required_table) IS NULL;
 
-  IF actual_tables IS DISTINCT FROM expected_tables THEN
-    RAISE EXCEPTION 'Expected exact 21-table V001-V007 baseline; found %', actual_tables;
+  IF missing_tables IS NOT NULL THEN
+    RAISE EXCEPTION 'Export-integrity tables missing from a clean install: %', missing_tables;
   END IF;
 
   IF NOT EXISTS (

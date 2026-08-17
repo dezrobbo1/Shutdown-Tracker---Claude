@@ -43,7 +43,7 @@ From the repository root:
 - Prove task mutation versus candidate approval, line-versus-seal, concurrent duplicate, approval versus batch approval/generation, snapshot/task mutation versus generation, worker-failure rollback, and stable reversed multi-source contention behavior with separately synchronized PostgreSQL sessions.
 - Intentionally fail V007 near the end of its transaction and verify that it leaves no partial V007 objects while V006 data remains intact.
 
-The export-integrity scenarios above build their own temporary databases and stop at V007, which is the schema those assertions were written against. Extending them to the current migration sequence is the next item in [docs/goals/ACTIVE.md](../../docs/goals/ACTIVE.md); the same guarantees on the current schema are covered meanwhile by `ExportIntegrityPostgresIntegrationTests`, which runs under `mvn test` against all migrations and needs no Docker.
+The export-integrity scenarios build their own temporary databases. The current-policy scenarios apply the full migration sequence, so they assert against the schema the application actually runs on. The upgrade and late-failure scenarios stay at V006 and V007 on purpose: they validate a historical transition, and advancing them would stop them validating it.
 
 The populated data is fixed, synthetic validation data created only in temporary databases inside the local validation container. The suite does not run application code, create Project artifacts, or use operational data. Concurrency synchronization uses PostgreSQL locks and `pg_blocking_pids`, rather than assuming that a timed delay proves blocking.
 

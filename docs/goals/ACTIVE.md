@@ -27,42 +27,32 @@ installed.
   itself when no Docker daemon is reachable. It previously reported green locally while never
   running, and failed in CI because its fixture predates V008.
 - That fixture now seeds the `users` rows every export-lifecycle attribution column has referenced
-  since V008, and statements that attempt to overwrite an established actor name a second real
-  user rather than a random UUID, so they are rejected by the immutability rule under test rather
-  than by a dangling foreign key.
+  since V008. Statements that attempt to overwrite an established actor name a second real user
+  rather than a random UUID; both are rejected, since the immutability rules are BEFORE-row
+  triggers and run ahead of the foreign key's AFTER-row trigger, but naming a real user keeps the
+  fixture saying what it means.
 - `scripts/db/validate-migrations.sh` and `.ps1` no longer require the migration set to be exactly
   V001–V007. That guard rejected the repository on its first line as soon as V008 was added, so
   the job never reached the validation it exists to run.
-- `scripts/db/validation/run-export-integrity-suite.sh` scopes its current-policy database to
-  V001–V007 explicitly, with the reason stated in the script, instead of globbing every migration
-  and then rejecting the result.
+- The committed PostgreSQL export-integrity suite now validates the current schema. Its
+  current-policy database applies the full migration sequence rather than stopping at V007:
+  `export-integrity-clean.sql` checks that the tables the export policy depends on are present
+  instead of asserting an exact 21-table schema that any unrelated migration would break, and
+  `export-integrity-current-policy.sql` seeds the `users` rows its lifecycle actors have needed
+  since V008. The V006-to-V007 upgrade and late-failure scenarios stay at their own migration
+  levels, because advancing them would stop them validating the historical transition they exist
+  for.
 
-## Next: extend export-integrity validation to the current schema
+## Next
 
-The committed PostgreSQL export-integrity suite validates the schema as it stood at V007. Two
-things pin it there:
+No specific engineering goal is currently active. `main` has a green baseline; the next goal
+should be chosen from the "Not production-complete yet" list in the root `README.md`. The
+largest open items are production authentication — authorization is enforced, but the actor
+still arrives through a gateway-trusted header rather than a validated token — evidence binary
+upload, Critical Update reporting from the field app, and offline problem raising.
 
-- `scripts/db/assertions/export-integrity-clean.sql` asserts an exact 21-table baseline.
-- `scripts/db/assertions/export-integrity-current-policy.sql` records actor UUIDs that V008 gave a
-  foreign key to `users`, and seeds no `users` rows.
-
-### Success criteria
-
-- The current-policy database applies the full migration sequence, not V001–V007.
-- The clean-baseline assertion describes the current table set and does not need editing for
-  reasons unrelated to export integrity when a table is added.
-- Actor UUIDs used by the current-policy assertions exist in `users`.
-- Every export-integrity invariant the suite asserts today still holds, and still fails for its
-  own reason rather than a foreign-key violation.
-- The V006-to-V007 upgrade scenario and the late-V007 rollback scenario stay at their own
-  migration levels; they validate a historical transition and must not be advanced.
-- `bash scripts/db/validate-migrations.sh` passes end to end.
-
-### Non-goals
-
-- Rewriting V006 history, or altering any applied migration.
-- Adding export authority beyond `percent_complete`, `actual_start`, and `actual_finish`.
-- Product or frontend feature work.
+Record the chosen goal here before starting it, with its outcome, success criteria, non-goals,
+required validation, and completion conditions.
 
 ## Standing constraints
 
