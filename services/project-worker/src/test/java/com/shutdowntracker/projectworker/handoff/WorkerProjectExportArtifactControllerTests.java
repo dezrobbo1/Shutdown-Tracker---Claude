@@ -43,6 +43,7 @@ class WorkerProjectExportArtifactControllerTests {
                                 "export.mspdi.xml",
                                 "mspdi_xml",
                                 1,
+                                6,
                                 1,
                                 512,
                                 "synthetic-sha256",
@@ -58,6 +59,11 @@ class WorkerProjectExportArtifactControllerTests {
                   "outputPath": ".shutdown-tracker/export-artifacts/%s.mspdi.xml",
                   "artifactRequest": {
                     "projectName": "Synthetic Export Preview",
+                    "source": {
+                      "sourceFileId": "00000000-0000-0000-0000-0000000000f1",
+                      "storageUri": "file:///synthetic/source/accepted.mspdi.xml",
+                      "contentHash": "synthetic-source-hash"
+                    },
                     "tasks": [
                       {
                         "importedTaskId": "synthetic-task-a1",
@@ -247,6 +253,11 @@ class WorkerProjectExportArtifactControllerTests {
                   "outputPath": ".shutdown-tracker/export-artifacts/%s.mspdi.xml",
                   "artifactRequest": {
                     "projectName": "Synthetic Export Preview",
+                    "source": {
+                      "sourceFileId": "00000000-0000-0000-0000-0000000000f1",
+                      "storageUri": "file:///synthetic/source/accepted.mspdi.xml",
+                      "contentHash": "synthetic-source-hash"
+                    },
                     "tasks": [
                       {
                         "importedTaskId": "synthetic-task-a1",

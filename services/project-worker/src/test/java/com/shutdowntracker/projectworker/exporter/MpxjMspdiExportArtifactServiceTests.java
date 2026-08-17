@@ -6,14 +6,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mpxj.ProjectFile;
@@ -25,42 +30,69 @@ import org.w3c.dom.Node;
 class MpxjMspdiExportArtifactServiceTests {
 
     private static final String NO_SCHEDULE_NOTE =
-            "MSPDI/XML artifact only; no schedule calculations or Microsoft Project write-back were run.";
+            "Candidate schedule derived from the accepted source; no schedule calculations or "
+                    + "Microsoft Project write-back were run by Shutdown Tracker.";
+
+    /** The committed synthetic schedule every candidate in these tests is derived from. */
+    private static final Path SOURCE_FIXTURE = Path.of("..", "..", "fixtures", "import-export",
+            "synthetic-basic-wbs", "synthetic-basic-wbs.mspdi.xml").toAbsolutePath().normalize();
+
+    private static ProjectExportArtifactSource TEST_SOURCE;
 
     private final MpxjMspdiExportArtifactService service = new MpxjMspdiExportArtifactService();
 
     @TempDir
     private Path tempDir;
 
+    @BeforeAll
+    static void resolveSource() throws Exception {
+        TEST_SOURCE = new ProjectExportArtifactSource(
+                UUID.fromString("00000000-0000-0000-0000-0000000000f1"),
+                SOURCE_FIXTURE.toUri().toString(),
+                HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(SOURCE_FIXTURE))
+                )
+        );
+    }
+
     @Test
     void generatesSyntheticMspdiArtifactWithAllowedLeafTaskUpdates() throws Exception {
         Path outputPath = tempDir.resolve("synthetic-export.mspdi.xml");
 
-        ProjectExportArtifactSummary summary = service.generate(syntheticRequest(), outputPath);
+        ProjectExportArtifactSummary summary = service.generate(syntheticRequest(), SOURCE_FIXTURE, outputPath);
 
         assertThat(Files.isRegularFile(outputPath)).isTrue();
         assertThat(summary.outputFilename()).isEqualTo("synthetic-export.mspdi.xml");
         assertThat(summary.artifactFormat()).isEqualTo("mspdi_xml");
-        assertThat(summary.taskCount()).isEqualTo(2);
+        assertThat(summary.taskCount()).as("tasks updated").isEqualTo(2);
+        assertThat(summary.sourceTaskCount()).as("tasks in the candidate schedule").isEqualTo(6);
         assertThat(summary.exportedFieldCount()).isEqualTo(3);
         assertThat(summary.sizeBytes()).isGreaterThan(0);
         assertThat(summary.sha256()).hasSize(64);
         assertThat(summary.notes()).containsExactly(NO_SCHEDULE_NOTE);
-        assertArtifactAuthority(outputPath);
+        assertCandidatePreservesSourceSchedule(outputPath);
+        assertOnlyApprovedFieldsDiffer(outputPath);
 
         ProjectFile exportedProject = readProject(outputPath);
-        assertThat(exportedProject.getProjectProperties().getName()).isEqualTo("Synthetic Export Preview");
+        // The source schedule's own name, not the export batch label: renaming a planner's
+        // project would itself be a change nobody approved.
+        assertThat(exportedProject.getProjectProperties().getName()).isEqualTo("Synthetic Basic WBS");
+        assertThat(exportedProject.getTasks()).hasSize(6);
+        assertThat(exportedProject.getCalendars()).hasSize(1);
 
-        Task taskA1 = taskWithUid(exportedProject, 101);
-        assertThat(taskA1.getUniqueID()).isEqualTo(101);
-        assertThat(taskA1.getID()).isEqualTo(1);
+        Task taskA1 = taskWithUid(exportedProject, 2);
+        assertThat(taskA1.getUniqueID()).isEqualTo(2);
+        assertThat(taskA1.getID()).isEqualTo(2);
         assertThat(taskA1.getPercentageComplete().intValue()).isEqualTo(75);
         assertThat(taskA1.getActualStart()).isEqualTo(LocalDateTime.of(2026, 1, 5, 7, 0));
+        // Structure Shutdown Tracker never authored, carried through from the source.
+        assertThat(taskA1.getWBS()).isEqualTo("1.1");
 
-        Task taskA2 = taskWithUid(exportedProject, 102);
-        assertThat(taskA2.getUniqueID()).isEqualTo(102);
-        assertThat(taskA2.getID()).isEqualTo(2);
+        Task taskA2 = taskWithUid(exportedProject, 3);
+        assertThat(taskA2.getUniqueID()).isEqualTo(3);
+        assertThat(taskA2.getID()).isEqualTo(3);
         assertThat(taskA2.getActualFinish()).isEqualTo(LocalDateTime.of(2026, 1, 6, 15, 0));
+        assertThat(taskA2.getPredecessors()).hasSize(1);
     }
 
     @Test
@@ -97,6 +129,7 @@ class MpxjMspdiExportArtifactServiceTests {
 
         assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Duplicate Rejection",
+                TEST_SOURCE,
                 List.of(first, duplicate)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -112,6 +145,7 @@ class MpxjMspdiExportArtifactServiceTests {
 
         assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Summary Rejection",
+                TEST_SOURCE,
                 List.of(new ProjectExportArtifactTask(
                         "synthetic-summary-a",
                         "200",
@@ -149,17 +183,18 @@ class MpxjMspdiExportArtifactServiceTests {
     void acceptsWholeNumberProgressBoundariesWithoutRounding() throws Exception {
         ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
                 "Synthetic Percent Boundaries",
+                TEST_SOURCE,
                 List.of(
-                        percentTask("synthetic-zero", "301", "31", "Synthetic Zero", "0"),
-                        percentTask("synthetic-hundred", "302", "32", "Synthetic Hundred", "100.0")
+                        percentTask("synthetic-task-b1", "5", "5", "Synthetic Task B1", "0"),
+                        percentTask("synthetic-task-b2", "6", "6", "Synthetic Task B2", "100.0")
                 )
         );
         Path outputPath = tempDir.resolve("whole-number-percent.mspdi.xml");
 
-        service.generate(request, outputPath);
+        service.generate(request, SOURCE_FIXTURE, outputPath);
 
-        assertThat(taskWithUid(readProject(outputPath), 301).getPercentageComplete().intValue()).isZero();
-        assertThat(taskWithUid(readProject(outputPath), 302).getPercentageComplete().intValue()).isEqualTo(100);
+        assertThat(taskWithUid(readProject(outputPath), 5).getPercentageComplete().intValue()).isZero();
+        assertThat(taskWithUid(readProject(outputPath), 6).getPercentageComplete().intValue()).isEqualTo(100);
         assertThat(request.tasks().get(1).fieldValues().getFirst().newValue()).isEqualTo("100");
     }
 
@@ -167,11 +202,12 @@ class MpxjMspdiExportArtifactServiceTests {
     void preservesReviewedProjectWallClockForOffsetDateTime() throws Exception {
         ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
                 "Synthetic Offset Wall Clock",
+                TEST_SOURCE,
                 List.of(new ProjectExportArtifactTask(
-                        "synthetic-offset-task",
-                        "401",
-                        "41",
-                        "Synthetic Offset Task",
+                        "synthetic-task-b1",
+                        "5",
+                        "5",
+                        "Synthetic Task B1",
                         true,
                         List.of(new ProjectExportArtifactFieldValue(
                                 ProjectExportArtifactField.ACTUAL_START,
@@ -180,11 +216,11 @@ class MpxjMspdiExportArtifactServiceTests {
         );
         Path outputPath = tempDir.resolve("offset-wall-clock.mspdi.xml");
 
-        service.generate(request, outputPath);
+        service.generate(request, SOURCE_FIXTURE, outputPath);
 
         assertThat(request.tasks().getFirst().fieldValues().getFirst().newValue())
                 .isEqualTo("2026-01-05T16:00:00+08:00");
-        assertThat(taskWithUid(readProject(outputPath), 401).getActualStart())
+        assertThat(taskWithUid(readProject(outputPath), 5).getActualStart())
                 .isEqualTo(LocalDateTime.of(2026, 1, 5, 16, 0));
     }
 
@@ -267,6 +303,7 @@ class MpxjMspdiExportArtifactServiceTests {
         );
         assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Reused Identity",
+                TEST_SOURCE,
                 List.of(first, reusedProjectId)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -281,6 +318,7 @@ class MpxjMspdiExportArtifactServiceTests {
         );
         assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Reused Identity",
+                TEST_SOURCE,
                 List.of(first, reusedProjectUid)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -313,6 +351,7 @@ class MpxjMspdiExportArtifactServiceTests {
 
         assertThatThrownBy(() -> new ProjectExportArtifactRequest(
                 "Synthetic Split Identity",
+                TEST_SOURCE,
                 List.of(percent, actual)
         ))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -321,7 +360,7 @@ class MpxjMspdiExportArtifactServiceTests {
 
     @Test
     void rejectsNonXmlOutputPaths() {
-        assertThatThrownBy(() -> service.generate(syntheticRequest(), tempDir.resolve("synthetic-export.zip")))
+        assertThatThrownBy(() -> service.generate(syntheticRequest(), SOURCE_FIXTURE, tempDir.resolve("synthetic-export.zip")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must end with .xml");
     }
@@ -345,11 +384,12 @@ class MpxjMspdiExportArtifactServiceTests {
     private ProjectExportArtifactRequest syntheticRequest() {
         return new ProjectExportArtifactRequest(
                 "Synthetic Export Preview",
+                TEST_SOURCE,
                 List.of(
                         new ProjectExportArtifactTask(
                                 "synthetic-task-a1",
-                                "101",
-                                "1",
+                                "2",
+                                "2",
                                 "Synthetic Task A1",
                                 true,
                                 List.of(
@@ -363,8 +403,8 @@ class MpxjMspdiExportArtifactServiceTests {
                         ),
                         new ProjectExportArtifactTask(
                                 "synthetic-task-a2",
-                                "102",
-                                "2",
+                                "3",
+                                "3",
                                 "Synthetic Task A2",
                                 true,
                                 List.of(
@@ -380,10 +420,11 @@ class MpxjMspdiExportArtifactServiceTests {
     private ProjectExportArtifactRequest requestWithPercent(String value, String suffix) {
         return new ProjectExportArtifactRequest(
                 "Synthetic Percent " + suffix,
+                TEST_SOURCE,
                 List.of(percentTask(
                         "synthetic-task-" + suffix,
-                        "301",
-                        "31",
+                        "5",
+                        "5",
                         "Synthetic Task " + suffix,
                         value
                 ))
@@ -407,19 +448,53 @@ class MpxjMspdiExportArtifactServiceTests {
         );
     }
 
-    private void assertArtifactAuthority(Path outputPath) throws Exception {
+    /**
+     * The candidate must be the accepted source with the approved inputs applied, so what matters
+     * is that the schedule survived, not that the file was reduced to the approved fields.
+     *
+     * <p>The previous assertion here required the opposite: an exact root element set of
+     * {@code SaveVersion, Name, Tasks} and per-task sets of {@code UID, ID, Name} plus the approved
+     * fields. That is a description of a patch document. It passed while the artifact was unusable
+     * in Microsoft Project, because a file with no calendars, links or ancestry gives Project
+     * nothing to recalculate.
+     */
+    private void assertCandidatePreservesSourceSchedule(Path outputPath) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
         Element project = factory.newDocumentBuilder().parse(outputPath.toFile()).getDocumentElement();
 
-        assertThat(directElementNames(project))
-                .containsExactlyInAnyOrder("SaveVersion", "Name", "Tasks");
+        assertThat(directElementNames(project)).contains("Calendars", "Tasks", "Name");
+
         Element tasks = directChild(project, "Tasks");
-        assertThat(directElementNames(tasks)).containsOnly("Task").hasSize(2);
-        assertThat(directElementNames(taskElement(tasks, "101")))
-                .containsExactlyInAnyOrder("UID", "ID", "Name", "PercentComplete", "ActualStart");
-        assertThat(directElementNames(taskElement(tasks, "102")))
-                .containsExactlyInAnyOrder("UID", "ID", "Name", "ActualFinish");
+        // Every task in the source, not only the approved ones.
+        assertThat(directElementNames(tasks)).containsOnly("Task").hasSize(6);
+
+        assertThat(directElementNames(taskElement(tasks, "2")))
+                .contains("UID", "ID", "Name", "WBS", "OutlineNumber", "OutlineLevel", "Duration",
+                        "PercentComplete", "ActualStart");
+
+        // The dependency and the summary tasks are what make this a schedule rather than a patch.
+        assertThat(directElementNames(taskElement(tasks, "3"))).contains("PredecessorLink");
+        assertThat(taskElement(tasks, "1")).isNotNull();
+        assertThat(taskElement(tasks, "4")).isNotNull();
+    }
+
+    /** Nothing outside the approved inputs may differ from the accepted source. */
+    private void assertOnlyApprovedFieldsDiffer(Path outputPath) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        Element source = factory.newDocumentBuilder().parse(SOURCE_FIXTURE.toFile()).getDocumentElement();
+        Element candidate = factory.newDocumentBuilder().parse(outputPath.toFile()).getDocumentElement();
+
+        Element sourceTasks = directChild(source, "Tasks");
+        Element candidateTasks = directChild(candidate, "Tasks");
+        for (String uid : List.of("1", "4", "5", "6")) {
+            assertThat(directElementNames(taskElement(candidateTasks, uid)))
+                    .as("untouched task UID %s", uid)
+                    .isEqualTo(directElementNames(taskElement(sourceTasks, uid)));
+        }
+        assertThat(directChild(candidate, "Name").getTextContent())
+                .isEqualTo(directChild(source, "Name").getTextContent());
     }
 
     private Element taskElement(Element tasks, String taskUid) {

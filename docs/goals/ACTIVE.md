@@ -83,10 +83,14 @@ commit.
 ## Manual Microsoft Project gate
 
 Unchanged and still pending. No automated result may be reported as a manual Microsoft Project
-round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML artifact
-and confirm that it opens in Microsoft Project, preserves task UID and ID identity, contains only
-approved leaf-task values for the three authorized fields, excludes summary-task actuals, and
-performs no recalculation or master-file update through Shutdown Tracker.
+round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML candidate
+schedule and confirm that it opens in Microsoft Project as a complete schedule, preserves task UID
+and ID identity along with the source's summary structure, WBS ancestry, calendars and dependency
+links, differs from the accepted source only in the approved leaf-task values for the three
+authorized fields, excludes summary-task actuals authored by Shutdown Tracker, leaves the accepted
+source file unchanged, and performs no master-file update through Shutdown Tracker.
+
+Microsoft Project recalculating dependent values in the candidate is expected and is not a failure.
 
 ## Completion conditions
 

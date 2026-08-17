@@ -123,9 +123,19 @@ A failed diagnostic for one handoff mechanism means **unsupported by that handof
 
 The product may support more than one mechanism behind the same approved-input contract.
 
-### Full-source MSPDI candidate
+### Full-source MSPDI candidate — implemented
 
-Create a complete candidate from an accepted full Project source and apply approved inputs without stripping required Project context. This remains valid only when manual Project testing proves the exact inputs survive and the resulting candidate is reviewable.
+Create a complete candidate from an accepted full Project source and apply approved inputs without stripping required Project context.
+
+This is the shipped mechanism. The approved values are written into the accepted source document itself rather than the source being read into a schedule model and written back out: a round trip through any intermediate model preserves only what that model represents, and would drop the rest from a file that still looked like a schedule. Editing the document in place cannot lose a construct it never parsed.
+
+Authority is enforced by differencing the generated candidate against the source and requiring that only approved `(task, field)` pairs differ. That is a stronger guarantee than an element allowlist, which proves nothing about what it removed: differencing proves every other value is exactly the accepted source's, so summary-task actuals, planned dates, dependencies, constraints and calendars are provably unmodified by Shutdown Tracker rather than merely absent.
+
+**It requires an MSPDI/XML-sourced snapshot.** Microsoft Project can only be handed MSPDI/XML back, so a native `.mpp` source would make every candidate a format conversion in both directions, risking the silent loss of links, calendars or constraints. `.mpp` upload, import and reporting are unaffected; only candidate generation is constrained.
+
+Elements the source did not carry are inserted at their MSPDI schema-sequence position, since `<Task>` children are an `xsd:sequence` and a misplaced element yields a document Microsoft Project may reject.
+
+Manual Project testing remains required to confirm the candidate opens and recalculates.
 
 ### Planner-controlled Microsoft Project companion
 
@@ -192,6 +202,12 @@ A candidate handoff passes only when:
 
 Do not fail a candidate merely because Microsoft Project legitimately recalculated dependent schedule fields. Fail when an approved input is lost/altered, the source is overwritten, provenance is missing, or an unexplained change cannot be reviewed safely.
 
-## Current implementation implication
+## Current implementation status
 
-Existing minimal MSPDI/XML patch generation should be treated as an authority-boundary and diagnostic mechanism until it proves complete candidate-schedule behaviour. Security controls around authoritative candidates, exact approvals, stale-data rejection, immutable audit, and batch provenance remain valuable and should be preserved regardless of which candidate-calculation mechanism is selected.
+The minimal MSPDI/XML patch generator has been replaced by full-source candidate generation. It produced a document containing only the approved leaf tasks and their approved fields, which Microsoft Project could not recalculate against and no planner could merge or adopt.
+
+The security controls around authoritative candidates, exact approvals, stale-data rejection, immutable audit and batch provenance were **preserved unchanged** through that replacement, and one was added: the candidate is refused unless the accepted source file still matches the SHA-256 recorded at import, so a candidate can never be derived from a schedule other than the reviewed one.
+
+Implemented: candidate generation, source-hash verification, and the only-approved-inputs-differ check.
+
+Not yet implemented: the semantic source-versus-candidate delta and its classification, the planner candidate decision, and the separate master-adoption record.

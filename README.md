@@ -27,7 +27,7 @@ Microsoft Project is expected to recalculate a disposable candidate after approv
 
 Critical Work Packages and Critical Watchlists are configurable execution-reporting constructs, not calculated critical-path features.
 
-See [Project Candidate Schedule Handoff](docs/product/project-candidate-schedule-handoff.md) for the durable handoff contract, and note the gap recorded under "Not production-complete yet" below: the shipped MSPDI/XML path does not implement it.
+See [Project Candidate Schedule Handoff](docs/product/project-candidate-schedule-handoff.md) for the durable handoff contract. Candidate generation is implemented: the artifact is the accepted source schedule with the approved execution inputs applied to it, and Shutdown Tracker proves it changed nothing else by differencing the candidate against the source. Delta classification and the planner adoption record remain open; see "Not production-complete yet" below.
 
 ## Applications
 
@@ -42,7 +42,13 @@ Implemented foundations include:
 - PostgreSQL and Flyway-compatible migrations;
 - immutable Project source/snapshot persistence, including imported tasks, resources,
   assignments, and aliased custom fields stored from a parsed Project file;
-- MPXJ import-summary and MSPDI/XML export-artifact worker boundaries;
+- MPXJ import-summary and MSPDI/XML candidate-schedule worker boundaries;
+- candidate schedules derived from the accepted source: the approved execution inputs are written
+  into the source document itself, so calendars, dependencies, WBS ancestry, summary structure and
+  resource assignments reach Microsoft Project intact and it has something real to recalculate.
+  Authority is enforced by differencing the candidate against the source and requiring that only
+  approved task/field pairs differ, which proves the rest of the schedule is untouched rather than
+  merely absent;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
 - append-only audit foundations, with import, snapshot-acceptance and lineage decisions
   attributed to the acting user rather than recorded as system events;
@@ -75,15 +81,15 @@ Implemented foundations include:
 
 Not production-complete yet:
 
-- the candidate-schedule handoff described in
-  [docs/product/project-candidate-schedule-handoff.md](docs/product/project-candidate-schedule-handoff.md).
-  The shipped MSPDI/XML path builds a **new, empty** `ProjectFile` containing only the approved
-  leaf tasks and then prunes the generated XML to a root and per-task allowlist. That is a
-  patch-shaped artifact, not a candidate schedule: it carries no calendars, dependencies, WBS
-  ancestry, summary structure, or resource assignments, so Microsoft Project has nothing to
-  recalculate against and no source-versus-candidate delta can be produced. The authority,
-  approval, and immutability controls around it are sound and should be preserved; the artifact
-  shape is what has to change before a candidate mechanism exists;
+- the source-versus-candidate delta and the planner candidate decision. Candidate *generation* now
+  exists — the artifact is the accepted source schedule with the approved inputs applied, so
+  Microsoft Project has a real schedule to recalculate — but nothing yet computes the semantic
+  delta between source and candidate, classifies each difference as an approved input or a
+  Project-calculated consequence, or records a separate master-adoption decision;
+- candidate generation from a native `.mpp` source. It requires an MSPDI/XML-sourced snapshot,
+  because Microsoft Project can only be handed MSPDI/XML back and converting formats in both
+  directions can silently drop links, calendars or constraints. `.mpp` upload, import and
+  reporting are unaffected;
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
 - Critical Update reporting in the field app; the console carries it, but a field user or

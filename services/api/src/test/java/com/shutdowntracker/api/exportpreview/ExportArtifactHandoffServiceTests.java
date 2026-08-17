@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
+import com.shutdowntracker.api.exportpreview.handoff.AcceptedSourceFile;
+import com.shutdowntracker.api.exportpreview.handoff.AcceptedSourceFileRepository;
 import com.shutdowntracker.api.exportpreview.handoff.DisconnectedProjectExportArtifactJobClient;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationRequest;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationResponse;
@@ -16,6 +18,7 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValu
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.math.BigDecimal;
@@ -31,6 +34,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 class ExportArtifactHandoffServiceTests {
+
+    private static final UUID SOURCE_FILE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000f1");
+    private static final String SOURCE_CONTENT_HASH = "synthetic-source-hash";
+    private static final int SOURCE_TASK_COUNT = 6;
 
     @Test
     void generatesWorkerArtifactForApprovedEligibleLeafLinesAndRecordsMetadata() {
@@ -186,11 +193,42 @@ class ExportArtifactHandoffServiceTests {
             ProjectExportArtifactJobClient client,
             ExportArtifactStorage storage
     ) {
+        return service(repository, client, storage, new FakeAcceptedSourceFileRepository());
+    }
+
+    private ExportArtifactHandoffService service(
+            FakeExportPreviewRepository repository,
+            ProjectExportArtifactJobClient client,
+            ExportArtifactStorage storage,
+            AcceptedSourceFileRepository sourceFileRepository
+    ) {
         return new ExportArtifactHandoffService(
                 new ExportPreviewService(repository, new CapturingAuditEventRecorder()),
                 client,
-                storage
+                storage,
+                sourceFileRepository
         );
+    }
+
+    /** Resolves an MSPDI/XML source, which is what candidate generation requires. */
+    private static class FakeAcceptedSourceFileRepository implements AcceptedSourceFileRepository {
+
+        private String fileKind = "mspdi_xml";
+        private String contentHash = SOURCE_CONTENT_HASH;
+        private boolean present = true;
+
+        @Override
+        public Optional<AcceptedSourceFile> findByProjectSnapshotId(UUID projectSnapshotId) {
+            if (!present) {
+                return Optional.empty();
+            }
+            return Optional.of(new AcceptedSourceFile(
+                    SOURCE_FILE_ID,
+                    "file:///synthetic/source/" + projectSnapshotId + ".mspdi.xml",
+                    contentHash,
+                    fileKind
+            ));
+        }
     }
 
     private static class CapturingProjectExportArtifactJobClient implements ProjectExportArtifactJobClient {
@@ -214,6 +252,7 @@ class ExportArtifactHandoffServiceTests {
                             request.exportBatchId() + ".mspdi.xml",
                             "mspdi_xml",
                             request.artifactRequest().tasks().size(),
+                            SOURCE_TASK_COUNT,
                             request.artifactRequest().tasks().stream()
                                     .mapToInt(task -> task.fieldValues().size())
                                     .sum(),
@@ -369,6 +408,11 @@ class ExportArtifactHandoffServiceTests {
                     ".shutdown-tracker/export-artifacts/" + exportBatchId + ".mspdi.xml",
                     new ProjectExportArtifactRequest(
                             "Synthetic Export Preview",
+                            new ProjectExportArtifactSource(
+                                    SOURCE_FILE_ID,
+                                    "file:///synthetic/source/snapshot.mspdi.xml",
+                                    SOURCE_CONTENT_HASH
+                            ),
                             List.of(new ProjectExportArtifactTask(
                                     importedTaskId.toString(),
                                     "101",
