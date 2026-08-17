@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type {
   ActionRecord,
+  CriticalWorkPackageReportingSummary,
   HandoverNoteRecord,
   ImportReviewSnapshotSummary,
   ProblemRecord,
@@ -46,6 +47,11 @@ export function TodayZone({ session, client }: ZoneProps) {
 
   const handover = useAsyncResource<HandoverNoteRecord[]>(
     useCallback(() => client.handover.listUnacknowledged(projectId), [client, projectId]),
+    { enabled: session.live, idleMessage: "Configure a project and actor to load this shift." }
+  );
+
+  const criticalWatch = useAsyncResource<CriticalWorkPackageReportingSummary[]>(
+    useCallback(() => client.criticalWatch.reportingSummary(projectId), [client, projectId]),
     { enabled: session.live, idleMessage: "Configure a project and actor to load this shift." }
   );
 
@@ -156,6 +162,32 @@ export function TodayZone({ session, client }: ZoneProps) {
               zoneId="problems"
               sectionId="handover"
               linkLabel="Open handover"
+            />
+          )}
+        </ResourceView>
+      </article>
+
+      <article className="work-panel">
+        <PanelHeading eyebrow="Critical Watch" title="Reporting coverage" />
+        <BoundaryNote>
+          Coverage, not lateness. Reporting policies are not built yet, so nothing here can
+          call a report overdue — what it can show is a Critical Work Package nobody has
+          reported on at all.
+        </BoundaryNote>
+
+        <ResourceView
+          resource={criticalWatch}
+          emptyWhen={(value) => value.length === 0}
+          emptyMessage="No Critical Work Packages are being watched on this project."
+        >
+          {(value) => (
+            <AttentionRow
+              label="Critical Work Packages with no report"
+              count={value.filter((summary) => summary.updateCount === 0).length}
+              settledMessage="Every Critical Work Package has been reported on."
+              zoneId="tasks"
+              sectionId="critical-watch"
+              linkLabel="Open Critical Watch"
             />
           )}
         </ResourceView>

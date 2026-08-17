@@ -65,6 +65,23 @@ public enum Capability {
             ProjectRole.SUPERVISOR,
             ProjectRole.COORDINATOR,
             ProjectRole.SHUTDOWN_CONTROL),
+
+    // Critical Watch, from docs/product/critical-watchlist-permissions.md. Composing a
+    // watchlist is a planning act; reporting against one is an execution act, which is why
+    // these are two capabilities and not one.
+    MANAGE_CRITICAL_WATCHLIST(ProjectRole.PLANNER, ProjectRole.SHUTDOWN_CONTROL),
+    // The matrix says "assigned Field User, assigned Contractor". Narrowing to the specific
+    // assignment is responsibility scoping, which no table models yet, so the grant is by
+    // role for now — the same compromise SUBMIT_TASK_PROGRESS already makes. A planner is
+    // deliberately absent: planners compose Critical Work Packages, they do not report on them.
+    SUBMIT_CRITICAL_UPDATE(
+            ProjectRole.SHUTDOWN_CONTROL,
+            ProjectRole.COORDINATOR,
+            ProjectRole.SUPERVISOR,
+            ProjectRole.FIELD_USER,
+            ProjectRole.CONTRACTOR,
+            ProjectRole.INSPECTOR),
+
     VIEW_PROJECT(
             ProjectRole.ADMIN,
             ProjectRole.PLANNER,

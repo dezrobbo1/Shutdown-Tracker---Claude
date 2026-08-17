@@ -352,6 +352,75 @@ describe("shutdown tracker api client", () => {
     expect(calls[1].method).toBe("POST");
   });
 
+  it("keeps the project in the path for every critical watch lookup", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.criticalWatch.listWorkPackages("p1", "watchlist-1");
+    await client.criticalWatch.listReportedTasks("p1", "wp-1");
+    await client.criticalWatch.listUpdates("p1", "wp-1");
+
+    // A watchlist or package id names work in one project only when the project travels
+    // with it. Dropping the project from any of these paths would be a cross-project read.
+    for (const call of calls) {
+      expect(call.input).toContain("/api/projects/p1/");
+    }
+    expect(calls[0].input).toBe(
+      "https://example.test/api/projects/p1/critical-watchlists/watchlist-1/work-packages"
+    );
+    expect(calls[1].input).toBe(
+      "https://example.test/api/projects/p1/critical-work-packages/wp-1/reported-tasks"
+    );
+    expect(calls[2].input).toBe(
+      "https://example.test/api/projects/p1/critical-work-packages/wp-1/updates"
+    );
+  });
+
+  it("submits a critical update without naming a submitter", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.criticalWatch.submitUpdate("p1", {
+      criticalWorkPackageId: "wp-1",
+      updateMode: "shift",
+      currentFocus: "Blanking plates fitted",
+      idempotencyKey: "field-capture-1",
+      lines: []
+    });
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/critical-updates");
+    expect(calls[0].method).toBe("POST");
+    // The server attributes the report to the authenticated actor.
+    expect(String(calls[0].body)).not.toContain("UserId");
+    expect(String(calls[0].body)).toContain("field-capture-1");
+  });
+
+  it("lets the server decide whether a package is multi-summary", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.criticalWatch.addSource("p1", "wp-1", {
+      projectSnapshotId: "snap-1",
+      importedTaskId: "task-1",
+      includeDescendants: true
+    });
+
+    expect(calls[0].input).toBe(
+      "https://example.test/api/projects/p1/critical-work-packages/wp-1/sources"
+    );
+    // summary_task versus multi_summary is derived from what the package already draws on.
+    expect(String(calls[0].body)).not.toContain("sourceType");
+  });
+
   it("describes the import and export review API surface", () => {
     expect(shutdownTrackerReviewApiSurfaces.map((surface) => surface.label)).toEqual(
       expect.arrayContaining([

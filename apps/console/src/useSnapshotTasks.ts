@@ -72,3 +72,14 @@ export function taskLabel(tasks: SnapshotTasks, importedTaskId: string | null | 
 export function leafTasks(tasks: SnapshotTasks) {
   return tasks.tasks.filter((task) => !task.summary);
 }
+
+/**
+ * Summary tasks, which is what a Critical Work Package may be sourced from.
+ *
+ * The product rule is that package membership is chosen from summary tasks in the imported
+ * schedule — never derived from critical path or float, which are not calculated here.
+ * Offering leaf tasks in that picker would invite the arbitrary grouping the docs defer.
+ */
+export function summaryTasks(tasks: SnapshotTasks) {
+  return tasks.tasks.filter((task) => task.summary);
+}

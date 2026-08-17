@@ -184,6 +184,84 @@ class CriticalWatchServiceDatabaseTests extends AbstractDatabaseTest {
     }
 
     @Test
+    void doesNotListWorkPackagesForAWatchlistOnAnotherProject() {
+        service.createWorkPackage(projectId, control, watchlistId, "Mechanical WP", null);
+        UUID otherProject = fixtures.createProject("Boiler");
+
+        assertThat(service.workPackages(otherProject, watchlistId))
+                .describedAs("a watchlist id is not a secret, so the project must be part of the lookup")
+                .isEmpty();
+        assertThat(service.workPackages(projectId, watchlistId))
+                .describedAs("the owning project still sees its own packages")
+                .hasSize(1);
+    }
+
+    @Test
+    void aCorrectionCannotRetireAReportOnAnotherProject() {
+        UUID otherProject = fixtures.createProject("Boiler");
+        UUID otherWatchlist = service.createWatchlist(otherProject, control, "Boiler Critical", null).id();
+        CriticalWorkPackageRecord theirPackage =
+                service.createWorkPackage(otherProject, control, otherWatchlist, "Boiler WP", null);
+        CriticalUpdateRecord theirs = service.submitUpdate(otherProject, control,
+                new CriticalUpdateSubmitRequest(
+                        theirPackage.id(), "ad_hoc", "Their read", null, null, null, null, null, List.of()));
+
+        CriticalWorkPackageRecord mine =
+                service.createWorkPackage(projectId, control, watchlistId, "Kiln WP", null);
+
+        assertThatThrownBy(() -> service.submitUpdate(projectId, control,
+                new CriticalUpdateSubmitRequest(
+                        mine.id(), "ad_hoc", "Correction", null, null,
+                        null, null, theirs.id(), List.of())))
+                .describedAs("naming another project's update is refused, not quietly ignored")
+                .isInstanceOf(ResponseStatusException.class);
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT status FROM critical_updates WHERE id = ?", String.class, theirs.id()))
+                .describedAs("the other project's report is still standing")
+                .isEqualTo("submitted");
+    }
+
+    /**
+     * The summary counts current reports, and puts what nobody has reported on first.
+     *
+     * <p>A superseded report is not counted twice: the correction that replaced it is the
+     * current one. Getting this wrong would show a package as covered on the strength of a
+     * report that has since been withdrawn.
+     */
+    @Test
+    void reportingSummaryCountsCurrentReportsAndLeadsWithTheUnreported() {
+        CriticalWorkPackageRecord reported =
+                service.createWorkPackage(projectId, control, watchlistId, "Reported WP", null);
+        CriticalWorkPackageRecord silent =
+                service.createWorkPackage(projectId, control, watchlistId, "Silent WP", null);
+
+        CriticalUpdateRecord original = service.submitUpdate(projectId, control,
+                new CriticalUpdateSubmitRequest(
+                        reported.id(), "shift", "First read", null, null, null, null, null, List.of()));
+        service.submitUpdate(projectId, control,
+                new CriticalUpdateSubmitRequest(
+                        reported.id(), "shift", "Corrected read", null, null,
+                        null, null, original.id(), List.of()));
+
+        List<CriticalWorkPackageReportingSummary> summaries = service.reportingSummaries(projectId);
+
+        assertThat(summaries).hasSize(2);
+        assertThat(summaries.get(0).name())
+                .describedAs("a package nobody has reported on needs attention first")
+                .isEqualTo("Silent WP");
+        assertThat(summaries.get(0).updateCount()).isZero();
+        assertThat(summaries.get(0).lastSubmittedAt()).isNull();
+
+        CriticalWorkPackageReportingSummary covered = summaries.get(1);
+        assertThat(covered.workPackageId()).isEqualTo(reported.id());
+        assertThat(covered.updateCount())
+                .describedAs("the correction counts; the report it replaced does not")
+                .isEqualTo(1);
+        assertThat(covered.lastSubmittedAt()).isNotNull();
+    }
+
+    @Test
     void recordsThatReportingDidNotCalculateCriticalPath() {
         service.createWorkPackage(projectId, control, watchlistId, "WP", null);
 

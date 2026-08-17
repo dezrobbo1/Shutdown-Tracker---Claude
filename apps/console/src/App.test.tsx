@@ -20,6 +20,7 @@ import { MappingZone } from "./zones/MappingZone";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone } from "./zones/EvidenceZone";
+import { CriticalWatchZone, reportCountLabel, updateStatusLabel } from "./zones/CriticalWatchZone";
 import { createConsoleApiClient } from "./consoleApi";
 import { formatPercent, toneForState } from "./formatting";
 
@@ -70,6 +71,10 @@ describe("console shell", () => {
     expect(sections).toContain("exports/planner-review");
     expect(sections).toContain("problems/handover");
     expect(sections).toContain("tasks/supervisor-review");
+    // Critical Watch reports on scheduled work, so it is a section under Tasks rather than a
+    // sixth zone competing with the concept pack's five.
+    expect(sections).toContain("tasks/critical-watch");
+    expect(consoleZones.map((zone) => zone.id)).toHaveLength(5);
   });
 
   it("says plainly when it is not configured rather than showing empty panels", () => {
@@ -313,7 +318,8 @@ describe("every zone renders", () => {
     ["handover", HandoverZone],
     ["evidence", EvidenceZone],
     ["mapping", MappingZone],
-    ["export", ExportZone]
+    ["export", ExportZone],
+    ["critical-watch", CriticalWatchZone]
   ] as const;
 
   for (const [id, Zone] of zones) {
@@ -330,6 +336,67 @@ describe("every zone renders", () => {
 
     expect(html).toContain("does not write the master");
     expect(html).toContain("recalculates nothing");
+  });
+
+  it("says a Critical Work Package is grouped, not calculated", () => {
+    const html = renderToString(<CriticalWatchZone session={session} client={client} />);
+
+    // The name invites the assumption that the product works out what is critical. It does
+    // not: membership is chosen by a person from summary tasks.
+    expect(html).toContain("summary tasks");
+    expect(html).toContain("critical path");
+    expect(html).toContain("does not update Microsoft Project");
+  });
+
+  it("reports Critical Watch coverage without claiming anything is overdue", () => {
+    const html = renderToString(<TodayZone session={session} client={client} />);
+
+    // Reporting policies are not built, so there is no schedule to be late against.
+    expect(html).toContain("Coverage, not lateness");
+    expect(html).not.toContain("overdue report");
+  });
+});
+
+describe("critical watch", () => {
+  it("keeps a superseded report visible and labelled rather than hiding it", () => {
+    expect(updateStatusLabel({ status: "superseded", supersedesCriticalUpdateId: null })).toBe(
+      "Superseded"
+    );
+    expect(updateStatusLabel({ status: "submitted", supersedesCriticalUpdateId: "earlier" })).toBe(
+      "Correction"
+    );
+    expect(updateStatusLabel({ status: "submitted", supersedesCriticalUpdateId: null })).toBe(
+      "Reported"
+    );
+  });
+
+  it("distinguishes no reports from not yet knowing", () => {
+    expect(reportCountLabel(null)).toBe("Loading");
+    expect(reportCountLabel(0)).toBe("0 reports");
+    expect(reportCountLabel(1)).toBe("1 report");
+  });
+
+  it("separates composing a package from reporting on one", () => {
+    const planner = buildZoneSession(
+      buildConsoleSession({
+        VITE_SHUTDOWN_TRACKER_PROJECT_ID: "p",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ID: "u",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "planner"
+      })
+    );
+    const supervisor = buildZoneSession(
+      buildConsoleSession({
+        VITE_SHUTDOWN_TRACKER_PROJECT_ID: "p",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ID: "u",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "supervisor"
+      })
+    );
+
+    expect(planner.canManageCriticalWatchlist).toBe(true);
+    // A planner decides what a package covers; the people on the work report against it.
+    expect(planner.canSubmitCriticalUpdate).toBe(false);
+    expect(supervisor.canSubmitCriticalUpdate).toBe(true);
+    expect(supervisor.canManageCriticalWatchlist).toBe(false);
   });
 });
 

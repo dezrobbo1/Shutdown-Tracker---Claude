@@ -91,12 +91,14 @@ public class JdbcCriticalWatchRepository implements CriticalWatchRepository {
     }
 
     @Override
-    public List<CriticalWorkPackageRecord> findWorkPackages(UUID watchlistId) {
+    public List<CriticalWorkPackageRecord> findWorkPackages(UUID projectId, UUID watchlistId) {
         return jdbcTemplate.query(
                 "SELECT " + PACKAGE_COLUMNS
                         + " FROM critical_work_packages WHERE critical_watchlist_id = :watchlistId"
-                        + " AND status = 'active' ORDER BY name",
-                new MapSqlParameterSource("watchlistId", watchlistId),
+                        + " AND project_id = :projectId AND status = 'active' ORDER BY name",
+                new MapSqlParameterSource()
+                        .addValue("watchlistId", watchlistId)
+                        .addValue("projectId", projectId),
                 this::mapWorkPackage);
     }
 
@@ -172,6 +174,40 @@ public class JdbcCriticalWatchRepository implements CriticalWatchRepository {
                 UUID.class);
     }
 
+    /**
+     * Reporting coverage per package, in one query.
+     *
+     * <p>A left join, so a package nobody has reported on still appears — that is the case
+     * worth surfacing. Superseded reports are excluded: the correction that replaced one is
+     * itself a row here, and counting both would overstate how much reporting has happened.
+     * Ordered so packages never reported on come first.
+     */
+    @Override
+    public List<CriticalWorkPackageReportingSummary> findReportingSummaries(UUID projectId) {
+        return jdbcTemplate.query(
+                """
+                SELECT p.id, p.critical_watchlist_id, p.name,
+                       count(u.id) AS update_count,
+                       max(u.submitted_at) AS last_submitted_at
+                FROM critical_work_packages p
+                JOIN critical_watchlists w
+                  ON w.id = p.critical_watchlist_id AND w.status = 'active'
+                LEFT JOIN critical_updates u
+                  ON u.critical_work_package_id = p.id
+                 AND u.status <> CAST('superseded' AS critical_update_status)
+                WHERE p.project_id = :projectId AND p.status = 'active'
+                GROUP BY p.id, p.critical_watchlist_id, p.name
+                ORDER BY max(u.submitted_at) ASC NULLS FIRST, p.name
+                """,
+                new MapSqlParameterSource("projectId", projectId),
+                (rs, rowNum) -> new CriticalWorkPackageReportingSummary(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("critical_watchlist_id", UUID.class),
+                        rs.getString("name"),
+                        rs.getInt("update_count"),
+                        rs.getObject("last_submitted_at", OffsetDateTime.class)));
+    }
+
     @Override
     public Optional<CriticalUpdateRecord> findUpdateByIdempotencyKey(UUID projectId, String idempotencyKey) {
         return jdbcTemplate.query(
@@ -239,14 +275,19 @@ public class JdbcCriticalWatchRepository implements CriticalWatchRepository {
     }
 
     @Override
-    public void markUpdateSuperseded(UUID criticalUpdateId) {
-        jdbcTemplate.update(
+    public int markUpdateSuperseded(UUID projectId, UUID workPackageId, UUID criticalUpdateId) {
+        return jdbcTemplate.update(
                 """
                 UPDATE critical_updates
                 SET status = CAST('superseded' AS critical_update_status), review_state = 'superseded'
                 WHERE id = :id
+                  AND project_id = :projectId
+                  AND critical_work_package_id = :workPackageId
                 """,
-                new MapSqlParameterSource("id", criticalUpdateId));
+                new MapSqlParameterSource()
+                        .addValue("id", criticalUpdateId)
+                        .addValue("projectId", projectId)
+                        .addValue("workPackageId", workPackageId));
     }
 
     @Override

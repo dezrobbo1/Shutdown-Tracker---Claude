@@ -17,6 +17,7 @@ import { MappingZone } from "./zones/MappingZone";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone } from "./zones/EvidenceZone";
+import { CriticalWatchZone } from "./zones/CriticalWatchZone";
 
 /**
  * The Master Console.
@@ -165,6 +166,8 @@ function ZoneOutlet({
       return <ExecutionZone {...props} />;
     case "tasks/supervisor-review":
       return <SupervisorReviewZone {...props} />;
+    case "tasks/critical-watch":
+      return <CriticalWatchZone {...props} />;
     case "problems/records":
       return <ProblemsZone {...props} />;
     case "problems/handover":

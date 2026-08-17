@@ -60,8 +60,19 @@ public class CriticalWatchService {
         return workPackage;
     }
 
-    public List<CriticalWorkPackageRecord> workPackages(UUID watchlistId) {
-        return repository.findWorkPackages(watchlistId);
+    public List<CriticalWorkPackageRecord> workPackages(UUID projectId, UUID watchlistId) {
+        return repository.findWorkPackages(projectId, watchlistId);
+    }
+
+    /**
+     * How much reporting each package has received, for the attention surface.
+     *
+     * <p>It reports coverage, not lateness. Until reporting policies exist there is no
+     * schedule to be late against, and a package nobody has reported on is a fact this can
+     * state without inventing one.
+     */
+    public List<CriticalWorkPackageReportingSummary> reportingSummaries(UUID projectId) {
+        return repository.findReportingSummaries(projectId);
     }
 
     /**
@@ -130,7 +141,16 @@ public class CriticalWatchService {
                         HttpStatus.NOT_FOUND, "Critical work package not found."));
 
         if (request.supersedesCriticalUpdateId() != null) {
-            repository.markUpdateSuperseded(request.supersedesCriticalUpdateId());
+            // A correction may only retire a report on the same package. Naming an update
+            // that lives elsewhere changes nothing, and is refused rather than ignored:
+            // silently accepting it would report a supersession that never happened.
+            int superseded = repository.markUpdateSuperseded(
+                    projectId, request.criticalWorkPackageId(), request.supersedesCriticalUpdateId());
+            if (superseded == 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "The update being corrected does not belong to this critical work package.");
+            }
         }
 
         CriticalUpdateRecord update = repository.submitUpdate(projectId, actor.userId(), request);

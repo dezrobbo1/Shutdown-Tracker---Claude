@@ -21,6 +21,8 @@ export type ZoneSession = ConsoleSession & {
   canManageAction: boolean;
   canRecordHandover: boolean;
   canCaptureEvidence: boolean;
+  canManageCriticalWatchlist: boolean;
+  canSubmitCriticalUpdate: boolean;
   canManageMapping: boolean;
   canCreateExportPreview: boolean;
   canApproveExport: boolean;
@@ -46,6 +48,10 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
     canManageAction: sessionAllows(session, "MANAGE_ACTION"),
     canRecordHandover: sessionAllows(session, "RECORD_HANDOVER"),
     canCaptureEvidence: sessionAllows(session, "CAPTURE_EVIDENCE"),
+    // Composing a package and reporting on one are separate grants: a planner builds the
+    // package, the people on the work report against it.
+    canManageCriticalWatchlist: sessionAllows(session, "MANAGE_CRITICAL_WATCHLIST"),
+    canSubmitCriticalUpdate: sessionAllows(session, "SUBMIT_CRITICAL_UPDATE"),
     canManageMapping: sessionAllows(session, "MANAGE_IMPORT_PROFILE"),
     canCreateExportPreview: sessionAllows(session, "CREATE_EXPORT_PREVIEW"),
     canApproveExport: sessionAllows(session, "APPROVE_EXPORT_BATCH"),

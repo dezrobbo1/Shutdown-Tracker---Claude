@@ -675,6 +675,106 @@ export type CategoryResolutionSummary = {
   health: MappingHealth;
 };
 
+/**
+ * Critical Watch.
+ *
+ * A Critical Work Package is a reporting object. Its membership is chosen by a planner from
+ * summary tasks in the imported schedule — never derived from critical path, float, or slack,
+ * none of which this product calculates. Reporting on a package changes no imported value.
+ */
+export type CriticalWatchlistRecord = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string | null;
+  status: string;
+};
+
+export type CriticalWorkPackageRecord = {
+  id: string;
+  projectId: string;
+  criticalWatchlistId: string;
+  name: string;
+  description: string | null;
+  status: string;
+};
+
+/** `multi_summary` where one reporting group spans schedule boundaries. Server-derived. */
+export type CriticalWorkPackageSourceRecord = {
+  id: string;
+  criticalWorkPackageId: string;
+  projectSnapshotId: string;
+  importedTaskId: string;
+  sourceType: string;
+  includeDescendants: boolean;
+};
+
+export type CriticalUpdateRecord = {
+  id: string;
+  projectId: string;
+  criticalWorkPackageId: string;
+  status: string;
+  updateMode: string;
+  submittedAt: string;
+  submittedByUserId: string;
+  currentFocus: string | null;
+  currentBlockerSummary: string | null;
+  nextTarget: string | null;
+  supersedesCriticalUpdateId: string | null;
+};
+
+/** Line detail on a Critical Update. Lines never update Microsoft Project. */
+export type CriticalUpdateLineRequest = {
+  importedTaskId: string | null;
+  targetText?: string | null;
+  actualText?: string | null;
+  delayOrIssueText?: string | null;
+  solutionOrNextActionText?: string | null;
+  percentComplete?: number | null;
+  physicalPercentComplete?: number | null;
+};
+
+export type CriticalUpdateMode = "ad_hoc" | "scheduled" | "shift" | "event" | "custom";
+
+/**
+ * Submitting a Critical Update.
+ *
+ * There is no submitter field: the server attributes the report to the authenticated actor.
+ * `idempotencyKey` lets a queued offline submission be retried without double-reporting.
+ */
+export type CriticalUpdateSubmitRequest = {
+  criticalWorkPackageId: string;
+  updateMode?: CriticalUpdateMode | null;
+  currentFocus?: string | null;
+  currentBlockerSummary?: string | null;
+  nextTarget?: string | null;
+  idempotencyKey?: string | null;
+  offlineLocalId?: string | null;
+  supersedesCriticalUpdateId?: string | null;
+  lines?: CriticalUpdateLineRequest[];
+};
+
+/**
+ * How much reporting a Critical Work Package has received.
+ *
+ * Coverage, not lateness. Reporting policies — intervals, shifts, event triggers — are
+ * specified but not built, so nothing here can call a report overdue without inventing a
+ * schedule the product does not hold. `lastSubmittedAt` is null when nobody has reported.
+ */
+export type CriticalWorkPackageReportingSummary = {
+  workPackageId: string;
+  criticalWatchlistId: string;
+  name: string;
+  updateCount: number;
+  lastSubmittedAt: string | null;
+};
+
+export type CriticalWorkPackageSourceRequest = {
+  projectSnapshotId: string;
+  importedTaskId: string;
+  includeDescendants: boolean;
+};
+
 export type ReviewApiSurface = {
   label: string;
   method: "GET" | "POST";
@@ -1017,6 +1117,71 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           projectPath(projectId, `handover-notes/${handoverNoteId}/acknowledge`),
           { method: "POST" }
         )
+    },
+    criticalWatch: {
+      createWatchlist: (projectId: string, name: string, description?: string) =>
+        requestJson<CriticalWatchlistRecord>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "critical-watchlists"),
+          { method: "POST", body: { name, description: description ?? null } }
+        ),
+      listWatchlists: (projectId: string) =>
+        requestJson<CriticalWatchlistRecord[]>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "critical-watchlists")),
+      /** Reporting coverage for every active package, in one request rather than per package. */
+      reportingSummary: (projectId: string) =>
+        requestJson<CriticalWorkPackageReportingSummary[]>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "critical-watch/reporting-summary")),
+      createWorkPackage: (
+        projectId: string,
+        criticalWatchlistId: string,
+        name: string,
+        description?: string
+      ) =>
+        requestJson<CriticalWorkPackageRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `critical-watchlists/${criticalWatchlistId}/work-packages`),
+          { method: "POST", body: { name, description: description ?? null } }
+        ),
+      // The watchlist id alone does not identify a project's packages; the project is part
+      // of the path so one project's watchlist id cannot read another's work.
+      listWorkPackages: (projectId: string, criticalWatchlistId: string) =>
+        requestJson<CriticalWorkPackageRecord[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `critical-watchlists/${criticalWatchlistId}/work-packages`)),
+      addSource: (
+        projectId: string,
+        criticalWorkPackageId: string,
+        request: CriticalWorkPackageSourceRequest
+      ) =>
+        requestJson<CriticalWorkPackageSourceRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `critical-work-packages/${criticalWorkPackageId}/sources`),
+          { method: "POST", body: request }
+        ),
+      /** The tasks a package reports on. Grouping only — no dates are rolled up. */
+      listReportedTasks: (projectId: string, criticalWorkPackageId: string) =>
+        requestJson<string[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `critical-work-packages/${criticalWorkPackageId}/reported-tasks`)),
+      submitUpdate: (projectId: string, request: CriticalUpdateSubmitRequest) =>
+        requestJson<CriticalUpdateRecord>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "critical-updates"),
+          { method: "POST", body: request }
+        ),
+      listUpdates: (projectId: string, criticalWorkPackageId: string) =>
+        requestJson<CriticalUpdateRecord[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `critical-work-packages/${criticalWorkPackageId}/updates`))
     },
     importProfiles: {
       create: (projectId: string, name: string, description?: string) =>

@@ -80,6 +80,16 @@ export const consoleZones: readonly ConsoleZone[] = [
         eyebrow: "Step one",
         title: "Supervisor review queue",
         writeCapability: "REVIEW_TASK_PROGRESS"
+      },
+      {
+        // Critical Watch groups work for reporting; it does not schedule it. It sits under
+        // Tasks because that is the work it reports on, and as a section rather than a zone
+        // because the concept pack's five zones are the baseline.
+        id: "critical-watch",
+        label: "Critical Watch",
+        eyebrow: "Reporting groups",
+        title: "Critical Watch",
+        writeCapability: "SUBMIT_CRITICAL_UPDATE"
       }
     ]
   },

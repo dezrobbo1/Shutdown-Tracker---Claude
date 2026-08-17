@@ -59,6 +59,8 @@ export type Capability =
   | "MANAGE_ACTION"
   | "CAPTURE_EVIDENCE"
   | "RECORD_HANDOVER"
+  | "MANAGE_CRITICAL_WATCHLIST"
+  | "SUBMIT_CRITICAL_UPDATE"
   | "VIEW_PROJECT";
 
 /**
@@ -98,6 +100,15 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   MANAGE_ACTION: ["supervisor", "coordinator", "shutdown_control"],
   CAPTURE_EVIDENCE: ["field_user", "contractor", "supervisor", "inspector"],
   RECORD_HANDOVER: ["field_user", "supervisor", "coordinator", "shutdown_control"],
+  MANAGE_CRITICAL_WATCHLIST: ["planner", "shutdown_control"],
+  SUBMIT_CRITICAL_UPDATE: [
+    "shutdown_control",
+    "coordinator",
+    "supervisor",
+    "field_user",
+    "contractor",
+    "inspector"
+  ],
   VIEW_PROJECT: [
     "admin",
     "planner",

@@ -67,6 +67,27 @@ class CapabilityClientParityTests {
         assertThat(Capability.REVIEW_TASK_PROGRESS.allows(ProjectRole.SUPERVISOR)).isTrue();
     }
 
+    /**
+     * Composing a Critical Work Package and reporting against one are different jobs.
+     *
+     * <p>A planner decides what a package covers; the people on the work say how it is going.
+     * Collapsing these into one capability would let a planner file field reports, which the
+     * permission matrix does not allow and which would make the reporting trail misleading.
+     */
+    @Test
+    void criticalWatchSeparatesComposingAPackageFromReportingOnIt() throws IOException {
+        Map<String, Set<String>> client = parseClientCapabilities();
+
+        assertThat(Capability.MANAGE_CRITICAL_WATCHLIST.allows(ProjectRole.PLANNER)).isTrue();
+        assertThat(Capability.SUBMIT_CRITICAL_UPDATE.allows(ProjectRole.PLANNER))
+                .describedAs("a planner composes Critical Work Packages, but does not report on them")
+                .isFalse();
+        assertThat(client.get("SUBMIT_CRITICAL_UPDATE")).doesNotContain("planner");
+
+        assertThat(Capability.MANAGE_CRITICAL_WATCHLIST.allows(ProjectRole.VIEWER)).isFalse();
+        assertThat(Capability.SUBMIT_CRITICAL_UPDATE.allows(ProjectRole.VIEWER)).isFalse();
+    }
+
     private Map<String, Set<String>> serverCapabilities() {
         Map<String, Set<String>> capabilities = new LinkedHashMap<>();
         for (Capability capability : Capability.values()) {

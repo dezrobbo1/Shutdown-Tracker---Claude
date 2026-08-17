@@ -46,7 +46,9 @@ Implemented foundations include:
 - problems, actions, evidence, and handover records;
 - versioned Import Profiles and Operational Categories resolved from task fields, summary
   ancestry, and assigned-resource Groups, with mapping health on re-import;
-- Critical Watchlists, Critical Work Packages, and Critical Update reporting;
+- Critical Watchlists, Critical Work Packages, and Critical Update reporting, reachable over
+  HTTP and surfaced in the console, with composing a package and reporting on one held as
+  separate capabilities so a planner may build a package without filing reports on it;
 - a Master Console on the baseline zones — Today, Tasks, Problems, Evidence, Exports — with
   import review, operational mapping, planner review and the export lifecycle gathered under
   Exports as addressable sections, each reading and writing through the API;
@@ -68,8 +70,8 @@ Not production-complete yet:
 
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
-- Critical Watch has no HTTP surface yet; the service and repository exist but no controller
-  exposes them, so the console cannot reach them;
+- Critical Update reporting in the field app; the console carries it, but a field user or
+  contractor cannot yet file one from a device, and the offline queue covers task progress only;
 - evidence binary upload in either app; evidence records and their per-task read exist and are
   wired in both, but nothing uploads a file, so a record without a storage location means the
   evidence itself is still outstanding;
