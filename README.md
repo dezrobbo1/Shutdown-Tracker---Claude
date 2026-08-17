@@ -134,6 +134,7 @@ docs/
   testing/
   security/
   deployment/
+  sessions/
 ```
 
 ## Documentation authority
@@ -146,6 +147,7 @@ Use documentation by purpose:
 - [docs/adr](docs/adr/README.md) — architecture decision history.
 - [docs/research](docs/research/README.md) — research evidence, source quality, and provenance.
 - [docs/testing](docs/testing/README.md) — durable test policy and verification procedures.
+- [docs/sessions](docs/sessions/README.md) — dated records of individual working sessions: what was investigated, what was decided and rejected, what was verified, and what was left open.
 - GitHub pull requests and commit history — implementation chronology.
 
 `AGENTS.md` contains repository-specific implementation guidance for coding agents.
