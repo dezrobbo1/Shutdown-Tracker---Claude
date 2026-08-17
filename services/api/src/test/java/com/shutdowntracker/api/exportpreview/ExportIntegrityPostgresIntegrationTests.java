@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.shutdowntracker.api.audit.AuditEventTypes;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactGenerationRequest;
 import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffService;
+import com.shutdowntracker.api.support.EmbeddedDatabase;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -17,11 +18,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,16 +36,18 @@ import org.springframework.web.client.RestClientResponseException;
 /**
  * Real PostgreSQL, real Spring transaction proxies, real JDBC row mappings.
  *
- * <p>Skipped where no Docker CLI is available. The condition names a method on another class on
- * purpose: this class starts its container from a static initializer, so evaluating a condition
- * defined here would start the container in order to decide whether to start the container.
+ * <p>This runs against the same embedded PostgreSQL server as every other database test, so it
+ * runs everywhere rather than only where a Docker daemon happens to be reachable. It previously
+ * started its own container and skipped itself without one, which meant a developer machine
+ * reported the suite green while the export-integrity guarantees it exists to prove were never
+ * executed outside CI.
+ *
+ * <p>Spring is pointed at that server through {@code spring.datasource.*} rather than handed the
+ * shared {@code DataSource} directly: the point of this class is to exercise the application's own
+ * pool, transaction proxy, and repository beans.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("local")
-@EnabledIf(
-        value = "com.shutdowntracker.api.support.DockerAvailability#dockerCliIsAvailable",
-        disabledReason = "Needs a Docker CLI with a reachable daemon to run PostgreSQL."
-)
 class ExportIntegrityPostgresIntegrationTests {
 
     private static final UUID PROJECT_ID = UUID.fromString("30000000-0000-0000-0000-000000000001");
@@ -60,29 +61,26 @@ class ExportIntegrityPostgresIntegrationTests {
     private static final UUID GENERATOR_ID = UUID.fromString("30000000-0000-0000-0000-000000000009");
     private static final UUID OPENER_ID = UUID.fromString("30000000-0000-0000-0000-000000000010");
     private static final UUID VERIFIER_ID = UUID.fromString("30000000-0000-0000-0000-000000000011");
+
+    /**
+     * A second real user, used wherever a statement tries to overwrite an established actor.
+     * A random UUID would now be rejected by the {@code users} foreign key before the
+     * immutability rule was ever reached, so the assertion would pass for the wrong reason.
+     */
+    private static final UUID OTHER_ACTOR_ID = UUID.fromString("30000000-0000-0000-0000-000000000012");
+
     private static final String ARTIFACT_HASH = "a".repeat(64);
 
-    private static final Path MIGRATIONS = Path.of(System.getProperty("user.dir"))
-            .resolve("..")
-            .resolve("..")
-            .resolve("infra")
-            .resolve("migrations")
-            .normalize()
-            .toAbsolutePath();
-    private static final DockerPostgres POSTGRES = DockerPostgres.start();
     private static final Path STORAGE_ROOT = createStorageRoot();
     private static final HttpServer FAILING_WORKER = startFailingWorker();
 
     @DynamicPropertySource
     static void databaseAndWorkerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::jdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::username);
-        registry.add("spring.datasource.password", POSTGRES::password);
-        registry.add("spring.flyway.enabled", () -> "true");
-        registry.add(
-                "spring.flyway.locations",
-                () -> "filesystem:" + MIGRATIONS.toString().replace('\\', '/')
-        );
+        registry.add("spring.datasource.url", EmbeddedDatabase::jdbcUrl);
+        registry.add("spring.datasource.username", EmbeddedDatabase::username);
+        registry.add("spring.datasource.password", EmbeddedDatabase::password);
+        // EmbeddedDatabase has already applied infra/migrations to this server.
+        registry.add("spring.flyway.enabled", () -> "false");
         registry.add("shutdown-tracker.persistence.enabled", () -> "true");
         registry.add("shutdown-tracker.project-export-worker.enabled", () -> "true");
         registry.add(
@@ -115,14 +113,15 @@ class ExportIntegrityPostgresIntegrationTests {
 
     @BeforeEach
     void resetDatabase() {
-        jdbcTemplate.execute("TRUNCATE TABLE projects CASCADE");
-        seedAcceptedSnapshotAndLeafTask();
+        // Every table, not just the project tree: users are not project-scoped, so a
+        // CASCADE from projects would leave the previous test's actors behind.
+        EmbeddedDatabase.reset();
+        seedActorsSnapshotAndLeafTask();
     }
 
     @AfterAll
     static void stopWorkerAndRemoveTemporaryStorage() throws IOException {
         FAILING_WORKER.stop(0);
-        POSTGRES.stop();
         if (Files.exists(STORAGE_ROOT)) {
             try (var paths = Files.walk(STORAGE_ROOT)) {
                 paths.sorted(Comparator.reverseOrder()).forEach(path -> {
@@ -214,7 +213,7 @@ class ExportIntegrityPostgresIntegrationTests {
                     approved_by_user_id = ?,
                     metadata = '{"clientMetadata":{}}'::jsonb
                 WHERE id = ?
-                """, GENERATOR_ID, ARTIFACT_HASH, UUID.randomUUID(), fixture.batchId());
+                """, GENERATOR_ID, ARTIFACT_HASH, OTHER_ACTOR_ID, fixture.batchId());
         assertDataFailure("""
                 UPDATE export_batches
                 SET status = 'generated',
@@ -261,7 +260,7 @@ class ExportIntegrityPostgresIntegrationTests {
                     export_file_uri = 'file:///rewritten.xml',
                     export_file_hash = ?
                 WHERE id = ?
-                """, UUID.randomUUID(), "b".repeat(64), fixture.batchId());
+                """, OTHER_ACTOR_ID, "b".repeat(64), fixture.batchId());
 
         ExportPreviewDetail opened = previewService.markOpenedInMicrosoftProject(
                 PROJECT_ID,
@@ -291,7 +290,7 @@ class ExportIntegrityPostgresIntegrationTests {
                             opened_in_microsoft_project_by_user_id = ?
                         WHERE id = ?
                         """,
-                UUID.randomUUID(),
+                OTHER_ACTOR_ID,
                 fixture.batchId()
         );
 
@@ -319,7 +318,7 @@ class ExportIntegrityPostgresIntegrationTests {
                 .isEqualTo(sectionMap(opened.batch(), "microsoftProjectOpen"));
 
         assertDataFailure("UPDATE export_batches SET verified_at = verified_at + interval '1 second' WHERE id = ?", fixture.batchId());
-        assertDataFailure("UPDATE export_batches SET verified_by_user_id = ? WHERE id = ?", UUID.randomUUID(), fixture.batchId());
+        assertDataFailure("UPDATE export_batches SET verified_by_user_id = ? WHERE id = ?", OTHER_ACTOR_ID, fixture.batchId());
         assertDataFailure("UPDATE export_batches SET failure_reason = 'terminal rewrite' WHERE id = ?", fixture.batchId());
         assertDataFailure("UPDATE export_batches SET metadata = '{}'::jsonb WHERE id = ?", fixture.batchId());
         assertDataFailure("""
@@ -441,7 +440,14 @@ class ExportIntegrityPostgresIntegrationTests {
         return (Map<String, Object>) section.get(key);
     }
 
-    private void seedAcceptedSnapshotAndLeafTask() {
+    private void seedActorsSnapshotAndLeafTask() {
+        seedActor(SOURCE_ACTOR_ID, "source-actor", "Field source actor");
+        seedActor(APPROVER_ID, "approver", "Planner approver");
+        seedActor(GENERATOR_ID, "generator", "Artifact generator");
+        seedActor(OPENER_ID, "opener", "Microsoft Project opener");
+        seedActor(VERIFIER_ID, "verifier", "Microsoft Project verifier");
+        seedActor(OTHER_ACTOR_ID, "other-actor", "Unrelated real user");
+
         jdbcTemplate.update("INSERT INTO projects (id, name, timezone) VALUES (?, 'Integration project', 'Australia/Perth')", PROJECT_ID);
         jdbcTemplate.update("""
                 INSERT INTO source_files (id, project_id, original_filename, file_kind, storage_uri)
@@ -467,6 +473,17 @@ class ExportIntegrityPostgresIntegrationTests {
                 """, TASK_ID, PROJECT_ID, SNAPSHOT_ID);
     }
 
+    /**
+     * Every attribution column in the export lifecycle carries a foreign key to
+     * {@code users}, so an actor has to be a real row before it can be recorded.
+     */
+    private void seedActor(UUID userId, String handle, String displayName) {
+        jdbcTemplate.update("""
+                INSERT INTO users (id, email, display_name, status)
+                VALUES (?, ?, ?, CAST('active' AS user_status))
+                """, userId, handle + "@integration.invalid", displayName);
+    }
+
     private static Path createStorageRoot() {
         try {
             return Files.createTempDirectory("shutdown-tracker-export-integrity-");
@@ -490,113 +507,6 @@ class ExportIntegrityPostgresIntegrationTests {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to start controlled worker HTTP server.", exception);
         }
-    }
-
-    private static final class DockerPostgres {
-
-        private static final String USERNAME = "shutdown_tracker";
-        private static final String PASSWORD = "shutdown_tracker_test";
-        private static final String DATABASE = "shutdown_tracker";
-
-        private final String containerName;
-        private final int port;
-        private final AtomicBoolean stopped = new AtomicBoolean();
-
-        private DockerPostgres(String containerName, int port) {
-            this.containerName = containerName;
-            this.port = port;
-        }
-
-        private static DockerPostgres start() {
-            String containerName = "shutdown-tracker-api-it-" + UUID.randomUUID();
-            runRequired(
-                    "docker", "run", "--detach", "--rm",
-                    "--name", containerName,
-                    "--publish", "127.0.0.1::5432",
-                    "--env", "POSTGRES_DB=" + DATABASE,
-                    "--env", "POSTGRES_USER=" + USERNAME,
-                    "--env", "POSTGRES_PASSWORD=" + PASSWORD,
-                    "postgres:16-alpine"
-            );
-            String portOutput = runRequired("docker", "port", containerName, "5432/tcp").trim();
-            int separator = portOutput.lastIndexOf(':');
-            if (separator < 0) {
-                stopContainer(containerName);
-                throw new IllegalStateException("Docker did not report a mapped PostgreSQL port: " + portOutput);
-            }
-            int port = Integer.parseInt(portOutput.substring(separator + 1).trim());
-            DockerPostgres postgres = new DockerPostgres(containerName, port);
-            Runtime.getRuntime().addShutdownHook(new Thread(postgres::stop, "shutdown-tracker-postgres-it-cleanup"));
-            postgres.waitUntilReady();
-            return postgres;
-        }
-
-        private String jdbcUrl() {
-            return "jdbc:postgresql://127.0.0.1:" + port + "/" + DATABASE;
-        }
-
-        private String username() {
-            return USERNAME;
-        }
-
-        private String password() {
-            return PASSWORD;
-        }
-
-        private void waitUntilReady() {
-            for (int attempt = 0; attempt < 120; attempt++) {
-                if (run("docker", "exec", containerName, "pg_isready", "-U", USERNAME, "-d", DATABASE).exitCode() == 0) {
-                    return;
-                }
-                try {
-                    Thread.sleep(250);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    stop();
-                    throw new IllegalStateException("Interrupted while waiting for PostgreSQL.", exception);
-                }
-            }
-            stop();
-            throw new IllegalStateException("PostgreSQL integration container did not become ready.");
-        }
-
-        private void stop() {
-            if (stopped.compareAndSet(false, true)) {
-                stopContainer(containerName);
-            }
-        }
-
-        private static void stopContainer(String containerName) {
-            run("docker", "rm", "--force", containerName);
-        }
-
-        private static String runRequired(String... command) {
-            ProcessResult result = run(command);
-            if (result.exitCode() != 0) {
-                throw new IllegalStateException(
-                        "Docker command failed with exit code " + result.exitCode() + ": " + result.output()
-                );
-            }
-            return result.output();
-        }
-
-        private static ProcessResult run(String... command) {
-            try {
-                Process process = new ProcessBuilder(command)
-                        .redirectErrorStream(true)
-                        .start();
-                String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                return new ProcessResult(process.waitFor(), output);
-            } catch (IOException exception) {
-                throw new IllegalStateException("Docker CLI is required for real PostgreSQL integration tests.", exception);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Interrupted while running Docker CLI.", exception);
-            }
-        }
-    }
-
-    private record ProcessResult(int exitCode, String output) {
     }
 
     private record ApprovedFixture(UUID candidateId, UUID latestApprovalId, UUID batchId) {

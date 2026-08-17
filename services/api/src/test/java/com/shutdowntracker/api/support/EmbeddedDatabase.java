@@ -28,6 +28,10 @@ public final class EmbeddedDatabase {
 
     private static final Object STARTUP_LOCK = new Object();
 
+    /** The database and superuser the embedded distribution creates for itself. */
+    private static final String DATABASE = "postgres";
+    private static final String USERNAME = "postgres";
+
     private static EmbeddedPostgres postgres;
     private static DataSource dataSource;
     private static JdbcTemplate jdbcTemplate;
@@ -54,6 +58,30 @@ public final class EmbeddedDatabase {
     public static JdbcTemplate jdbcTemplate() {
         dataSource();
         return jdbcTemplate;
+    }
+
+    /**
+     * Connection details for tests that need Spring to build its own pool against this
+     * server rather than reuse {@link #dataSource()}.
+     *
+     * <p>A test that has to prove behaviour of the real transaction proxy and the real
+     * JDBC repositories cannot hand Spring a pre-made {@code DataSource} and still claim
+     * it exercised the application's own wiring, so it points
+     * {@code spring.datasource.*} at these values instead. The migrations have already
+     * been applied by the time these return.
+     */
+    public static String jdbcUrl() {
+        dataSource();
+        return "jdbc:postgresql://localhost:" + postgres.getPort() + "/" + DATABASE;
+    }
+
+    public static String username() {
+        return USERNAME;
+    }
+
+    /** Ignored by the embedded server, which uses trust authentication. */
+    public static String password() {
+        return USERNAME;
     }
 
     private static void start() {
