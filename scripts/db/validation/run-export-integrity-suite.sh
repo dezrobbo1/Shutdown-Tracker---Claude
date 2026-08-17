@@ -72,17 +72,24 @@ apply_v007() {
   apply_migration "$database" "$1"
 }
 
-apply_all_migrations() {
+# The current-policy scenarios below are written against the schema as it stood at V007:
+# export-integrity-clean.sql asserts an exact 21-table baseline, and
+# export-integrity-current-policy.sql records actor UUIDs that V008 later gave a foreign key
+# to `users`. Applying V008 and later here would fail on both counts for reasons that have
+# nothing to do with export integrity.
+#
+# So this stops at V007 on purpose, and says so, rather than globbing every migration and
+# then rejecting the result with a count check. Extending these scenarios to the current
+# schema is tracked in docs/goals/ACTIVE.md; until then, the export-integrity guarantees on
+# the current schema are covered by ExportIntegrityPostgresIntegrationTests, which runs
+# against the full migration sequence.
+apply_v001_through_v007() {
   database=$1
-  count=0
-  last_name=
-  for migration in /migrations/V*.sql; do
-    count=$((count + 1))
-    last_name=$(basename "$migration")
+  for migration in /migrations/V00[1-7]__*.sql; do
     apply_migration "$database" "$migration"
   done
-  if [ "$count" -ne 7 ] || [ "$last_name" != "V007__enforce_export_candidate_integrity.sql" ]; then
-    echo "Expected exactly V001-V007 for current-policy validation." >&2
+  if [ ! -f /migrations/V007__enforce_export_candidate_integrity.sql ]; then
+    echo "Expected V007__enforce_export_candidate_integrity.sql for current-policy validation." >&2
     exit 1
   fi
 }
@@ -545,7 +552,7 @@ db_psql "$UPGRADE_DB" -f /validation/assertions/export-integrity-upgrade.sql
 
 echo "Preparing clean current-policy database validation..."
 create_database "$CURRENT_DB"
-apply_all_migrations "$CURRENT_DB"
+apply_v001_through_v007 "$CURRENT_DB"
 db_psql "$CURRENT_DB" -f /validation/assertions/export-integrity-clean.sql
 db_psql "$CURRENT_DB" -f /validation/assertions/export-integrity-current-policy.sql
 

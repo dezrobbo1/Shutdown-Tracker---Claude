@@ -9,9 +9,17 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 COMPOSE_FILE="$REPO_ROOT/infra/docker/docker-compose.postgres.yml"
 MIGRATIONS_DIR="$REPO_ROOT/infra/migrations"
 
+# This script applies whatever migrations exist, in order. It only pins V007, because the
+# export-integrity suite it calls builds a V006-to-V007 upgrade scenario by that filename.
+# It deliberately does not pin the total count: doing so meant every migration added after
+# V007 failed this script on its first line instead of being validated by it.
 set -- "$MIGRATIONS_DIR"/V*.sql
-if [ "$#" -ne 7 ] || [ "$(basename "$7")" != "V007__enforce_export_candidate_integrity.sql" ]; then
-  echo "Expected exactly V001-V007 ending with V007__enforce_export_candidate_integrity.sql." >&2
+if [ "$#" -lt 7 ]; then
+  echo "Expected at least V001-V007 in $MIGRATIONS_DIR; found $#." >&2
+  exit 1
+fi
+if [ "$(basename "$7")" != "V007__enforce_export_candidate_integrity.sql" ]; then
+  echo "Expected V007__enforce_export_candidate_integrity.sql as the seventh migration." >&2
   exit 1
 fi
 
@@ -102,7 +110,7 @@ until [ "$stable" -ge 3 ]; do
   fi
 done
 
-echo "Applying exactly V001-V007..."
+echo "Applying every migration in order..."
 for migration in "$MIGRATIONS_DIR"/V*.sql; do
   migration_name=$(basename "$migration")
   echo "Applying $migration_name"
