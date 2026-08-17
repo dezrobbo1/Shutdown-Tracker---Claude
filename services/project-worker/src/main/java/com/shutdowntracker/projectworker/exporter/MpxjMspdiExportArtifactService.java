@@ -54,12 +54,13 @@ import org.xml.sax.SAXException;
  * Microsoft Project has a real schedule to recalculate and the planner has something they can
  * review, merge, or adopt.
  *
- * <p>Authority is enforced by comparing the generated candidate against the source and requiring
- * that only approved {@code (task, field)} pairs differ. This is a stronger guarantee than the
- * element allowlist it replaces: an allowlist that deletes everything else proves nothing about
- * what it deleted, whereas differencing proves every other value in the file is exactly the
- * accepted source's. Summary-task actuals, planned dates, dependencies, constraints and calendars
- * are therefore provably unmodified by Shutdown Tracker rather than merely absent.
+ * <p>Authority is enforced by {@link MspdiCandidateDifference}, which compares the generated
+ * candidate against the source and requires that only approved {@code (task, field)} pairs differ.
+ * This is a stronger guarantee than the element allowlist it replaces: an allowlist that deletes
+ * everything else proves nothing about what it deleted, whereas differencing proves every other
+ * value in the file is exactly the accepted source's. Summary-task actuals, planned dates,
+ * dependencies, constraints and calendars are therefore provably unmodified by Shutdown Tracker
+ * rather than merely absent.
  */
 @Service
 public class MpxjMspdiExportArtifactService implements ProjectExportArtifactService {
@@ -277,8 +278,8 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             );
         }
 
-        List<String> differences = new ArrayList<>();
-        compare(source.getDocumentElement(), candidate.getDocumentElement(), "", approved, differences);
+        List<String> differences =
+                MspdiCandidateDifference.find(source.getDocumentElement(), candidate.getDocumentElement(), approved);
         if (!differences.isEmpty()) {
             throw new IllegalStateException(
                     "Generated candidate schedule differs from the accepted source outside the approved inputs: "
@@ -306,85 +307,6 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
                 }
             }
         }
-    }
-
-    private void compare(
-            Element source,
-            Element candidate,
-            String path,
-            Map<String, Map<String, String>> approved,
-            List<String> differences
-    ) {
-        List<Element> sourceChildren = elementChildren(source);
-        List<Element> candidateChildren = elementChildren(candidate);
-
-        if (sourceChildren.isEmpty() && candidateChildren.isEmpty()) {
-            if (!textOf(source).equals(textOf(candidate))) {
-                differences.add("changed " + path);
-            }
-            return;
-        }
-
-        Map<String, Element> sourceByKey = indexByKey(sourceChildren);
-        Map<String, Element> candidateByKey = indexByKey(candidateChildren);
-
-        for (Map.Entry<String, Element> entry : sourceByKey.entrySet()) {
-            if (!candidateByKey.containsKey(entry.getKey())) {
-                differences.add("removed " + path + "/" + entry.getKey());
-            }
-        }
-        for (Map.Entry<String, Element> entry : candidateByKey.entrySet()) {
-            if (!sourceByKey.containsKey(entry.getKey())) {
-                if (!isApprovedAddition(path, entry.getKey(), approved)) {
-                    differences.add("added " + path + "/" + entry.getKey());
-                }
-            }
-        }
-        for (Map.Entry<String, Element> entry : sourceByKey.entrySet()) {
-            Element candidateChild = candidateByKey.get(entry.getKey());
-            if (candidateChild == null) {
-                continue;
-            }
-            String childPath = path + "/" + entry.getKey();
-            if (isApprovedChange(path, entry.getKey(), approved)) {
-                continue;
-            }
-            compare(entry.getValue(), candidateChild, childPath, approved, differences);
-        }
-    }
-
-    /** Task paths are keyed on UID so tasks are compared like with like, not by position. */
-    private Map<String, Element> indexByKey(List<Element> elements) {
-        Map<String, Element> byKey = new LinkedHashMap<>();
-        for (Element element : elements) {
-            byKey.putIfAbsent(keyOf(element), element);
-        }
-        return byKey;
-    }
-
-    private String keyOf(Element element) {
-        if (!"Task".equals(element.getLocalName())) {
-            return element.getLocalName();
-        }
-        Element uid = firstChild(element, "UID");
-        return "Task[" + (uid == null ? "?" : uid.getTextContent().trim()) + "]";
-    }
-
-    private boolean isApprovedAddition(String parentPath, String key, Map<String, Map<String, String>> approved) {
-        return approvedFieldsFor(parentPath, approved).containsKey(key);
-    }
-
-    private boolean isApprovedChange(String parentPath, String key, Map<String, Map<String, String>> approved) {
-        return approvedFieldsFor(parentPath, approved).containsKey(key);
-    }
-
-    private Map<String, String> approvedFieldsFor(String parentPath, Map<String, Map<String, String>> approved) {
-        int start = parentPath.lastIndexOf("Task[");
-        if (start < 0 || !parentPath.endsWith("]")) {
-            return Map.of();
-        }
-        String uid = parentPath.substring(start + "Task[".length(), parentPath.length() - 1);
-        return approved.getOrDefault(uid, Map.of());
     }
 
     private String canonicalValue(ProjectExportArtifactFieldValue fieldValue) {
@@ -449,18 +371,6 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
         return tasks;
     }
 
-    private List<Element> elementChildren(Element parent) {
-        List<Element> children = new ArrayList<>();
-        Node child = parent.getFirstChild();
-        while (child != null) {
-            if (child instanceof Element element) {
-                children.add(element);
-            }
-            child = child.getNextSibling();
-        }
-        return children;
-    }
-
     private Element firstChild(Element parent, String localName) {
         Node child = parent.getFirstChild();
         while (child != null) {
@@ -470,18 +380,6 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             child = child.getNextSibling();
         }
         return null;
-    }
-
-    private String textOf(Element element) {
-        StringBuilder text = new StringBuilder();
-        Node child = element.getFirstChild();
-        while (child != null) {
-            if (child.getNodeType() == Node.TEXT_NODE || child.getNodeType() == Node.CDATA_SECTION_NODE) {
-                text.append(child.getNodeValue());
-            }
-            child = child.getNextSibling();
-        }
-        return text.toString().trim();
     }
 
     private static void validateLeafExportTask(ProjectExportArtifactTask task) {

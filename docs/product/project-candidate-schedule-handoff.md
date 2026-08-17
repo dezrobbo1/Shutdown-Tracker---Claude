@@ -131,6 +131,8 @@ This is the shipped mechanism. The approved values are written into the accepted
 
 Authority is enforced by differencing the generated candidate against the source and requiring that only approved `(task, field)` pairs differ. That is a stronger guarantee than an element allowlist, which proves nothing about what it removed: differencing proves every other value is exactly the accepted source's, so summary-task actuals, planned dates, dependencies, constraints and calendars are provably unmodified by Shutdown Tracker rather than merely absent.
 
+The comparison walks the whole document, including element attributes, and matches children by element name *and* occurrence rather than by name alone. MSPDI repeats element names constantly — seven `<WeekDay>` children per calendar, one `<PredecessorLink>` per dependency — and matching on name alone would compare only the first of each, leaving a dropped dependency or an altered working time invisible. Tasks are the exception: they are matched on Microsoft Project task UID, so a task is always compared against the task it is rather than against whatever sits in its position.
+
 **It requires an MSPDI/XML-sourced snapshot.** Microsoft Project can only be handed MSPDI/XML back, so a native `.mpp` source would make every candidate a format conversion in both directions, risking the silent loss of links, calendars or constraints. `.mpp` upload, import and reporting are unaffected; only candidate generation is constrained.
 
 Elements the source did not carry are inserted at their MSPDI schema-sequence position, since `<Task>` children are an `xsd:sequence` and a misplaced element yields a document Microsoft Project may reject.
