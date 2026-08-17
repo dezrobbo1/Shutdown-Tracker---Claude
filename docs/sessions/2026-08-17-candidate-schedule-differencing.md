@@ -103,6 +103,7 @@ Linux, Java 21.0.12, Node 22.
 | `npm ci`, `npm test` | 84 passed across the three workspaces |
 | `npm run build` | both apps built |
 | `git diff --check` | clean |
+| GitHub Actions on `3d88bd0` | all four jobs green, including the Docker-only migration and export-integrity job |
 
 A negative check confirmed the new tests bite. Reverting `indexByKey` to the previous name-keyed
 `putIfAbsent` matching and removing the attribute comparison, while leaving the path format alone
@@ -120,8 +121,9 @@ No manual Microsoft Project check was performed. That gate is unchanged and stil
 ## Left open
 
 - Pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) is a **draft**
-  and unmerged, per `AGENTS.md`. Its body still describes the branch as documentation-only, which
-  was true when it was opened and stopped being true when #4 merged into it.
+  and unmerged, per `AGENTS.md`. Its title and body were rewritten in this session: they described
+  the branch as documentation-only, which was true when it was opened and stopped being true when
+  #4 merged into it.
 - Delta classification and the planner adoption record — the read-only source-versus-candidate
   comparison surface, and the record of what a planner decided — remain unimplemented.
 - The manual Microsoft Project round-trip gate remains pending, and is now the only thing standing
