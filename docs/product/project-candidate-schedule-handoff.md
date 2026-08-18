@@ -135,7 +135,9 @@ The comparison walks the whole document, including element attributes, and match
 
 **It requires an MSPDI/XML-sourced snapshot.** Microsoft Project can only be handed MSPDI/XML back, so a native `.mpp` source would make every candidate a format conversion in both directions, risking the silent loss of links, calendars or constraints. `.mpp` upload, import and reporting are unaffected; only candidate generation is constrained.
 
-Elements the source did not carry are inserted at their MSPDI schema-sequence position, since `<Task>` children are an `xsd:sequence` and a misplaced element yields a document Microsoft Project may reject.
+Elements the source did not carry are inserted at their MSPDI schema-sequence position, since `<Task>` children are an `xsd:sequence` and a misplaced element yields a document Microsoft Project may reject. The sequence is read from MPXJ's own MSPDI binding rather than transcribed, so it cannot drift from the schema the parser accepts. Placement is decided only by the elements that binding models: a source written by a newer Microsoft Project may carry a task element it does not know, and an element with no known position cannot say where an approved field belongs.
+
+Placement is **not** covered by the differencing above, which matches children by name and occurrence and is therefore blind to where among differently named siblings an element sits. It is carried by its own tests instead.
 
 Manual Project testing remains required to confirm the candidate opens and recalculates.
 
