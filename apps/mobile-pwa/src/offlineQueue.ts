@@ -1,12 +1,12 @@
-import type { TaskProgressSubmitRequest, TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
+import type { CriticalUpdateSubmitRequest, TaskProgressSubmitRequest } from "@shutdown-tracker/api-client";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 
 /**
  * The offline execution queue.
  *
  * A shutdown happens inside plant with no usable signal. A field user must be able to report
- * progress where the work is and have it arrive later, without ever wondering whether it did.
- * Three rules follow from that:
+ * where the work is and have it arrive later, without ever wondering whether it did. Three rules
+ * follow from that:
  *
  * 1. A submission is written to durable storage before anything is sent. Nothing exists only
  *    in a form's state.
@@ -15,6 +15,12 @@ import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
  *    reporting the same progress twice.
  * 3. Sync state is visible and never inferred. "Saved on this device" and "the server has it"
  *    are different facts, and a supervisor asking whether an update landed needs the second.
+ *
+ * The queue carries more than one kind of report. Progress and Critical Updates are captured in
+ * the same places, under the same conditions, and both are safe to retry because the server pairs
+ * an idempotency key with the project and returns the original submission for a repeated key. What
+ * differs is only the endpoint and what a refusal means, so the kind travels on the item and the
+ * mechanics stay in one place.
  */
 
 export type SyncState =
@@ -24,12 +30,15 @@ export type SyncState =
   /** The server refused it. Retrying unchanged will not help; a person must intervene. */
   | "REJECTED";
 
-export type QueuedProgressUpdate = {
+/** What a queued item reports. The endpoint and the meaning of a refusal follow from it. */
+export type QueuedSubmissionKind = "progress" | "critical-update";
+
+type QueuedEnvelope = {
   /** Generated on the device. Identifies this capture across retries and restarts. */
   localId: string;
   idempotencyKey: string;
-  request: TaskProgressSubmitRequest;
-  taskName: string;
+  /** What the report is about, for the sync list: a task name, or a work package name. */
+  subject: string;
   capturedAt: string;
   syncState: SyncState;
   attempts: number;
@@ -38,6 +47,10 @@ export type QueuedProgressUpdate = {
   lastError: string | null;
 };
 
+export type QueuedSubmission =
+  | (QueuedEnvelope & { kind: "progress"; request: TaskProgressSubmitRequest })
+  | (QueuedEnvelope & { kind: "critical-update"; request: CriticalUpdateSubmitRequest });
+
 /**
  * Durable storage for the queue.
  *
@@ -45,24 +58,30 @@ export type QueuedProgressUpdate = {
  * must be verifiable, and they are testable only if the store can be substituted.
  */
 export type QueueStore = {
-  readAll: () => Promise<QueuedProgressUpdate[]>;
-  writeAll: (items: QueuedProgressUpdate[]) => Promise<void>;
+  readAll: () => Promise<QueuedSubmission[]>;
+  writeAll: (items: QueuedSubmission[]) => Promise<void>;
 };
 
-export type SubmitProgress = (request: TaskProgressSubmitRequest) => Promise<TaskProgressUpdateRecord>;
+/**
+ * Sends one queued item and returns the record the server created.
+ *
+ * One function rather than one per kind: the queue decides *when* to send and what a failure
+ * means, and knowing which endpoint a kind goes to is the caller's business.
+ */
+export type SubmitQueued = (item: QueuedSubmission) => Promise<{ id: string }>;
 
 export type IdFactory = () => string;
 
 /** Terminal sync states — nothing further will be attempted automatically. */
-export function isSettled(item: QueuedProgressUpdate) {
+export function isSettled(item: QueuedSubmission) {
   return item.syncState === "SYNCED" || item.syncState === "REJECTED";
 }
 
-export function pendingCount(items: QueuedProgressUpdate[]) {
+export function pendingCount(items: QueuedSubmission[]) {
   return items.filter((item) => item.syncState === "PENDING" || item.syncState === "SENDING").length;
 }
 
-export function rejectedCount(items: QueuedProgressUpdate[]) {
+export function rejectedCount(items: QueuedSubmission[]) {
   return items.filter((item) => item.syncState === "REJECTED").length;
 }
 
@@ -84,13 +103,24 @@ export function isPermanentRejection(error: unknown) {
   return error.status >= 400 && error.status < 500;
 }
 
-export function describeQueueError(error: unknown) {
+/**
+ * What a refusal means to the person who made the capture.
+ *
+ * The status alone does not say it: a 404 on a progress report means the task left the snapshot,
+ * and a 404 on a Critical Update means the work package is gone. Both are things the reporter can
+ * act on, and neither is helped by being told "404".
+ */
+export function describeQueueError(error: unknown, kind: QueuedSubmissionKind = "progress") {
   if (error instanceof ShutdownTrackerApiError) {
     if (error.status === 403) {
-      return "Your role on this project cannot report progress on that task.";
+      return kind === "progress"
+        ? "Your role on this project cannot report progress on that task."
+        : "Your role on this project cannot file a Critical Update.";
     }
     if (error.status === 404) {
-      return "That task is not part of the current schedule snapshot.";
+      return kind === "progress"
+        ? "That task is not part of the current schedule snapshot."
+        : "That critical work package no longer exists.";
     }
     return `Rejected by the server (${error.status}): ${error.responseBody || error.message}`;
   }
@@ -101,21 +131,47 @@ export function describeQueueError(error: unknown) {
 }
 
 /**
+ * Reads an item stored before the queue carried more than one kind.
+ *
+ * A field user updating the app may have unsent reports on the device. Those were written with a
+ * `taskName` and no `kind`, and dropping them — or leaving them without a kind and failing to
+ * dispatch them — would lose work that was done and captured. They are progress reports; that is
+ * all the queue used to hold.
+ */
+export function normalizeStoredSubmission(stored: unknown): QueuedSubmission | null {
+  if (stored === null || typeof stored !== "object") {
+    return null;
+  }
+  const item = stored as Partial<QueuedSubmission> & { taskName?: string };
+  if (typeof item.localId !== "string" || item.request === undefined) {
+    return null;
+  }
+  if (item.kind === "progress" || item.kind === "critical-update") {
+    return item as QueuedSubmission;
+  }
+  return {
+    ...(item as object),
+    kind: "progress",
+    subject: item.subject ?? item.taskName ?? "Task progress"
+  } as QueuedSubmission;
+}
+
+/**
  * Captures a submission and flushes what is captured.
  *
  * Deliberately not a React hook: this is the part that must keep working the same way whether
  * the screen is mounted, and the part worth testing directly.
  */
-export class OfflineProgressQueue {
+export class OfflineSubmissionQueue {
   private readonly store: QueueStore;
-  private readonly submit: SubmitProgress;
+  private readonly submit: SubmitQueued;
   private readonly newId: IdFactory;
   private readonly clock: () => string;
   private flushing = false;
 
   constructor(options: {
     store: QueueStore;
-    submit: SubmitProgress;
+    submit: SubmitQueued;
     newId: IdFactory;
     clock?: () => string;
   }) {
@@ -135,24 +191,47 @@ export class OfflineProgressQueue {
    * Returns as soon as it is stored, without waiting for the network. The report is safe at
    * this point; sending it is a separate concern the reporter can watch in the sync queue.
    */
-  async enqueue(
+  async enqueueProgress(
     request: Omit<TaskProgressSubmitRequest, "idempotencyKey" | "offlineLocalId">,
     taskName: string
-  ): Promise<QueuedProgressUpdate> {
+  ): Promise<QueuedSubmission> {
+    return this.enqueue("progress", request, taskName);
+  }
+
+  /**
+   * Records a Critical Update on the device.
+   *
+   * Queued on the same terms as progress, because the server pairs the idempotency key with the
+   * project and returns the original submission for a repeated key — so a retry over a bad
+   * connection cannot produce a second report on the package.
+   */
+  async enqueueCriticalUpdate(
+    request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+    workPackageName: string
+  ): Promise<QueuedSubmission> {
+    return this.enqueue("critical-update", request, workPackageName);
+  }
+
+  private async enqueue(
+    kind: QueuedSubmissionKind,
+    request: object,
+    subject: string
+  ): Promise<QueuedSubmission> {
     const localId = this.newId();
-    const item: QueuedProgressUpdate = {
+    const idempotencyKey = this.newId();
+    const item = {
       localId,
-      idempotencyKey: this.newId(),
-      request: { ...request, idempotencyKey: null, offlineLocalId: localId },
-      taskName,
+      idempotencyKey,
+      kind,
+      // The key travels with the request so a retry is recognised as the same capture.
+      request: { ...request, idempotencyKey, offlineLocalId: localId },
+      subject,
       capturedAt: this.clock(),
       syncState: "PENDING",
       attempts: 0,
       serverId: null,
       lastError: null
-    };
-    // The key travels with the request so a retry is recognised as the same capture.
-    item.request.idempotencyKey = item.idempotencyKey;
+    } as QueuedSubmission;
 
     const items = await this.store.readAll();
     await this.store.writeAll([...items, item]);
@@ -166,7 +245,7 @@ export class OfflineProgressQueue {
    * order the reporter made them, or a correction can land before the report it corrects.
    * Re-entry is guarded so a reconnect event during a flush does not send anything twice.
    */
-  async flush(): Promise<QueuedProgressUpdate[]> {
+  async flush(): Promise<QueuedSubmission[]> {
     if (this.flushing) {
       return this.store.readAll();
     }
@@ -182,7 +261,7 @@ export class OfflineProgressQueue {
 
         // The outcome is written on top of the sending item, not the item as it was read, so
         // the attempt count is raised exactly once and nothing recorded at send time is lost.
-        const sending: QueuedProgressUpdate = {
+        const sending: QueuedSubmission = {
           ...item,
           syncState: "SENDING",
           attempts: item.attempts + 1
@@ -191,7 +270,7 @@ export class OfflineProgressQueue {
         await this.store.writeAll(items);
 
         try {
-          const record = await this.submit(sending.request);
+          const record = await this.submit(sending);
           items = replace(items, {
             ...sending,
             syncState: "SYNCED",
@@ -203,7 +282,7 @@ export class OfflineProgressQueue {
             ...sending,
             // A rejection is final; anything else goes back to pending for the next attempt.
             syncState: isPermanentRejection(error) ? "REJECTED" : "PENDING",
-            lastError: describeQueueError(error)
+            lastError: describeQueueError(error, sending.kind)
           });
         }
 
@@ -217,7 +296,7 @@ export class OfflineProgressQueue {
   }
 
   /** Clears settled entries. Anything unsent is kept, whatever the reporter asked for. */
-  async clearSettled(): Promise<QueuedProgressUpdate[]> {
+  async clearSettled(): Promise<QueuedSubmission[]> {
     const items = await this.store.readAll();
     const remaining = items.filter((item) => !isSettled(item));
     await this.store.writeAll(remaining);
@@ -225,7 +304,7 @@ export class OfflineProgressQueue {
   }
 
   /** Returns a rejected submission to the queue, for use after the cause is fixed. */
-  async retry(localId: string): Promise<QueuedProgressUpdate[]> {
+  async retry(localId: string): Promise<QueuedSubmission[]> {
     const items = await this.store.readAll();
     const next = items.map((item) =>
       item.localId === localId && item.syncState === "REJECTED"
@@ -237,12 +316,12 @@ export class OfflineProgressQueue {
   }
 }
 
-function replace(items: QueuedProgressUpdate[], updated: QueuedProgressUpdate) {
+function replace(items: QueuedSubmission[], updated: QueuedSubmission) {
   return items.map((item) => (item.localId === updated.localId ? updated : item));
 }
 
 /** An in-memory store. Used by tests, and as the fallback when IndexedDB is unavailable. */
-export function createMemoryQueueStore(initial: QueuedProgressUpdate[] = []): QueueStore {
+export function createMemoryQueueStore(initial: QueuedSubmission[] = []): QueueStore {
   let items = [...initial];
   return {
     readAll: async () => [...items],

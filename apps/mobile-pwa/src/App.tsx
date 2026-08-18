@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ClipboardList, RefreshCw, ShieldAlert, Sunrise, UploadCloud } from "lucide-react";
 import type {
+  CriticalUpdateSubmitRequest,
+  CriticalWorkPackageReportingSummary,
   EvidenceRecord,
   HandoverNoteRecord,
   ImportReviewTaskRow,
@@ -16,7 +18,7 @@ import {
 } from "./fieldSession";
 import { useFieldQueue } from "./useFieldQueue";
 import { pendingCount, rejectedCount } from "./offlineQueue";
-import type { QueuedProgressUpdate, SyncState } from "./offlineQueue";
+import type { QueuedSubmission, SyncState } from "./offlineQueue";
 
 /**
  * The Mobile Field App.
@@ -79,6 +81,7 @@ export function App() {
   const [tasks, setTasks] = useState<ImportReviewTaskRow[]>([]);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
   const [handover, setHandover] = useState<HandoverNoteRecord[]>([]);
+  const [criticalPackages, setCriticalPackages] = useState<CriticalWorkPackageReportingSummary[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [loadMessage, setLoadMessage] = useState(
     session.live ? "Loading assigned work…" : "No project configured for this device."
@@ -104,6 +107,10 @@ export function App() {
         .listUnacknowledged(session.projectId)
         .catch(() => []);
       setHandover(unacknowledged);
+      // One request for every active package, rather than walking watchlists on a phone.
+      setCriticalPackages(
+        await client.criticalWatch.reportingSummary(session.projectId).catch(() => [])
+      );
       setLoadMessage("");
     } catch (error) {
       // Work already on the device stays usable; only the refresh failed.
@@ -139,9 +146,11 @@ export function App() {
    * new one, which reads as if the report went nowhere. The queue already knows better.
    */
   const unsentByTaskId = useMemo(() => {
-    const byTask = new Map<string, QueuedProgressUpdate>();
+    const byTask = new Map<string, QueuedSubmission>();
     for (const item of queue.state.items) {
-      if (item.syncState === "SYNCED") {
+      // Only progress reports carry a task percentage; a queued Critical Update says nothing
+      // about how far one task has got.
+      if (item.syncState === "SYNCED" || item.kind !== "progress") {
         continue;
       }
       byTask.set(item.request.importedTaskId, item);
@@ -225,6 +234,11 @@ export function App() {
             waiting={waiting}
             rejected={rejected}
             loadMessage={loadMessage}
+            criticalPackages={criticalPackages}
+            canSubmitCriticalUpdate={fieldSessionAllows(session, "SUBMIT_CRITICAL_UPDATE")}
+            onCriticalUpdate={async (request, packageName) => {
+              await queue.captureCriticalUpdate(request, packageName);
+            }}
           />
         ) : null}
 
@@ -317,7 +331,7 @@ function WorkList({
 }: {
   tasks: ImportReviewTaskRow[];
   blockingTaskIds: Set<string>;
-  unsentByTaskId: Map<string, QueuedProgressUpdate>;
+  unsentByTaskId: Map<string, QueuedSubmission>;
   loadMessage: string;
   onSelect: (task: ImportReviewTaskRow) => void;
 }) {
@@ -596,7 +610,7 @@ function SyncQueue({
   onRetry,
   onClear
 }: {
-  items: QueuedProgressUpdate[];
+  items: QueuedSubmission[];
   flushing: boolean;
   online: boolean;
   onFlush: () => void;
@@ -617,13 +631,8 @@ function SyncQueue({
           <article className="sync-queue-card" key={item.localId}>
             <div>
               <span>{formatShort(item.capturedAt)}</span>
-              <strong>{item.taskName}</strong>
-              <p>
-                {executionStateLabels[item.request.executionState]}
-                {item.request.percentComplete === null || item.request.percentComplete === undefined
-                  ? ""
-                  : ` · ${item.request.percentComplete}%`}
-              </p>
+              <strong>{item.subject}</strong>
+              <p>{queuedItemDetail(item)}</p>
               {item.lastError ? <p className="field-alert">{item.lastError}</p> : null}
             </div>
             <div className="sync-queue-side">
@@ -663,7 +672,10 @@ function TodayScreen({
   handover,
   waiting,
   rejected,
-  loadMessage
+  loadMessage,
+  criticalPackages,
+  canSubmitCriticalUpdate,
+  onCriticalUpdate
 }: {
   tasks: ImportReviewTaskRow[];
   problems: ProblemRecord[];
@@ -671,6 +683,12 @@ function TodayScreen({
   waiting: number;
   rejected: number;
   loadMessage: string;
+  criticalPackages: CriticalWorkPackageReportingSummary[];
+  canSubmitCriticalUpdate: boolean;
+  onCriticalUpdate: (
+    request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+    packageName: string
+  ) => Promise<void>;
 }) {
   const blocking = problems.filter((problem) => problem.blocksExecution);
 
@@ -709,7 +727,140 @@ function TodayScreen({
           ))}
         </div>
       ) : null}
+
+      <CriticalUpdateCapture
+        packages={criticalPackages}
+        canSubmit={canSubmitCriticalUpdate}
+        onSubmit={onCriticalUpdate}
+      />
     </section>
+  );
+}
+
+/**
+ * Filing a Critical Update from the field.
+ *
+ * On Today rather than as a sixth destination: the field zones are fixed at My Work, Today,
+ * Problems, Evidence and Sync, and `docs/product/frontend-visual-review-scope.md` places Critical
+ * Watch on Today. A shift update is a "what is happening now" act, which is what Today is.
+ *
+ * The package is chosen directly rather than derived from the task in hand. Resolving a task to
+ * its package would mean a request per package to read its reported tasks, on the connection least
+ * able to afford it, and a reporter knows which package they are reporting on.
+ *
+ * Queued, not sent: this goes through the same offline queue as progress, because it is captured
+ * in the same places under the same conditions and the server pairs the idempotency key with the
+ * project, so a retry returns the original report rather than filing a second one.
+ */
+function CriticalUpdateCapture({
+  packages,
+  canSubmit,
+  onSubmit
+}: {
+  packages: CriticalWorkPackageReportingSummary[];
+  canSubmit: boolean;
+  onSubmit: (
+    request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+    packageName: string
+  ) => Promise<void>;
+}) {
+  const [workPackageId, setWorkPackageId] = useState("");
+  const [currentFocus, setCurrentFocus] = useState("");
+  const [blocker, setBlocker] = useState("");
+  const [nextTarget, setNextTarget] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  if (packages.length === 0) {
+    return null;
+  }
+
+  const chosen = packages.find((entry) => entry.workPackageId === workPackageId) ?? null;
+
+  const submit = async () => {
+    if (chosen === null || currentFocus.trim() === "") {
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      await onSubmit(
+        {
+          criticalWorkPackageId: chosen.workPackageId,
+          updateMode: "shift",
+          currentFocus: currentFocus.trim(),
+          currentBlockerSummary: blocker.trim() === "" ? null : blocker.trim(),
+          nextTarget: nextTarget.trim() === "" ? null : nextTarget.trim()
+        },
+        chosen.name
+      );
+      setCurrentFocus("");
+      setBlocker("");
+      setNextTarget("");
+      // "Saved on this device" and "the server has it" are different facts. Sync owns the second.
+      setMessage("Saved on this device. Its progress is in Sync.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="today-detail critical-update-capture">
+      <h2>Critical update</h2>
+      {canSubmit ? null : (
+        <p className="boundary-copy">
+          Filing a Critical Update is a reporting responsibility your role on this project does not
+          carry.
+        </p>
+      )}
+      <label className="wide-field">
+        <span>Work package</span>
+        <select value={workPackageId} onChange={(event) => setWorkPackageId(event.target.value)}>
+          <option value="">Choose a package</option>
+          {packages.map((entry) => (
+            <option value={entry.workPackageId} key={entry.workPackageId}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {chosen === null ? null : (
+        <div className="progress-form critical-update-form">
+          <label className="wide-field">
+            <span>What the crew is on</span>
+            <input
+              value={currentFocus}
+              onChange={(event) => setCurrentFocus(event.target.value)}
+              placeholder="Blanking plates on the north face"
+            />
+          </label>
+          <label className="wide-field">
+            <span>What is holding it up</span>
+            <input
+              value={blocker}
+              onChange={(event) => setBlocker(event.target.value)}
+              placeholder="Leave empty if nothing is"
+            />
+          </label>
+          <label className="wide-field">
+            <span>Next target</span>
+            <input
+              value={nextTarget}
+              onChange={(event) => setNextTarget(event.target.value)}
+              placeholder="Cover back on before shift end"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!canSubmit || saving || currentFocus.trim() === ""}
+            onClick={() => void submit()}
+          >
+            {saving ? "Saving…" : "File update"}
+          </button>
+          {message ? <p className="boundary-copy">{message}</p> : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -990,13 +1141,31 @@ export function describeRaiseFailure(error: unknown) {
 
 export function workCardPercent(
   task: ImportReviewTaskRow,
-  unsent: QueuedProgressUpdate | undefined
+  unsent: QueuedSubmission | undefined
 ) {
-  const pending = unsent?.request.percentComplete;
+  // A Critical Update reports on a work package, not on how far one task has got.
+  const pending = unsent?.kind === "progress" ? unsent.request.percentComplete : undefined;
   if (pending !== null && pending !== undefined) {
     return `${pending}%`;
   }
   return task.percentComplete === null ? "—" : `${task.percentComplete}%`;
+}
+
+/**
+ * The one line under a queued item's subject in the sync list.
+ *
+ * The two kinds report different things, so they say different things: a progress report is a
+ * state and a percentage, and a Critical Update is what the crew is on. A shared phrasing would
+ * have to leave out whichever half did not fit.
+ */
+export function queuedItemDetail(item: QueuedSubmission) {
+  if (item.kind === "progress") {
+    const percent = item.request.percentComplete;
+    return `${executionStateLabels[item.request.executionState]}${
+      percent === null || percent === undefined ? "" : ` · ${percent}%`
+    }`;
+  }
+  return item.request.currentFocus?.trim() || "Critical Update";
 }
 
 function MobileChip({ label }: { label: string }) {

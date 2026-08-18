@@ -1,10 +1,10 @@
-# 2026-08-18 — Evidence that carries its file
+# 2026-08-18 — A front end that does what it shows: the first three slices
 
 ## Scope
 
-Continue toward a working front end, following the repository's own plan for it. In practice: pick
-the first slice from the frontend gaps in the root `README.md`, build it end to end — API,
-storage, both applications, tests, documents — and set the active goal that names the rest.
+Continue toward a working front end, following the repository's own plan for it. In practice: set
+the active goal that names the frontend gaps in the root `README.md`, then work the first slices of
+it end to end — API, storage, both applications, tests, documents — one branch per outcome.
 
 The second entry for 2026-08-18; the first is
 [Where an inserted element lands](2026-08-18-candidate-element-placement.md), which is a different
@@ -72,15 +72,31 @@ Evidence zone opens on that and the task selector narrows it, rather than the tw
 screens. `EvidenceRecord` gained `capturedAt`, without which a newest-first list across tasks
 cannot be read, and each row names its task.
 
+### Third slice: the console could report on a critical package, the field could not
+
+`SUBMIT_CRITICAL_UPDATE` is granted to shutdown control, coordinators, supervisors, **field users,
+contractors and inspectors** — the people on the work. The console carried the surface and the field
+app did not, so the roles the capability exists for were the ones that could not use it.
+
+Two things were already true and made this smaller than it looked. `CriticalUpdateSubmitRequest`
+carries `idempotencyKey` and `offlineLocalId`, and `CriticalWatchService.submitUpdate` returns the
+original submission for a repeated key — so a queued Critical Update is as safe to retry as a queued
+progress report. And `critical-watch/reporting-summary` returns every active package in one request,
+so a phone does not have to walk watchlists to list them.
+
+What was not true is that the offline queue could carry it. `QueuedProgressUpdate` was typed to
+`TaskProgressSubmitRequest` throughout, and the README said so: *"the offline queue covers task
+progress only."*
+
 ## Decisions
 
 **Two calls, not one.** A single multipart endpoint that registered and stored together would be
 simpler for the client and would never leave a half-finished record. It was rejected because
 `pending_upload` is a real state with a real meaning — evidence that is still outstanding — and the
-one-call design would make it unreachable, which is the same as deleting it. It also forecloses the
-offline capture in slice 3 of the goal, where the record is registered when a connection returns
-and the file follows. The cost is a record that can exist without its file; that is the state being
-modelled, and both apps show it.
+one-call design would make it unreachable, which is the same as deleting it. It also forecloses any
+later offline capture, where the record is registered when a connection returns and the file
+follows. The cost is a record that can exist without its file; that is the state being modelled, and
+both apps show it.
 
 **The status guard is in the `WHERE` clause, not a prior read.** `attachEvidenceContent` updates
 `WHERE ... AND status = 'pending_upload'` and returns the row. Read-then-update would let two
@@ -104,9 +120,9 @@ application's origin. The link is `download`, so the browser saves it whatever t
 fetch is needed anyway, because the actor headers travel on the request and a plain `href` would
 not carry them.
 
-**Field capture needs a connection, and says so.** The offline queue holds small JSON progress
-reports with idempotency keys. A queue of megabyte photos needs eviction rules, a storage budget,
-and retry behaviour of its own; a queue that fills a phone and then fails to send is worse than one
+**Evidence capture in the field needs a connection, and says so.** The offline queue holds small
+JSON reports with idempotency keys — progress, and since the third slice Critical Updates too. A
+queue of megabyte photos needs eviction rules, a storage budget, and retry behaviour of its own; a queue that fills a phone and then fails to send is worse than one
 that never accepted the photo. The screen says which of the two situations the user is in rather
 than accepting a capture it cannot deliver.
 
@@ -116,6 +132,30 @@ the console would mean the whole set crossing the wire first; capping without sa
 truncated list look like all the evidence there is. The console's copy of the limit is pinned to the
 server's by `EvidenceListLimitParityTests`, following `CapabilityClientParityTests`: a stale copy
 fails in the worse direction, because it would stop warning at all.
+
+**The queue was generalised rather than duplicated.** A second queue for Critical Updates would
+have copied the ordering guard, the re-entry guard, the permanent-versus-retryable rule, the attempt
+counting and the durable-store contract — the parts that took the care. What actually differs
+between the two kinds is the endpoint and what a refusal means. So the item carries a `kind`, the
+mechanics stay in one place, and `submit` became a dispatcher the caller supplies.
+`QueuedProgressUpdate` became `QueuedSubmission` and `taskName` became `subject`, because after the
+change neither name was true.
+
+**The union found the places that had assumed progress.** Making `request` a discriminated union
+rather than a widened type meant the compiler pointed at them: the work card's percentage, the sync
+list's detail line, and the map of unsent reports per task. Each is now explicit about applying to
+progress only — a queued Critical Update says nothing about how far one task has got.
+
+**Items stored before the change are read, not dropped.** A field user updating the app may have
+unsent reports on the device, written with a `taskName` and no `kind`. `normalizeStoredSubmission`
+treats those as progress, which is all the queue used to hold. Losing captured work on an app update
+would be the worst possible failure for a queue whose entire purpose is that a report survives.
+
+**The field capture is on Today, and the package is chosen directly.** The field zones are fixed at
+My Work, Today, Problems, Evidence and Sync; `frontend-visual-review-scope.md` places Critical Watch
+on Today, and a shift update is a "what is happening now" act. Deriving the package from the task in
+hand was rejected: it needs a request per package to read its reported tasks, on the connection least
+able to afford it, and a reporter knows which package they are reporting on.
 
 **Rejected: a narrower download capability.** `docs/product/permission-matrix.md` separates
 "Download original evidence" from "View scoped evidence", with field users and contractors limited
@@ -132,13 +172,16 @@ Linux, Java 21.0.12, Node 22.
 | --- | --- |
 | `mvn test` | 426 tests, 0 failures, 0 errors, **0 skipped** (365 API, 61 worker) |
 | API tests added | 9 database-backed evidence tests, 6 `LocalEvidenceStorage` tests, 1 limit parity test |
-| `npm ci`, `npm test` | 93 passed across the three workspaces (console 49, mobile 22, api-client 22) |
+| `npm ci`, `npm test` | 98 passed across the three workspaces (console 49, mobile 27, api-client 22) |
 | `npm run build` | both apps built |
 | `git diff --check` | clean |
 
-The API count rose from 349 to 365, and the frontend from 84 to 93.
+The API count rose from 349 to 365, and the frontend from 84 to 98. The third slice needed no server change, so the backend count is unchanged from the second.
 
-A negative check confirms the confinement tests bite: with the root check in
+Negative checks confirm the new tests bite. Removing the legacy fallback from
+`normalizeStoredSubmission` fails exactly the test for a report captured before the queue carried a
+kind, and nothing else. Changing the console's `PROJECT_EVIDENCE_LIMIT` to 150 fails the parity
+test. And on the first slice: with the root check in
 `LocalEvidenceStorage.read` disabled, `refusesToReadAFileOutsideTheConfiguredRoot` and the
 database-backed `readingEvidenceStoredOutsideTheConfiguredRootIsRefused` both fail, and nothing
 else does.
@@ -153,10 +196,15 @@ candidate-schedule goal and is unchanged.
 
 ## Left open
 
-- The remaining slices are named in `docs/goals/ACTIVE.md`: Critical Update reporting from the
-  field app, offline problem raising, and assignment-scoped work lists. The last two are not purely
-  frontend work — problem creation has no server-side idempotency key,
-  and nothing links a Microsoft Project resource to a Shutdown Tracker user.
+- The remaining slices in `docs/goals/ACTIVE.md` are offline problem raising and assignment-scoped
+  work lists. **Neither is purely frontend work.** Problem creation has no server-side idempotency
+  key, so it needs a migration before it can be queued the way progress and Critical Updates now
+  are; and nothing links a Microsoft Project resource to a Shutdown Tracker user, which is a product
+  decision before it is code.
+- Critical Update *lines* are not captured in the field. `CriticalUpdateSubmitRequest` accepts them
+  and the field form sends none, so a field report is the three summary fields only.
+- Correcting a filed Critical Update from the field. `supersedesCriticalUpdateId` exists and nothing
+  in either app uses it.
 - Production object storage. `LocalEvidenceStorage` is the development and review implementation
   the architecture already called for; the interface is what production replaces.
 - Evidence supersession. A second upload against an accepted record is refused rather than

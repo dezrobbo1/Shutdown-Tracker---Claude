@@ -2,7 +2,7 @@
 
 ## Status
 
-Active on `feat/project-evidence-list`.
+Active on `feat/field-critical-updates`.
 
 Two goals are complete and merged, and are kept below as history: the green baseline that opened
 this repository, and the candidate schedule Microsoft Project can open. The checks the first one
@@ -117,8 +117,9 @@ the next starts.
 2. **A project-wide evidence list.** *(done, `feat/project-evidence-list`)* Evidence was readable
    per task only, so nobody could ask what evidence a shutdown has. The Evidence zone now opens on
    the project and narrows by task, bounded, and says when the list was cut.
-3. **Critical Update reporting from the field app.** The console can file one; a field user or
-   contractor cannot, which is the wrong way round.
+3. **Critical Update reporting from the field app.** *(done, `feat/field-critical-updates`)* The
+   console could file one; a field user or contractor could not, which was the wrong way round.
+   Filed from Today and carried by the offline queue, which now holds more than one kind of report.
 4. **Offline problem raising.** Blocked on problem creation having no server-side idempotency key,
    so a queued retry could raise the same problem twice. Needs a migration.
 5. **Assignment-scoped work lists.** The field app lists the snapshot's leaf tasks rather than the

@@ -587,6 +587,40 @@ button {
   color: var(--ink-quiet);
 }
 
+/* The capture sits inside a flex column, so its fields stretch rather than needing a grid. */
+.critical-update-capture select,
+.critical-update-capture input {
+  width: 100%;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font: inherit;
+  padding: 10px;
+}
+
+.critical-update-capture label {
+  display: grid;
+  gap: 5px;
+}
+
+.critical-update-capture label span {
+  color: var(--ink-quiet);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.critical-update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.critical-update-form button {
+  min-height: 44px;
+}
+
 .problem-list,
 .evidence-list {
   display: flex;
