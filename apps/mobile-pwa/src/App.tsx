@@ -246,7 +246,11 @@ export function App() {
           <EvidenceScreen
             tasks={tasks}
             live={session.live}
+            online={queue.state.online}
             loadEvidence={(taskId) => client.evidence.listForTask(session.projectId, taskId)}
+            captureEvidence={(taskId, file, caption) =>
+              captureFieldEvidence(client, session.projectId, taskId, file, caption)
+            }
           />
         ) : null}
 
@@ -768,25 +772,97 @@ function ProblemsScreen({
 }
 
 /**
- * Evidence already recorded against a task.
+ * Registers an evidence record and sends its file against it, in that order.
  *
- * Read-only: the product has no way to upload a file yet, so offering a camera button here
- * would promise something that cannot happen.
+ * Two calls rather than one because the record has to exist before there is anything to attach a
+ * file to, and because a record whose file did not arrive is a state the product shows rather than
+ * hides. Shared shape with the console: the same sequence, so the two apps cannot drift on what
+ * "captured" means.
+ */
+export async function captureFieldEvidence(
+  client: FieldApiClient,
+  projectId: string,
+  importedTaskId: string,
+  file: File,
+  caption: string
+) {
+  const registered = await client.evidence.register(projectId, {
+    importedTaskId,
+    originalFilename: file.name,
+    contentType: file.type === "" ? null : file.type,
+    sizeBytes: file.size,
+    caption: caption.trim() === "" ? null : caption.trim()
+  });
+  await client.evidence.uploadContent(projectId, registered.id, file, file.name);
+}
+
+type FieldApiClient = ReturnType<typeof createFieldApiClient>;
+
+/**
+ * Evidence against a task, and capturing more of it.
+ *
+ * Capture needs a connection, and says so rather than queueing. The progress queue holds small
+ * JSON reports; a photo is megabytes, and a queue that fills a phone's storage and then fails to
+ * send is worse than one that never accepted the photo. Offline evidence capture is its own piece
+ * of work, with its own eviction and retry rules.
  */
 function EvidenceScreen({
   tasks,
   live,
-  loadEvidence
+  online,
+  loadEvidence,
+  captureEvidence
 }: {
   tasks: ImportReviewTaskRow[];
   live: boolean;
+  online: boolean;
   loadEvidence: (taskId: string) => Promise<EvidenceRecord[]>;
+  captureEvidence: (taskId: string, file: File, caption: string) => Promise<void>;
 }) {
   const [taskId, setTaskId] = useState<string>("");
   const [records, setRecords] = useState<EvidenceRecord[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [caption, setCaption] = useState("");
+  const [capturing, setCapturing] = useState(false);
+  const [captureMessage, setCaptureMessage] = useState("");
   const [message, setMessage] = useState(
     live ? "Choose a task to see its evidence." : "No project configured for this device."
   );
+
+  const send = async () => {
+    if (taskId === "" || file === null) {
+      return;
+    }
+    setCapturing(true);
+    setCaptureMessage("Sending…");
+    try {
+      await captureEvidence(taskId, file, caption);
+      setFile(null);
+      setCaption("");
+      setCaptureMessage("Sent.");
+      await refresh(taskId);
+    } catch (error) {
+      // The record may already exist with its file still missing. Saying "not sent" would be a
+      // guess; saying what is true lets the list show which of the two happened.
+      setCaptureMessage(
+        `Could not send: ${error instanceof Error ? error.message : "unknown error"}. Check the list below.`
+      );
+      await refresh(taskId);
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const refresh = async (currentTaskId: string) => {
+    if (currentTaskId === "" || !live) {
+      return;
+    }
+    try {
+      setRecords(await loadEvidence(currentTaskId));
+    } catch {
+      // A failed refresh leaves the previous list rather than blanking it.
+    }
+  };
 
   const choose = async (nextTaskId: string) => {
     setTaskId(nextTaskId);
@@ -808,8 +884,9 @@ function EvidenceScreen({
   return (
     <section className="evidence-list" aria-label="Evidence">
       <p className="boundary-copy">
-        Evidence captured on this device cannot be uploaded yet. This shows what has already
-        been recorded against a task.
+        {online
+          ? "A photo is sent as you take it. It is not queued, so it needs a connection."
+          : "Offline. Evidence needs a connection to send, so capture it again when you are back on."}
       </p>
       <label className="wide-field">
         <span>Task</span>
@@ -823,13 +900,42 @@ function EvidenceScreen({
         </select>
       </label>
 
+      {taskId === "" ? null : (
+        <div className="progress-form evidence-capture">
+          <label className="wide-field">
+            <span>Photo or file</span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              aria-label="Evidence photo"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="wide-field">
+            <span>What it shows</span>
+            <input
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              placeholder="Blanking plate fitted"
+            />
+          </label>
+          <button type="button" disabled={!live || !online || capturing || file === null} onClick={() => void send()}>
+            {capturing ? "Sending…" : "Send evidence"}
+          </button>
+          {captureMessage ? <p className="boundary-copy">{captureMessage}</p> : null}
+        </div>
+      )}
+
       {message ? <p className="boundary-copy">{message}</p> : null}
 
       {records.map((record) => (
         <article className="sync-queue-card" key={record.id}>
           <strong>{record.originalFilename}</strong>
           <span>{record.caption ?? "No caption recorded."}</span>
-          <MobileChip label={record.storageUri === null ? "Waiting to send" : "Server received"} />
+          <MobileChip
+            label={record.storageUri === null ? "File still to send" : "Server received"}
+          />
         </article>
       ))}
     </section>

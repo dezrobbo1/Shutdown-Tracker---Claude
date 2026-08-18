@@ -19,7 +19,7 @@ import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
-import { EvidenceZone } from "./zones/EvidenceZone";
+import { EvidenceZone, attachEvidenceFile, fileSizeLabel } from "./zones/EvidenceZone";
 import { CriticalWatchZone, reportCountLabel, updateStatusLabel } from "./zones/CriticalWatchZone";
 import { createConsoleApiClient } from "./consoleApi";
 import { formatPercent, toneForState } from "./formatting";
@@ -296,6 +296,65 @@ describe("display", () => {
     expect(toneForState("Awaiting supervisor review")).toBe("amber");
     expect(toneForState("Planner approved")).toBe("green");
     expect(toneForState("Export blocked")).toBe("red");
+  });
+});
+
+describe("evidence attachment", () => {
+  const file = new File(["blanking plate fitted"], "blanking-plate.jpg", { type: "image/jpeg" });
+
+  /**
+   * Registering second would leave a stored file with nothing referencing it, and there is no
+   * record to upload against until the first call returns. The order is the contract.
+   */
+  it("registers the record before uploading the file, and uploads against that record", async () => {
+    const calls: string[] = [];
+    const client = {
+      evidence: {
+        register: async (projectId: string, request: { originalFilename: string; sizeBytes?: number | null }) => {
+          calls.push(`register ${projectId} ${request.originalFilename} ${request.sizeBytes}`);
+          return { id: "evidence-1" };
+        },
+        uploadContent: async (projectId: string, evidenceId: string) => {
+          calls.push(`upload ${projectId} ${evidenceId}`);
+          return { id: evidenceId };
+        }
+      }
+    };
+
+    await attachEvidenceFile(client as never, "p1", "task-1", file, "  Guard removed.  ");
+
+    expect(calls).toEqual([
+      `register p1 blanking-plate.jpg ${file.size}`,
+      "upload p1 evidence-1"
+    ]);
+  });
+
+  it("does not upload when the record could not be registered", async () => {
+    let uploaded = false;
+    const client = {
+      evidence: {
+        register: async () => {
+          throw new Error("registration refused");
+        },
+        uploadContent: async () => {
+          uploaded = true;
+          return { id: "evidence-1" };
+        }
+      }
+    };
+
+    await expect(attachEvidenceFile(client as never, "p1", "task-1", file, "")).rejects.toThrow(
+      "registration refused"
+    );
+    expect(uploaded).toBe(false);
+  });
+
+  it("says how big an uploaded file is, and says when there is no file", () => {
+    expect(fileSizeLabel(512)).toBe("512 bytes");
+    expect(fileSizeLabel(2048)).toBe("2 KB");
+    expect(fileSizeLabel(3 * 1024 * 1024)).toBe("3.0 MB");
+    // A record uploaded before size was recorded still reads as uploaded rather than as zero.
+    expect(fileSizeLabel(null)).toBe("Uploaded");
   });
 });
 

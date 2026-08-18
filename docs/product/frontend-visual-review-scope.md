@@ -64,8 +64,8 @@ Every future visual surface must be labelled with one of these statuses in the b
 | Task progress | Submit, supervisor queue and review, planner queue and review, wired |
 | Problems, actions, handover | Wired; reads are open/unacknowledged queues only |
 | Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired |
-| Evidence | Register and per-task read, wired. **No binary upload exists in either app or the API** |
-| Critical Watch | Service and repository exist server-side; **no controller and no UI** |
+| Evidence | Register, upload the file, download it, and per-task read, wired in both apps. Storage is the local filesystem implementation; production object storage is still open. Capture needs a connection in the field app and says so |
+| Critical Watch | Watchlists, work packages and Critical Update reporting are reachable over HTTP and surfaced in the console. Not in the field app |
 | Mobile offline queue | Durable IndexedDB queue for progress, with idempotency keys and visible sync state |
 | Mobile problem raising | Online only; not queued, because problem creation has no server-side idempotency key |
 | Role-aware controls | Write controls gated by capability in both apps, checked against the server's own enum |
@@ -279,6 +279,12 @@ A future frontend PR should be rejected or revised if:
 
 ## Next coding implication
 
-After the cleanup pass, the next visual PR should add the static Critical Watch, Critical Update, and entity-linked Discussion review surfaces without creating a generic dashboard, chat inbox, or production write workflow.
+Critical Watch and Critical Update reporting have since been built and wired in the console, so the
+next surfaces from that list are entity-linked Discussion — still a static review surface until its
+product and API contracts are approved — and the field-app half of Critical Update reporting.
+
+The remaining frontend gaps are listed under "Not production-complete yet" in the root `README.md`.
+The ones that are frontend work rather than infrastructure are a project-wide evidence list, Critical
+Update reporting from the field app, offline problem raising, and assignment-scoped work lists.
 
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.

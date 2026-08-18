@@ -4,6 +4,7 @@ import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 import type { TaskProgressSubmitRequest, TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
 import {
   App,
+  captureFieldEvidence,
   describeRaiseFailure,
   mobileChipTone,
   toInstant,
@@ -337,5 +338,55 @@ describe("field validation", () => {
     expect(sent).not.toBeNull();
     expect(new Date(sent as string).toISOString()).toBe(sent);
     expect(toInstant("")).toBeNull();
+  });
+});
+
+describe("field evidence capture", () => {
+  const photo = new File(["blanking plate fitted"], "blanking-plate.jpg", { type: "image/jpeg" });
+
+  /**
+   * The file is attached to a record that already exists. Registering afterwards would mean bytes
+   * stored against nothing, and there is no record to upload to before the first call returns.
+   */
+  it("registers the record before sending the photo", async () => {
+    const calls: string[] = [];
+    const client = {
+      evidence: {
+        register: async (projectId: string, request: { originalFilename: string; caption: string | null }) => {
+          calls.push(`register ${projectId} ${request.originalFilename} ${request.caption}`);
+          return { id: "evidence-1" };
+        },
+        uploadContent: async (projectId: string, evidenceId: string, file: Blob) => {
+          calls.push(`upload ${projectId} ${evidenceId} ${file.size}`);
+          return { id: evidenceId };
+        }
+      }
+    };
+
+    await captureFieldEvidence(client as never, "p1", "task-1", photo, "  Blanking plate fitted  ");
+
+    expect(calls).toEqual([
+      "register p1 blanking-plate.jpg Blanking plate fitted",
+      `upload p1 evidence-1 ${photo.size}`
+    ]);
+  });
+
+  /**
+   * A failed send must not be reported as a capture that never happened: the record exists and is
+   * waiting for its file, which is what the evidence list then shows.
+   */
+  it("surfaces a failed send rather than swallowing it", async () => {
+    const client = {
+      evidence: {
+        register: async () => ({ id: "evidence-1" }),
+        uploadContent: async () => {
+          throw new ShutdownTrackerApiError("Shutdown Tracker API request failed with 413.", 413, "");
+        }
+      }
+    };
+
+    await expect(captureFieldEvidence(client as never, "p1", "task-1", photo, "")).rejects.toBeInstanceOf(
+      ShutdownTrackerApiError
+    );
   });
 });

@@ -1,5 +1,7 @@
 package com.shutdowntracker.api.operations;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -8,10 +10,15 @@ import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
+import com.shutdowntracker.api.operations.storage.EvidenceStorage;
+import com.shutdowntracker.api.operations.storage.EvidenceStorageProperties;
+import com.shutdowntracker.api.operations.storage.EvidenceStorageRequest;
+import com.shutdowntracker.api.operations.storage.StoredEvidence;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -27,13 +34,19 @@ public class OperationalRecordService {
 
     private final OperationalRecordRepository repository;
     private final AuditEventRecorder auditEventRecorder;
+    private final EvidenceStorage evidenceStorage;
+    private final EvidenceStorageProperties evidenceStorageProperties;
 
     public OperationalRecordService(
             OperationalRecordRepository repository,
-            AuditEventRecorder auditEventRecorder
+            AuditEventRecorder auditEventRecorder,
+            EvidenceStorage evidenceStorage,
+            EvidenceStorageProperties evidenceStorageProperties
     ) {
         this.repository = repository;
         this.auditEventRecorder = auditEventRecorder;
+        this.evidenceStorage = evidenceStorage;
+        this.evidenceStorageProperties = evidenceStorageProperties;
     }
 
     @Transactional
@@ -114,6 +127,113 @@ public class OperationalRecordService {
 
     public List<EvidenceRecord> evidenceForTask(UUID projectId, UUID importedTaskId) {
         return repository.findEvidenceForTask(projectId, importedTaskId);
+    }
+
+    /**
+     * Stores the binary an evidence record was registered for, and moves the record to
+     * {@code uploaded}.
+     *
+     * <p>Registration and upload are separate calls because they can be separated in time: a record
+     * captured with no connection is registered when one returns, and the file follows. Until the
+     * file follows, {@code pending_upload} is the record saying so, which is the difference between
+     * evidence that exists and a note that it is outstanding.
+     *
+     * <p>The binary is written before the row is updated. Either order can fail in the middle; this
+     * one leaves an unreferenced file behind, and the other leaves a row naming a file that is not
+     * there. A row that lies about its own evidence is the worse of the two.
+     */
+    @Transactional
+    public EvidenceRecord uploadEvidenceContent(
+            UUID projectId,
+            Actor actor,
+            UUID evidenceId,
+            MultipartFile file
+    ) {
+        Objects.requireNonNull(actor, "actor is required.");
+        Objects.requireNonNull(file, "file is required.");
+
+        EvidenceRecord registered = repository.findEvidence(projectId, evidenceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidence not found."));
+        requireUploadable(registered, file);
+
+        StoredEvidence stored = store(file, registered.originalFilename());
+        EvidenceRecord uploaded = repository
+                .attachEvidenceContent(projectId, evidenceId, stored.storageUri(), contentType(file, registered),
+                        stored.sizeBytes())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Evidence content has already been uploaded. Register a new record to supersede it."));
+
+        audit(projectId, actor, "evidence.uploaded", "evidence", uploaded.id(), uploaded.originalFilename(),
+                Map.of(
+                        "status", uploaded.status().databaseValue(),
+                        "sizeBytes", stored.sizeBytes(),
+                        "contentHash", stored.contentHashSha256()));
+        return uploaded;
+    }
+
+    /**
+     * Opens the stored binary for an evidence record. The caller closes the stream.
+     */
+    public EvidenceContent readEvidenceContent(UUID projectId, UUID evidenceId) {
+        EvidenceRecord record = repository.findEvidence(projectId, evidenceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evidence not found."));
+        if (record.storageUri() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Evidence has been registered but its file has not been uploaded.");
+        }
+        try {
+            InputStream content = evidenceStorage.read(record.storageUri());
+            return new EvidenceContent(record, content);
+        } catch (IOException exception) {
+            // The row survives a missing file; reporting it as absent is more useful than a 500
+            // that says nothing about which of the two is wrong.
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Evidence file could not be read from storage.", exception);
+        }
+    }
+
+    private void requireUploadable(EvidenceRecord registered, MultipartFile file) {
+        if (registered.status() != EvidenceStatus.PENDING_UPLOAD) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Evidence is " + registered.status().databaseValue()
+                            + " and already has its file. Register a new record to supersede it.");
+        }
+        if (file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Evidence file is empty.");
+        }
+        if (file.getSize() > evidenceStorageProperties.maxSizeBytes()) {
+            throw new ResponseStatusException(
+                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Evidence file exceeds the limit of " + evidenceStorageProperties.maxSizeBytes() + " bytes.");
+        }
+        // A size declared at registration described the file the record was raised for. A different
+        // file is not that evidence, whatever it shows.
+        if (registered.sizeBytes() != null && registered.sizeBytes() != file.getSize()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Uploaded file is " + file.getSize() + " bytes; this evidence was registered as "
+                            + registered.sizeBytes() + " bytes.");
+        }
+    }
+
+    private StoredEvidence store(MultipartFile file, String originalFilename) {
+        try {
+            return evidenceStorage.store(
+                    new EvidenceStorageRequest(originalFilename, file.getInputStream(), file.getSize()));
+        } catch (IOException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Evidence file could not be stored.", exception);
+        }
+    }
+
+    private String contentType(MultipartFile file, EvidenceRecord registered) {
+        String uploaded = file.getContentType();
+        if (uploaded != null && !uploaded.isBlank()) {
+            return uploaded;
+        }
+        return registered.contentType() == null ? "application/octet-stream" : registered.contentType();
     }
 
     @Transactional

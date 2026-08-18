@@ -33,6 +33,17 @@ public interface OperationalRecordRepository {
 
     EvidenceRecord createEvidence(UUID projectId, UUID capturedByUserId, EvidenceCreateRequest request);
 
+    Optional<EvidenceRecord> findEvidence(UUID projectId, UUID evidenceId);
+
+    /** Empty when no record in {@code pending_upload} matched, so the caller can say which. */
+    Optional<EvidenceRecord> attachEvidenceContent(
+            UUID projectId,
+            UUID evidenceId,
+            String storageUri,
+            String contentType,
+            long sizeBytes
+    );
+
     List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId);
 
     HandoverNoteRecord createHandoverNote(UUID projectId, UUID createdByUserId, HandoverNoteCreateRequest request);

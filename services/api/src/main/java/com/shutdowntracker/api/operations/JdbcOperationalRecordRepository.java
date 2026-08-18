@@ -27,7 +27,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
 
     private static final String EVIDENCE_COLUMNS = """
             id, project_id, imported_task_id, problem_id, action_id, task_progress_update_id,
-            original_filename, content_type, storage_uri, status, captured_by_user_id, caption
+            original_filename, content_type, storage_uri, size_bytes, status, captured_by_user_id, caption
             """;
 
     private static final String HANDOVER_COLUMNS = """
@@ -222,6 +222,55 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
     }
 
     @Override
+    public Optional<EvidenceRecord> findEvidence(UUID projectId, UUID evidenceId) {
+        return jdbcTemplate.query(
+                "SELECT " + EVIDENCE_COLUMNS + """
+                 FROM evidence
+                 WHERE project_id = :projectId AND id = :evidenceId
+                """,
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("evidenceId", evidenceId),
+                this::mapEvidence).stream().findFirst();
+    }
+
+    /**
+     * Records where an evidence binary landed, and moves the record out of {@code pending_upload}.
+     *
+     * <p>The status is part of the WHERE clause rather than checked first and updated after. Two
+     * uploads racing on one record would both pass a prior read; only one can match here, so the
+     * loser is told the evidence already arrived instead of silently replacing it.
+     */
+    @Override
+    public Optional<EvidenceRecord> attachEvidenceContent(
+            UUID projectId,
+            UUID evidenceId,
+            String storageUri,
+            String contentType,
+            long sizeBytes
+    ) {
+        return jdbcTemplate.query(
+                """
+                UPDATE evidence
+                   SET storage_uri = :storageUri,
+                       content_type = :contentType,
+                       size_bytes = :sizeBytes,
+                       status = CAST(:status AS evidence_status)
+                 WHERE project_id = :projectId
+                   AND id = :evidenceId
+                   AND status = CAST(:pendingStatus AS evidence_status)
+                RETURNING
+                """ + EVIDENCE_COLUMNS,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("evidenceId", evidenceId)
+                        .addValue("storageUri", storageUri)
+                        .addValue("contentType", contentType)
+                        .addValue("sizeBytes", sizeBytes)
+                        .addValue("status", EvidenceStatus.UPLOADED.databaseValue())
+                        .addValue("pendingStatus", EvidenceStatus.PENDING_UPLOAD.databaseValue()),
+                this::mapEvidence).stream().findFirst();
+    }
+
+    @Override
     public List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId) {
         return jdbcTemplate.query(
                 "SELECT " + EVIDENCE_COLUMNS + """
@@ -334,6 +383,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 rs.getString("original_filename"),
                 rs.getString("content_type"),
                 rs.getString("storage_uri"),
+                rs.getObject("size_bytes", Long.class),
                 EvidenceStatus.fromDatabaseValue(rs.getString("status")),
                 rs.getObject("captured_by_user_id", UUID.class),
                 rs.getString("caption"));

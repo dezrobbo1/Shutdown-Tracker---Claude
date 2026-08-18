@@ -12,6 +12,7 @@ public record EvidenceRecord(
         String originalFilename,
         String contentType,
         String storageUri,
+        Long sizeBytes,
         EvidenceStatus status,
         UUID capturedByUserId,
         String caption

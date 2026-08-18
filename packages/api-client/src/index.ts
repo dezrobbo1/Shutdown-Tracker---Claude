@@ -598,6 +598,7 @@ export type EvidenceRecord = {
   originalFilename: string;
   contentType: string | null;
   storageUri: string | null;
+  sizeBytes: number | null;
   status: EvidenceStatus;
   capturedByUserId: string;
   caption: string | null;
@@ -1101,7 +1102,34 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
         }),
       listForTask: (projectId: string, importedTaskId: string) =>
         requestJson<EvidenceRecord[]>(
-          transport, baseUrl, defaultHeaders, projectPath(projectId, `tasks/${importedTaskId}/evidence`))
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `tasks/${importedTaskId}/evidence`)),
+      /**
+       * Uploads the file a registered record is evidence of, completing it.
+       *
+       * Registration and upload are separate calls because they can be separated in time: a
+       * record captured with no connection is registered when one returns and the file follows.
+       */
+      uploadContent: (projectId: string, evidenceId: string, file: Blob, filename?: string) => {
+        const formData = new FormData();
+        if (filename) {
+          formData.append("file", file, filename);
+        } else {
+          formData.append("file", file);
+        }
+        return requestJson<EvidenceRecord>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `evidence/${evidenceId}/content`),
+          { method: "POST", formData }
+        );
+      },
+      /**
+       * The stored bytes.
+       *
+       * Fetched rather than linked because the actor headers travel on the request, and a plain
+       * link would not carry them.
+       */
+      downloadContent: (projectId: string, evidenceId: string) =>
+        requestBlob(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `evidence/${evidenceId}/content`))
     },
     handover: {
       create: (projectId: string, request: HandoverNoteCreateRequest) =>
@@ -1278,6 +1306,33 @@ async function requestJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * The same request handling as {@link requestJson}, for endpoints that answer with bytes.
+ *
+ * Kept separate rather than adding a mode to requestJson: the two differ in what a successful
+ * response means, and a shared function would have to be told which one the caller wanted anyway.
+ */
+async function requestBlob(
+  fetchImpl: FetchLike,
+  baseUrl: string,
+  defaultHeaders: Record<string, string>,
+  path: string,
+  options: RequestOptions = {}
+): Promise<Blob> {
+  const response = await fetchImpl(resolveUrl(baseUrl, path, options.query), {
+    method: options.method ?? "GET",
+    headers: { ...defaultHeaders, ...(options.headers ?? {}) }
+  });
+
+  if (!response.ok) {
+    const responseBody = await response.text();
+    throw new ShutdownTrackerApiError(
+      `Shutdown Tracker API request failed with ${response.status}.`, response.status, responseBody);
+  }
+
+  return await response.blob();
 }
 
 function sourceFilesPath(projectId: string) {
