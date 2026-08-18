@@ -2,7 +2,16 @@
 
 ## Status
 
-Active on `docs/candidate-schedule-authority`.
+Merged. Pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) landed on
+`main` as `2e55d54`, so the outcome below is on `main` and its automated completion conditions are
+met. The manual Microsoft Project gate is **not**, and is stated as pending throughout.
+
+`fix/candidate-element-placement` carries a follow-up correction to the same mechanism: an approved
+field the source did not carry was placed by an element whose schema position MPXJ's binding does
+not know, which could put it out of sequence. It changes nothing about the outcome or its criteria.
+
+No new goal has been chosen. `README.md`'s "Not production-complete yet" list is the menu, and the
+"Next after this goal" section below names the largest items on it.
 
 The green-baseline goal that opened this repository is complete and merged; it is kept below as
 history, because the checks it fixed are the ones this goal is validated by.

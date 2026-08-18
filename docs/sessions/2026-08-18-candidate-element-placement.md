@@ -9,11 +9,14 @@ document — and acted on what that found. No new product surface.
 
 ## What was found
 
-### The branch was finished and green; the gap was in what the checks could see
+### The previous goal had already shipped
 
 `docs/candidate-schedule-authority` was in sync with its remote, six commits ahead of `main`, and
 GitHub Actions was green on its head (`a564a92`, all four jobs). Pull request
-[#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) is a draft and remains one.
+[#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) was merged into `main` as
+`2e55d54` at 05:14 UTC on the day of this session, which is *while* this session was reading the
+repository — see [Corrections](#corrections). The candidate-schedule goal is therefore complete and
+on `main`, and this session's work is a follow-up to it rather than part of it.
 
 ### No approved field is an overwrite; every one is an insertion
 
@@ -130,6 +133,21 @@ No manual Microsoft Project check was performed. That gate is unchanged and stil
 
 ## Corrections
 
+**Pull request #3 was reported here as an open draft. It had already merged.** The state was read
+from GitHub at the start of the session, minutes before the merge landed, and then acted on as
+though it were still current for the rest of the session. Two consequences were corrected during
+the session rather than left standing:
+
+- This session's commit was made on `docs/candidate-schedule-authority`, a branch that no longer
+  had an open pull request. It was given its own branch, `fix/candidate-element-placement`, and its
+  own pull request against the merged `main`.
+- Pull request #3's body was edited to describe this session's work before the merge was noticed,
+  and was restored to what it said when it merged. A merged pull request describes what merged.
+
+The lesson is cheap to state and was not applied: a pull request's state read at the start of a
+session is a snapshot, not a fact, and anything that acts on it — committing to its branch,
+editing its body — should re-read it first.
+
 `MspdiTaskElementOrder`'s javadoc said "Unknown elements sort last", describing an intent the
 calling code did not implement. Nothing in the repository stated the placement guarantee falsely,
 but `docs/product/project-candidate-schedule-handoff.md` asserted that inserted elements land at
@@ -138,8 +156,15 @@ the claim looking better covered than it was.
 
 ## Left open
 
-- Pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) is still a
-  **draft** and unmerged, per `AGENTS.md`.
+- Pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) merged; this
+  session's work is a **draft** pull request of its own against `main`, per `AGENTS.md`.
+- `docs/candidate-schedule-authority` still points at this session's commit on the remote, one
+  commit past the `a564a92` that merged. Rewinding it needs a force push, which `AGENTS.md`
+  reserves for an explicit instruction, so it was left alone. Deleting the merged branch is the
+  tidier option and is also the repository owner's call.
+- `docs/goals/ACTIVE.md` records the candidate-schedule goal as complete. It does not name the next
+  goal: `README.md`'s "Not production-complete yet" list is the menu, and choosing from it is a
+  product decision rather than a routine implementation choice.
 - Where an approved field lands among a run of adjacent elements MPXJ does not model is not
   determined by anything, and cannot be until the binding models them. Only their neighbours with
   known positions are respected.
