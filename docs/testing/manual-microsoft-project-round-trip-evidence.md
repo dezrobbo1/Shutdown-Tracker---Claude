@@ -1,6 +1,6 @@
 # Manual Microsoft Project Round-Trip Evidence
 
-Manual Microsoft Project round-trip evidence records a human review of a generated MSPDI/XML export artifact. It exists to prove controlled export artifacts can be opened and inspected in Microsoft Project without adding automation, screenshots, generated files, real schedules, or Project write-back to the repository.
+Manual Microsoft Project round-trip evidence records a human review of a generated MSPDI/XML candidate schedule. It exists to prove candidates can be opened, recalculated and inspected in Microsoft Project without adding automation, screenshots, generated files, real schedules, or Project write-back to the repository.
 
 ## Current Status
 
@@ -24,6 +24,20 @@ The generated MSPDI/XML artifact for that candidate must be created locally as t
 8. Planner manually updates or saves the master `.mpp` — outside Shutdown Tracker automation.
 
 This evidence document covers artifact generation, open, and verification only. It does not claim that step eight occurred.
+
+## Important Distinction
+
+The test is not "did no schedule field change?"
+
+Microsoft Project is expected to recalculate dependent schedule state once a mechanism exists that gives it something to recalculate against. The durable questions are:
+
+1. Were the exact approved inputs applied?
+2. Did Microsoft Project produce a separate candidate schedule?
+3. Did the accepted source remain unchanged?
+4. Can the source-versus-candidate differences be classified and reviewed?
+5. Can the planner reject the candidate without affecting the master?
+
+Question two is now answerable: the candidate is a full schedule. Question four is not yet — nothing computes the semantic source-versus-candidate delta, so classification is a manual reading of the two files for now. See "Candidate-Schedule Evidence" below.
 
 ## Evidence Boundaries
 
@@ -49,10 +63,10 @@ Prohibited evidence:
 
 1. Generate an MSPDI/XML export artifact from synthetic or fully sanitized data only.
 2. Keep the generated artifact outside Git or under an ignored local folder such as `fixtures/import-export/_local/`.
-3. Open the generated MSPDI/XML artifact manually in Microsoft Project.
+3. Open the generated MSPDI/XML candidate manually in Microsoft Project.
 4. Confirm the file opens without requiring Shutdown Tracker to automate Microsoft Project.
-5. Confirm only approved leaf-task progress/actual fields are represented.
-6. Confirm summary-task actuals are not exported.
+5. Confirm the candidate opens as a complete schedule: the source's tasks, summary structure, WBS/outline ancestry, calendars and dependency links are all present.
+6. Confirm only the approved leaf-task progress/actual values differ from the accepted source, and that no summary-task actual was authored by Shutdown Tracker. Microsoft Project recalculating dependent values is expected and is not a failure.
 7. Confirm task identity is traceable through the expected Microsoft Project task UID/ID values.
 8. Use at least one synthetic actual-start or actual-finish input with a non-zero explicit offset, then confirm canonical offset-bearing inputs preserve the reviewed whole-second Microsoft Project local wall-clock values without an unintended timezone shift.
 9. Confirm no CPM, critical path, float, resource levelling, recovery scheduling, automatic date movement, or Project write-back was run by Shutdown Tracker.
@@ -84,8 +98,11 @@ fields_checked:
   - percent_complete
   - actual_start
   - actual_finish
-leaf_task_only_check: pass/fail
+candidate_opens_as_complete_schedule: pass/fail
+source_structure_preserved_check: pass/fail
+only_approved_fields_modified_check: pass/fail
 summary_task_exclusion_check: pass/fail
+accepted_source_file_unchanged: pass/fail
 task_identity_check: pass/fail
 wall_clock_value_check: pass/fail
 write_back_performed: no
@@ -116,3 +133,35 @@ The API already has metadata endpoints for:
 - `verified`
 
 Those statuses record lifecycle metadata only. They do not automate Microsoft Project, parse the opened artifact, mutate imported task rows, calculate schedules, or write back to Microsoft Project.
+
+`verified` means the planner confirmed the artifact opened and behaved as expected. It does not mean a candidate schedule was recalculated, and it does not mean the master was adopted.
+
+## Candidate-Schedule Evidence
+
+This section defines the evidence required of a candidate schedule. It **is** now satisfiable: the generated artifact is the accepted source schedule with the approved execution inputs applied to it, so calendars, dependencies, WBS ancestry, summary structure and resource assignments reach Microsoft Project intact and it has a real schedule to recalculate.
+
+Candidate generation requires an MSPDI/XML-sourced snapshot. Microsoft Project can only be handed MSPDI/XML back, so deriving a candidate from a native `.mpp` would mean converting formats in both directions, which can silently drop links, calendars or constraints from a file that still looks like a schedule. `.mpp` upload, import and reporting are unaffected.
+
+### Delta classification
+
+Every material source-versus-candidate difference should be classified as:
+
+- `approved_input` — exact planner-approved Shutdown Tracker fact;
+- `project_calculated_consequence` — dependent value created or recalculated by Microsoft Project;
+- `unexpected_difference` — unexplained change requiring investigation.
+
+Do not treat a Project-calculated planned-date, duration, summary, work, or slack change as an automatic failure merely because Shutdown Tracker was not allowed to directly author that field.
+
+### Current mechanism status
+
+The manual diagnostics performed during export-handoff investigation showed that minimal field-isolated MSPDI patches do not reliably reproduce the same tracking transaction as entering the fact through Microsoft Project.
+
+Those diagnostics were **mechanism evidence, not a permanent prohibition on the execution facts themselves** — and that reading has now been acted on. The patch mechanism was replaced rather than the fields being restricted further: the candidate is built by writing the approved values into the accepted source document, so nothing about the schedule is discarded on the way to Microsoft Project.
+
+Automated evidence in place:
+
+- the candidate parses as a complete schedule with the source's task count, calendars and dependency links intact;
+- a source-versus-candidate comparison proves only approved `(task, field)` pairs differ, and generation fails closed otherwise;
+- inserted elements land in MSPDI schema sequence order, verified against MPXJ's own schema binding.
+
+**Still pending, and not substitutable by the above:** a planner opening a generated candidate in Microsoft Project, confirming it recalculates, and confirming the accepted source file is unchanged. No handoff mechanism should be marked production-ready until a synthetic candidate passes that procedure.

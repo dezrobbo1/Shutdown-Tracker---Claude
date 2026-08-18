@@ -378,7 +378,10 @@ export type ExportBatchVerificationRequest = {
 export type ProjectExportArtifactSummary = {
   outputFilename: string;
   artifactFormat: string;
+  /** Tasks Shutdown Tracker updated. */
   taskCount: number;
+  /** Tasks carried through from the accepted source schedule. */
+  sourceTaskCount: number;
   exportedFieldCount: number;
   sizeBytes: number;
   sha256: string;

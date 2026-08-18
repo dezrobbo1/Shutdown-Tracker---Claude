@@ -17,7 +17,7 @@
     "assignments": 0,
     "calendars": 1,
     "custom_fields": 0,
-    "dependencies": 0,
+    "dependencies": 1,
     "baselines": 0
   },
   "warning_count": 0,

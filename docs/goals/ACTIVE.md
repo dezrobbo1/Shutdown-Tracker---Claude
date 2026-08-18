@@ -1,16 +1,20 @@
-# Active Goal — Green Baseline on the Fresh Repository
+# Active Goal — A Candidate Schedule Microsoft Project Can Open
 
 ## Status
 
-Active.
+Active on `docs/candidate-schedule-authority`.
+
+The green-baseline goal that opened this repository is complete and merged; it is kept below as
+history, because the checks it fixed are the ones this goal is validated by.
 
 This repository is a fresh start. Its history carries the work previously developed on the
-`claude-branch` of `dezrobbo1/Shutdown-Tracker`, minus the source-material archive. There are no
-open pull requests, no other branches, and no external gates inherited from that repository. The
-previous active goal described a final review of PR #48 in the old repository; that work is
-already merged into this history and the goal is retired.
+`claude-branch` of `dezrobbo1/Shutdown-Tracker`, minus the source-material archive. No external
+gates were inherited from that repository, and nothing open there is live: the active goal it
+carried described a final review of PR #48, work already merged into this history.
 
-## Outcome
+## Green baseline — completed
+
+### Outcome
 
 `main` is trustworthy: every committed check passes on a developer machine and in GitHub Actions,
 each check proves what it claims to prove, and the documented state of the product matches what
@@ -20,7 +24,7 @@ A check that passes locally because it quietly skipped itself is worse than no c
 check that runs everywhere over a check that runs only where an optional tool happens to be
 installed.
 
-## Completed in this goal
+### Completed
 
 - `ExportIntegrityPostgresIntegrationTests` runs against the shared embedded PostgreSQL server
   used by every other database test, instead of starting its own Docker container and skipping
@@ -43,16 +47,49 @@ installed.
   levels, because advancing them would stop them validating the historical transition they exist
   for.
 
-## Next
+## Outcome
 
-No specific engineering goal is currently active. `main` has a green baseline; the next goal
-should be chosen from the "Not production-complete yet" list in the root `README.md`. The
-largest open items are production authentication — authorization is enforced, but the actor
-still arrives through a gateway-trusted header rather than a validated token — evidence binary
-upload, Critical Update reporting from the field app, and offline problem raising.
+A generated candidate schedule is a schedule: the accepted Project source with the approved
+execution inputs written into it, opening in Microsoft Project with its calendars, dependency
+links, WBS ancestry, summary structure and resource assignments intact, and provably identical to
+the source everywhere Shutdown Tracker was not authorized to write.
 
-Record the chosen goal here before starting it, with its outcome, success criteria, non-goals,
-required validation, and completion conditions.
+The artifact it replaces was a new, empty `ProjectFile` holding only the approved leaf tasks,
+pruned to an element allowlist. It satisfied every authority rule by containing almost nothing,
+and Microsoft Project had nothing to recalculate against.
+
+## Success criteria
+
+- The candidate is derived from the accepted source file, located through the existing
+  `export_batches -> project_snapshots -> import_batches -> source_files` chain, and refuses to
+  build if that file no longer matches the SHA-256 recorded at import.
+- Authority is proved by differencing the written candidate against the source: only approved
+  `(task UID, field)` pairs may differ, and the comparison must be able to see every difference it
+  claims to rule out, including in repeated sibling elements and element attributes.
+- An approved UID absent from the source is a hard failure rather than a task Shutdown Tracker
+  creates.
+- Product documents describe the artifact the code actually produces.
+
+## Non-goals
+
+- Delta classification and the planner adoption record. The read-only source-versus-candidate
+  comparison surface and the adoption decision remain future work.
+- Native `.mpp` candidate generation. Candidates require an MSPDI/XML source; `.mpp` upload,
+  import and reporting are unaffected.
+- Any schedule calculation by Shutdown Tracker. Recalculation stays with Microsoft Project.
+
+## Completion conditions for this goal
+
+- The conditions below, plus: the differencing check is covered by tests that exercise it
+  directly, not only through a generated artifact.
+- The manual Microsoft Project gate is stated as pending, never as passed.
+
+## Next after this goal
+
+The next goal should be chosen from the "Not production-complete yet" list in the root
+`README.md`. The largest open items are production authentication — authorization is enforced, but
+the actor still arrives through a gateway-trusted header rather than a validated token — evidence
+binary upload, Critical Update reporting from the field app, and offline problem raising.
 
 ## Standing constraints
 
@@ -83,10 +120,14 @@ commit.
 ## Manual Microsoft Project gate
 
 Unchanged and still pending. No automated result may be reported as a manual Microsoft Project
-round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML artifact
-and confirm that it opens in Microsoft Project, preserves task UID and ID identity, contains only
-approved leaf-task values for the three authorized fields, excludes summary-task actuals, and
-performs no recalculation or master-file update through Shutdown Tracker.
+round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML candidate
+schedule and confirm that it opens in Microsoft Project as a complete schedule, preserves task UID
+and ID identity along with the source's summary structure, WBS ancestry, calendars and dependency
+links, differs from the accepted source only in the approved leaf-task values for the three
+authorized fields, excludes summary-task actuals authored by Shutdown Tracker, leaves the accepted
+source file unchanged, and performs no master-file update through Shutdown Tracker.
+
+Microsoft Project recalculating dependent values in the candidate is expected and is not a failure.
 
 ## Completion conditions
 

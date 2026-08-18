@@ -54,7 +54,7 @@ Use [Import/Export Fixture Strategy](import-export-fixture-strategy.md).
 - Do not commit real customer/site schedules or operational data.
 - Prefer synthetic text/XML fixtures and text expected-output files.
 - Keep generated export artifacts temporary and uncommitted.
-- Validate MPXJ parsing, stable task/resource/assignment identity fields, relevant extended attributes, warnings, and export allowlisting.
+- Validate MPXJ parsing, stable task/resource/assignment identity fields, relevant extended attributes, warnings, and candidate-schedule authority — that only approved task/field pairs differ from the accepted source.
 - The approved synthetic MSPDI fixture lives under `fixtures/import-export/synthetic-basic-wbs/`.
 
 ## Microsoft Project round-trip validation
@@ -85,7 +85,7 @@ As the corresponding features are implemented, tests should verify:
 - export eligibility remains limited to explicitly approved candidates;
 - summary-task and unsupported-field export attempts are rejected;
 - candidate/task/source/approval identities cannot be substituted or become stale before artifact generation;
-- export generation remains request-specific and allowlisted;
+- candidate generation remains request-specific: the candidate is the accepted source with approved inputs applied, and generation fails closed if anything else differs from the source;
 - artifact metadata and verification state are auditable;
 - policy-1 lifecycle facts and structured provenance cannot be rewritten or replaced by caller metadata;
 - Microsoft Project open and verification actor/time identity remains authoritative through terminal verification;

@@ -31,16 +31,29 @@ Expected export preview metadata should describe controlled export behavior only
 - Warning and error counts.
 - No uncontrolled Project write-back, scheduler recalculation, automatic date movement, CPM, critical path, float, or resource levelling expectations.
 
-## Export Artifact Expectations
+## Candidate Schedule Expectations
 
-Expected export artifact summaries should describe stable worker response and readback behavior only:
+A candidate is the accepted source schedule with the approved execution inputs applied to it, so an
+expected-artifact fixture is meaningful only in relation to a real source file. Task UIDs, task
+names and the project name must be the **source's**, not values invented for the export batch:
+a fixture that names tasks the source does not contain describes an artifact that could only be
+produced by building a schedule from nothing.
 
-- Safe project and task names.
-- Leaf-task Microsoft Project UID/ID values.
+Expected candidate summaries should describe stable worker response and readback behavior only:
+
+- The `source_file` the candidate is derived from.
+- Safe project and task names, taken from that source.
+- Leaf-task Microsoft Project UID/ID values that exist in that source.
 - Allowed progress/actual fields.
-- Expected task and exported-field counts.
+- Expected updated-task, source-task and exported-field counts.
+- The structure the candidate must carry through, in `expected_preserved_elements` — Microsoft
+  Project needs it to recalculate.
 - Structural file-size/hash checks, not committed generated XML artifacts.
-- Notes confirming no schedule calculations and no Microsoft Project write-back.
+- Notes confirming no schedule calculations by Shutdown Tracker and no Microsoft Project write-back.
+
+Source fixtures must be schema-valid MSPDI. Element order inside `<Task>` is an `xsd:sequence`, and
+a fixture that violates it may never open in Microsoft Project at all — which would leave any
+expected-output test validating a document Project would reject.
 
 ## Round-Trip Notes
 

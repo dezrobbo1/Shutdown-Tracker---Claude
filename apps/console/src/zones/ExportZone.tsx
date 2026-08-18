@@ -116,13 +116,16 @@ export function ExportZone({ session, client }: ZoneProps) {
     if (batchId === null) {
       return;
     }
-    await write.run("Artifact generated. Open it in Microsoft Project to apply it.", async () => {
+    await write.run("Candidate schedule generated. Open it in Microsoft Project to review it.", async () => {
       const response = await client.exportPreview.generateArtifact(projectId, batchId);
       preview.replace(response.exportPreview);
+      const summary = response.workerResponse.artifactSummary;
+      // Both counts, because the candidate is the whole schedule: "2 tasks" alone would read
+      // as a two-task file rather than two updated tasks in a six-task schedule.
       setArtifactNote(
-        `${response.workerResponse.artifactSummary.outputFilename} · ` +
-          `${response.workerResponse.artifactSummary.taskCount} tasks · ` +
-          `${response.workerResponse.artifactSummary.exportedFieldCount} fields · ` +
+        `${summary.outputFilename} · ` +
+          `${summary.taskCount} of ${summary.sourceTaskCount} tasks updated · ` +
+          `${summary.exportedFieldCount} fields · ` +
           `sha256 ${response.workerResponse.exportFileHash.slice(0, 16)}…`
       );
     });
