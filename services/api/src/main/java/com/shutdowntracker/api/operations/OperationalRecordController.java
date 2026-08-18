@@ -98,6 +98,12 @@ public class OperationalRecordController {
         return service.registerEvidence(projectId, actor, request);
     }
 
+    @GetMapping("/evidence")
+    public List<EvidenceRecord> evidenceForProject(@PathVariable UUID projectId, Actor actor) {
+        authorization.requireCapability(projectId, actor, Capability.VIEW_PROJECT);
+        return service.evidenceForProject(projectId);
+    }
+
     @GetMapping("/tasks/{importedTaskId}/evidence")
     public List<EvidenceRecord> evidenceForTask(
             @PathVariable UUID projectId, @PathVariable UUID importedTaskId, Actor actor) {

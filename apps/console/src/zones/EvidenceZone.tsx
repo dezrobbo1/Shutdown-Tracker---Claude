@@ -9,6 +9,7 @@ import {
   WriteFeedback,
   useWriteAction
 } from "../components";
+import { formatDateTime } from "../formatting";
 import { useAsyncResource } from "../useAsyncResource";
 import { leafTasks, taskLabel, useSnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
@@ -33,21 +34,19 @@ export function EvidenceZone({ session, client }: ZoneProps) {
   const snapshotTasks = tasks.state.status === "loaded" ? tasks.state.value : null;
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  // The whole project by default: reviewing a shutdown means asking what evidence it has, not
+  // asking task by task. Choosing a task narrows the same list rather than switching screens.
   const evidence = useAsyncResource<EvidenceRecord[]>(
     useCallback(
       () =>
         selectedTaskId === null
-          ? Promise.resolve([])
+          ? client.evidence.listForProject(projectId)
           : client.evidence.listForTask(projectId, selectedTaskId),
       [client, projectId, selectedTaskId]
     ),
     {
-      enabled: session.live && selectedTaskId !== null,
-      // Idle has two causes here, and they need different answers: nothing to act on yet
-      // versus nothing chosen yet.
-      idleMessage: session.live
-        ? "Choose a task to see the evidence recorded against it."
-        : "Configure a project and actor to load evidence."
+      enabled: session.live,
+      idleMessage: "Configure a project and actor to load evidence."
     }
   );
 
@@ -84,19 +83,19 @@ export function EvidenceZone({ session, client }: ZoneProps) {
   return (
     <div className="zone-grid">
       <article className="work-panel">
-        <PanelHeading eyebrow="Verification records" title="Evidence for a task">
-          {selectedTaskId === null ? null : (
-            <StatusChip
-              label={evidenceCountLabel(
-                evidence.state.status === "loaded" ? evidence.state.value.length : null
-              )}
-            />
-          )}
+        <PanelHeading eyebrow="Verification records" title="Evidence in this shutdown">
+          <StatusChip
+            label={evidenceCountLabel(
+              evidence.state.status === "loaded" ? evidence.state.value.length : null
+            )}
+          />
         </PanelHeading>
-        <BoundaryNote>
-          Evidence is recorded against one task and read back per task. There is no
-          project-wide evidence list yet, so choose the task you are checking.
-        </BoundaryNote>
+        {evidence.state.status === "loaded" && evidence.state.value.length >= PROJECT_EVIDENCE_LIMIT ? (
+          <BoundaryNote>
+            The most recent {PROJECT_EVIDENCE_LIMIT} records. There is more evidence than this;
+            narrow by task to see a particular one.
+          </BoundaryNote>
+        ) : null}
 
         <label className="wide-field">
           <span>Task</span>
@@ -106,7 +105,7 @@ export function EvidenceZone({ session, client }: ZoneProps) {
             disabled={options.length === 0}
           >
             <option value="">
-              {options.length === 0 ? "No imported tasks are available" : "Choose a task"}
+              {options.length === 0 ? "No imported tasks are available" : "Every task"}
             </option>
             {options.map((task) => (
               <option value={task.id} key={task.id}>
@@ -119,7 +118,11 @@ export function EvidenceZone({ session, client }: ZoneProps) {
         <ResourceView
           resource={evidence}
           emptyWhen={(value) => value.length === 0}
-          emptyMessage="No evidence has been recorded against this task."
+          emptyMessage={
+            selectedTaskId === null
+              ? "No evidence has been recorded in this project."
+              : "No evidence has been recorded against this task."
+          }
         >
           {(value) => (
             <div className="queue-list">
@@ -134,6 +137,18 @@ export function EvidenceZone({ session, client }: ZoneProps) {
                   </div>
                   {record.caption ? <p className="queue-comment">{record.caption}</p> : null}
                   <div className="detail-grid">
+                    <div className="detail-value">
+                      <span>Task</span>
+                      <strong>
+                        {snapshotTasks === null
+                          ? "Loading tasks"
+                          : taskLabel(snapshotTasks, record.importedTaskId)}
+                      </strong>
+                    </div>
+                    <div className="detail-value">
+                      <span>Captured</span>
+                      <strong>{formatDateTime(record.capturedAt)}</strong>
+                    </div>
                     <div className="detail-value">
                       <span>File</span>
                       <strong>
@@ -282,6 +297,9 @@ export const evidenceStatusLabels: Record<EvidenceStatus, string> = {
   SUPERSEDED: "Superseded",
   FAILED: "Upload failed"
 };
+
+/** Mirrors `OperationalRecordService.PROJECT_EVIDENCE_LIMIT`; the server is the authority. */
+export const PROJECT_EVIDENCE_LIMIT = 200;
 
 export function evidenceCountLabel(count: number | null) {
   if (count === null) {

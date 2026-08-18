@@ -602,6 +602,7 @@ export type EvidenceRecord = {
   contentHash: string | null;
   status: EvidenceStatus;
   capturedByUserId: string;
+  capturedAt: string;
   caption: string | null;
 };
 
@@ -1101,6 +1102,12 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           method: "POST",
           body: request
         }),
+      /**
+       * The project's evidence, newest first and bounded by the server. A shutdown accumulates
+       * evidence for as long as it runs, so this is a screenful, not the archive.
+       */
+      listForProject: (projectId: string) =>
+        requestJson<EvidenceRecord[]>(transport, baseUrl, defaultHeaders, projectPath(projectId, "evidence")),
       listForTask: (projectId: string, importedTaskId: string) =>
         requestJson<EvidenceRecord[]>(
           transport, baseUrl, defaultHeaders, projectPath(projectId, `tasks/${importedTaskId}/evidence`)),

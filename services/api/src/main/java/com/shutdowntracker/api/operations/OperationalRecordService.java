@@ -32,6 +32,9 @@ import org.springframework.web.server.ResponseStatusException;
 @ConditionalOnProperty(prefix = "shutdown-tracker.persistence", name = "enabled", havingValue = "true")
 public class OperationalRecordService {
 
+    /** How much of a project's evidence one read returns. */
+    public static final int PROJECT_EVIDENCE_LIMIT = 200;
+
     private final OperationalRecordRepository repository;
     private final AuditEventRecorder auditEventRecorder;
     private final EvidenceStorage evidenceStorage;
@@ -123,6 +126,17 @@ public class OperationalRecordService {
         audit(projectId, actor, "evidence.registered", "evidence", evidence.id(),
                 evidence.originalFilename(), Map.of("status", evidence.status().databaseValue()));
         return evidence;
+    }
+
+    /**
+     * The project's evidence, newest first.
+     *
+     * <p>Bounded, because a shutdown accumulates evidence for as long as it runs. The caller is
+     * handed at most {@link #PROJECT_EVIDENCE_LIMIT} records and knows the limit, so a list that
+     * was cut can say so rather than appearing to be all of it.
+     */
+    public List<EvidenceRecord> evidenceForProject(UUID projectId) {
+        return repository.findEvidenceForProject(projectId, PROJECT_EVIDENCE_LIMIT);
     }
 
     public List<EvidenceRecord> evidenceForTask(UUID projectId, UUID importedTaskId) {

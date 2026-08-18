@@ -28,7 +28,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
     private static final String EVIDENCE_COLUMNS = """
             id, project_id, imported_task_id, problem_id, action_id, task_progress_update_id,
             original_filename, content_type, storage_uri, size_bytes, content_hash, status,
-            captured_by_user_id, caption
+            captured_by_user_id, captured_at, caption
             """;
 
     private static final String HANDOVER_COLUMNS = """
@@ -274,6 +274,27 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 this::mapEvidence).stream().findFirst();
     }
 
+    /**
+     * The project's evidence, newest first, capped.
+     *
+     * <p>A shutdown accumulates evidence for as long as it runs, and this list exists to be read on
+     * a screen. The cap is applied here rather than in the console so the answer is bounded before
+     * it crosses the wire; the caller is told how many it asked for so it can say the list was cut
+     * rather than letting it appear to end.
+     */
+    @Override
+    public List<EvidenceRecord> findEvidenceForProject(UUID projectId, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + EVIDENCE_COLUMNS + """
+                 FROM evidence
+                 WHERE project_id = :projectId
+                 ORDER BY captured_at DESC, id DESC
+                 LIMIT :limit
+                """,
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("limit", limit),
+                this::mapEvidence);
+    }
+
     @Override
     public List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId) {
         return jdbcTemplate.query(
@@ -391,6 +412,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 rs.getString("content_hash"),
                 EvidenceStatus.fromDatabaseValue(rs.getString("status")),
                 rs.getObject("captured_by_user_id", UUID.class),
+                rs.getObject("captured_at", OffsetDateTime.class),
                 rs.getString("caption"));
     }
 

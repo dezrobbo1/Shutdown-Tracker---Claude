@@ -60,6 +60,18 @@ what was stored has to be identifiable afterwards.
 completed goals kept as history. `frontend-visual-review-scope.md` and `README.md` describe what
 the applications do.
 
+### Second slice: nobody could ask what evidence a shutdown has
+
+Evidence is registered against a task and was readable only per task. The console's own boundary
+note said so: *"There is no project-wide evidence list yet, so choose the task you are checking."*
+Reviewing a shutdown means asking what evidence it has, not asking task by task and remembering the
+answers.
+
+`GET /projects/{id}/evidence` returns the project's evidence newest first, bounded at 200. The
+Evidence zone opens on that and the task selector narrows it, rather than the two being different
+screens. `EvidenceRecord` gained `capturedAt`, without which a newest-first list across tasks
+cannot be read, and each row names its task.
+
 ## Decisions
 
 **Two calls, not one.** A single multipart endpoint that registered and stored together would be
@@ -98,6 +110,13 @@ and retry behaviour of its own; a queue that fills a phone and then fails to sen
 that never accepted the photo. The screen says which of the two situations the user is in rather
 than accepting a capture it cannot deliver.
 
+**The project list is bounded in SQL, and the console says when it was cut.** A shutdown
+accumulates evidence for as long as it runs, and this list exists to be read on a screen. Capping in
+the console would mean the whole set crossing the wire first; capping without saying so would make a
+truncated list look like all the evidence there is. The console's copy of the limit is pinned to the
+server's by `EvidenceListLimitParityTests`, following `CapabilityClientParityTests`: a stale copy
+fails in the worse direction, because it would stop warning at all.
+
 **Rejected: a narrower download capability.** `docs/product/permission-matrix.md` separates
 "Download original evidence" from "View scoped evidence", with field users and contractors limited
 to their own. The `Capability` enum has no such distinction, and the existing per-task metadata read
@@ -111,13 +130,13 @@ Linux, Java 21.0.12, Node 22.
 
 | Check | Result |
 | --- | --- |
-| `mvn test` | 423 tests, 0 failures, 0 errors, **0 skipped** (362 API, 61 worker) |
-| API tests added | 7 database-backed evidence tests, 6 `LocalEvidenceStorage` tests |
-| `npm ci`, `npm test` | 92 passed across the three workspaces (console 49, mobile 22, api-client 21) |
+| `mvn test` | 426 tests, 0 failures, 0 errors, **0 skipped** (365 API, 61 worker) |
+| API tests added | 9 database-backed evidence tests, 6 `LocalEvidenceStorage` tests, 1 limit parity test |
+| `npm ci`, `npm test` | 93 passed across the three workspaces (console 49, mobile 22, api-client 22) |
 | `npm run build` | both apps built |
 | `git diff --check` | clean |
 
-The API count rose from 349 to 362, and the frontend from 84 to 92.
+The API count rose from 349 to 365, and the frontend from 84 to 93.
 
 A negative check confirms the confinement tests bite: with the root check in
 `LocalEvidenceStorage.read` disabled, `refusesToReadAFileOutsideTheConfiguredRoot` and the
@@ -134,9 +153,9 @@ candidate-schedule goal and is unchanged.
 
 ## Left open
 
-- The remaining slices are named in `docs/goals/ACTIVE.md`: a project-wide evidence list, Critical
-  Update reporting from the field app, offline problem raising, and assignment-scoped work lists.
-  The last two are not purely frontend work — problem creation has no server-side idempotency key,
+- The remaining slices are named in `docs/goals/ACTIVE.md`: Critical Update reporting from the
+  field app, offline problem raising, and assignment-scoped work lists. The last two are not purely
+  frontend work — problem creation has no server-side idempotency key,
   and nothing links a Microsoft Project resource to a Shutdown Tracker user.
 - Production object storage. `LocalEvidenceStorage` is the development and review implementation
   the architecture already called for; the interface is what production replaces.
@@ -145,5 +164,7 @@ candidate-schedule goal and is unchanged.
   `docs/product/correction-and-supersession-rules.md` describes.
 - The gap between `permission-matrix.md` and the `Capability` enum on evidence download, described
   under Decisions.
-- `docs/goals/ACTIVE.md` is edited by this branch and by `fix/candidate-element-placement`. Whichever
+- Evidence is not searchable or filterable by status, only by task. A shutdown with more than 200
+  records can only reach the older ones through the task filter.
+- `docs/goals/ACTIVE.md` is edited by these branches and by `fix/candidate-element-placement`. Whichever
   merges second resolves a small conflict in the Status section; this branch's version supersedes.

@@ -45,6 +45,8 @@ public interface OperationalRecordRepository {
             String contentHash
     );
 
+    List<EvidenceRecord> findEvidenceForProject(UUID projectId, int limit);
+
     List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId);
 
     HandoverNoteRecord createHandoverNote(UUID projectId, UUID createdByUserId, HandoverNoteCreateRequest request);

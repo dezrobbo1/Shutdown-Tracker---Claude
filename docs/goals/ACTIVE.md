@@ -2,7 +2,7 @@
 
 ## Status
 
-Active on `feat/evidence-binary-upload`.
+Active on `feat/project-evidence-list`.
 
 Two goals are complete and merged, and are kept below as history: the green baseline that opened
 this repository, and the candidate schedule Microsoft Project can open. The checks the first one
@@ -110,12 +110,13 @@ where a screen exists but the capability behind it does not, which the root `REA
 Ordered, one reviewed outcome per branch. Each is finished — API, both apps, tests, docs — before
 the next starts.
 
-1. **Evidence carries its file.** *(this branch)* Registering evidence records that a file exists;
+1. **Evidence carries its file.** *(done, `feat/evidence-binary-upload`)* Registering evidence records that a file exists;
    nothing uploaded one, so the console asked a person to type where the file was kept. The record
    is now registered and the binary uploaded against it, downloadable back, with the field app
    capturing from the camera.
-2. **A project-wide evidence list.** Evidence is readable per task only, so nobody can ask what
-   evidence a shutdown has.
+2. **A project-wide evidence list.** *(done, `feat/project-evidence-list`)* Evidence was readable
+   per task only, so nobody could ask what evidence a shutdown has. The Evidence zone now opens on
+   the project and narrows by task, bounded, and says when the list was cut.
 3. **Critical Update reporting from the field app.** The console can file one; a field user or
    contractor cannot, which is the wrong way round.
 4. **Offline problem raising.** Blocked on problem creation having no server-side idempotency key,

@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.operations;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public record EvidenceRecord(
@@ -16,6 +17,7 @@ public record EvidenceRecord(
         String contentHash,
         EvidenceStatus status,
         UUID capturedByUserId,
+        OffsetDateTime capturedAt,
         String caption
 ) {
 }

@@ -60,7 +60,7 @@ Implemented foundations include:
   is registered, the binary is uploaded against it, and it can be downloaded back. A record whose
   file never arrived stays visible as evidence that is still outstanding rather than being hidden.
   Storage is the provider-neutral abstraction's local filesystem implementation; production object
-  storage is still open;
+  storage is still open. Evidence is readable across the whole project as well as per task;
 - versioned Import Profiles and Operational Categories resolved from task fields, summary
   ancestry, and assigned-resource Groups, with mapping health on re-import;
 - Critical Watchlists, Critical Work Packages, and Critical Update reporting, reachable over
@@ -98,7 +98,6 @@ Not production-complete yet:
   through a gateway-trusted header rather than a validated token;
 - Critical Update reporting in the field app; the console carries it, but a field user or
   contractor cannot yet file one from a device, and the offline queue covers task progress only;
-- a project-wide evidence list; evidence is readable per task only;
 - offline evidence capture in the field app. A photo is sent as it is taken and needs a
   connection, because the offline queue holds small JSON reports and a queue of megabyte photos
   needs its own eviction and retry rules;

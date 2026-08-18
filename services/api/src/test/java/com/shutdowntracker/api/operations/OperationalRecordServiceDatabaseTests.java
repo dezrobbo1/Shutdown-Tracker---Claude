@@ -285,6 +285,46 @@ class OperationalRecordServiceDatabaseTests extends AbstractDatabaseTest {
         }
     }
 
+    /**
+     * Evidence is registered against a task, but reviewing a shutdown means asking what evidence it
+     * has, not asking task by task. The order is newest first because that is the question being
+     * asked; the task filter is still there for the other one.
+     */
+    @Test
+    void listsEveryPieceOfEvidenceInTheProjectNewestFirst() {
+        service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "first.jpg", "image/jpeg", null, null, null));
+        service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "second.jpg", "image/jpeg", null, null, null));
+
+        UUID otherProjectId = fixtures.createImportChain("Stack Shutdown").projectId();
+
+        List<EvidenceRecord> forProject = service.evidenceForProject(projectId);
+
+        assertThat(forProject).extracting(EvidenceRecord::originalFilename)
+                .containsExactly("second.jpg", "first.jpg");
+        // Another project's evidence is another project's business.
+        assertThat(service.evidenceForProject(otherProjectId)).isEmpty();
+    }
+
+    @Test
+    void boundsTheProjectEvidenceListSoOneReadCannotReturnAWholeShutdown() {
+        assertThat(OperationalRecordService.PROJECT_EVIDENCE_LIMIT).isEqualTo(200);
+
+        for (int index = 0; index < 3; index++) {
+            service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                    taskId, null, null, null, "photo-" + index + ".jpg", "image/jpeg", null, null, null));
+        }
+
+        assertThat(repository().findEvidenceForProject(projectId, 2))
+                .extracting(EvidenceRecord::originalFilename)
+                .containsExactly("photo-2.jpg", "photo-1.jpg");
+    }
+
+    private OperationalRecordRepository repository() {
+        return new JdbcOperationalRecordRepository(new NamedParameterJdbcTemplate(dataSource()));
+    }
+
     private EvidenceRecord registerPendingEvidence() {
         return service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
                 taskId, null, null, null, "guard-removed.jpg", "image/jpeg", null, null, "Guard removed."));

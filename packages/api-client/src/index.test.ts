@@ -331,6 +331,22 @@ describe("shutdown tracker api client", () => {
     ]);
   });
 
+  it("reads a project's evidence and one task's evidence from different paths", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.evidence.listForProject("p1");
+    await client.evidence.listForTask("p1", "task-1");
+
+    expect(calls.map((call) => call.input)).toEqual([
+      "https://example.test/api/projects/p1/evidence",
+      "https://example.test/api/projects/p1/tasks/task-1/evidence"
+    ]);
+  });
+
   it("uploads an evidence file as multipart to the record it completes", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

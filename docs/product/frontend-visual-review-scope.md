@@ -64,7 +64,7 @@ Every future visual surface must be labelled with one of these statuses in the b
 | Task progress | Submit, supervisor queue and review, planner queue and review, wired |
 | Problems, actions, handover | Wired; reads are open/unacknowledged queues only |
 | Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired |
-| Evidence | Register, upload the file, download it, and per-task read, wired in both apps. Storage is the local filesystem implementation; production object storage is still open. Capture needs a connection in the field app and says so |
+| Evidence | Register, upload the file, download it, and read it back per task or across the project, wired in both apps. The project list is bounded and says when it was cut. Storage is the local filesystem implementation; production object storage is still open. Capture needs a connection in the field app and says so |
 | Critical Watch | Watchlists, work packages and Critical Update reporting are reachable over HTTP and surfaced in the console. Not in the field app |
 | Mobile offline queue | Durable IndexedDB queue for progress, with idempotency keys and visible sync state |
 | Mobile problem raising | Online only; not queued, because problem creation has no server-side idempotency key |
@@ -284,7 +284,7 @@ next surfaces from that list are entity-linked Discussion — still a static rev
 product and API contracts are approved — and the field-app half of Critical Update reporting.
 
 The remaining frontend gaps are listed under "Not production-complete yet" in the root `README.md`.
-The ones that are frontend work rather than infrastructure are a project-wide evidence list, Critical
-Update reporting from the field app, offline problem raising, and assignment-scoped work lists.
+The ones that are frontend work rather than infrastructure are Critical Update reporting from the
+field app, offline problem raising, and assignment-scoped work lists.
 
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.
