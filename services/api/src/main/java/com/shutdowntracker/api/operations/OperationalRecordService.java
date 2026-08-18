@@ -159,7 +159,7 @@ public class OperationalRecordService {
         StoredEvidence stored = store(file, registered.originalFilename());
         EvidenceRecord uploaded = repository
                 .attachEvidenceContent(projectId, evidenceId, stored.storageUri(), contentType(file, registered),
-                        stored.sizeBytes())
+                        stored.sizeBytes(), stored.contentHashSha256())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.CONFLICT,
                         "Evidence content has already been uploaded. Register a new record to supersede it."));

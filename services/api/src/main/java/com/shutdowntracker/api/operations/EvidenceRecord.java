@@ -13,6 +13,7 @@ public record EvidenceRecord(
         String contentType,
         String storageUri,
         Long sizeBytes,
+        String contentHash,
         EvidenceStatus status,
         UUID capturedByUserId,
         String caption

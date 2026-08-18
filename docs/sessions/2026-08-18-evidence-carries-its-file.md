@@ -52,6 +52,10 @@ binary to a pending record and moves it to `uploaded`;
 and a download; the field app captures from the camera. `EvidenceRecord` gained `sizeBytes`, which
 is what tells a reviewer the file actually arrived.
 
+The upload also records the SHA-256 the store already computed into `evidence.content_hash`, a
+column that has existed since V010 and was being left null. Evidence is a verification artifact;
+what was stored has to be identifiable afterwards.
+
 `docs/goals/ACTIVE.md` now carries the frontend goal and the ordered slices behind it, with the two
 completed goals kept as history. `frontend-visual-review-scope.md` and `README.md` describe what
 the applications do.

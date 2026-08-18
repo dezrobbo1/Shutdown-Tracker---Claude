@@ -27,7 +27,8 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
 
     private static final String EVIDENCE_COLUMNS = """
             id, project_id, imported_task_id, problem_id, action_id, task_progress_update_id,
-            original_filename, content_type, storage_uri, size_bytes, status, captured_by_user_id, caption
+            original_filename, content_type, storage_uri, size_bytes, content_hash, status,
+            captured_by_user_id, caption
             """;
 
     private static final String HANDOVER_COLUMNS = """
@@ -245,7 +246,8 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
             UUID evidenceId,
             String storageUri,
             String contentType,
-            long sizeBytes
+            long sizeBytes,
+            String contentHash
     ) {
         return jdbcTemplate.query(
                 """
@@ -253,6 +255,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                    SET storage_uri = :storageUri,
                        content_type = :contentType,
                        size_bytes = :sizeBytes,
+                       content_hash = :contentHash,
                        status = CAST(:status AS evidence_status)
                  WHERE project_id = :projectId
                    AND id = :evidenceId
@@ -265,6 +268,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                         .addValue("storageUri", storageUri)
                         .addValue("contentType", contentType)
                         .addValue("sizeBytes", sizeBytes)
+                        .addValue("contentHash", contentHash)
                         .addValue("status", EvidenceStatus.UPLOADED.databaseValue())
                         .addValue("pendingStatus", EvidenceStatus.PENDING_UPLOAD.databaseValue()),
                 this::mapEvidence).stream().findFirst();
@@ -384,6 +388,7 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 rs.getString("content_type"),
                 rs.getString("storage_uri"),
                 rs.getObject("size_bytes", Long.class),
+                rs.getString("content_hash"),
                 EvidenceStatus.fromDatabaseValue(rs.getString("status")),
                 rs.getObject("captured_by_user_id", UUID.class),
                 rs.getString("caption"));

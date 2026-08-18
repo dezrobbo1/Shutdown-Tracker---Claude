@@ -41,7 +41,8 @@ public interface OperationalRecordRepository {
             UUID evidenceId,
             String storageUri,
             String contentType,
-            long sizeBytes
+            long sizeBytes,
+            String contentHash
     );
 
     List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId);

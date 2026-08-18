@@ -195,6 +195,8 @@ class OperationalRecordServiceDatabaseTests extends AbstractDatabaseTest {
         assertThat(uploaded.sizeBytes()).isEqualTo("front guard off".length());
         assertThat(uploaded.contentType()).isEqualTo("image/jpeg");
         assertThat(uploaded.storageUri()).isNotNull();
+        // Evidence is a verification artifact: what was stored has to be identifiable later.
+        assertThat(uploaded.contentHash()).hasSize(64);
 
         // The record is only true if the bytes are actually there and are the ones sent.
         try (var content = service.readEvidenceContent(projectId, registered.id()).content()) {

@@ -599,6 +599,7 @@ export type EvidenceRecord = {
   contentType: string | null;
   storageUri: string | null;
   sizeBytes: number | null;
+  contentHash: string | null;
   status: EvidenceStatus;
   capturedByUserId: string;
   caption: string | null;
