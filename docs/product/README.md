@@ -35,6 +35,7 @@ Read these sources before implementing a workflow:
 - [Project Operational Mapping](project-operational-mapping.md)
 - [Roles and Capabilities](roles-and-capabilities.md)
 - [Permission Matrix](permission-matrix.md)
+- [Field Identity and Assigned Work](field-identity-and-assigned-work.md)
 - [Approval and Export State Model](approval-export-state-model.md)
 - [Task Progress Review and Export Approval](task-progress-review-export-approval.md)
 - [Communications Layer](communications-layer.md)
@@ -105,6 +106,8 @@ MVP source modes include:
 Original Project values are never overwritten. Tracker display aliases, roll-ups, Scope, Saved Views, and responsibility configuration remain separate.
 
 Classification is not authorisation. Visibility/relevance, responsibility, task-update authority, review authority, and Project-input authority are separate.
+
+The link between a Project resource and a Shutdown Tracker user follows the same rules: explicit rather than inferred, kept across re-import, and relevance-only. See [Field Identity and Assigned Work](field-identity-and-assigned-work.md).
 
 ## Critical Watch
 

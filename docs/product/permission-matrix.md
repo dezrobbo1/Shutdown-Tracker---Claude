@@ -16,6 +16,8 @@ Roles: Admin, Planner, Shutdown Control, Coordinator, Supervisor, Field User, Co
 
 Project-derived Operational Category membership is not a permission level. It may influence relevance and configured responsibility scope, but write/review/approval authority still requires role plus explicit project responsibility/assignment/delegation.
 
+The same holds for the link between a Microsoft Project resource and a Shutdown Tracker user. It decides which work a person is shown and nothing else: holding one grants no capability, and holding none takes none away. See [Field identity and assigned work](field-identity-and-assigned-work.md).
+
 ## Project, Import, and Operational Mapping
 
 | Capability | Admin | Planner | Shutdown Control | Coordinator | Supervisor | Field User | Contractor | Inspector | Viewer / Management |
@@ -41,6 +43,7 @@ Project-derived Operational Category membership is not a permission level. It ma
 | Create project-shared Saved View | scoped | yes | yes | request only | request only | no | no | request only | no |
 | Configure category-based responsibility scope | scoped | yes | yes | request only | no | no | no | no | read-only |
 | Configure temporary responsibility delegation | scoped | scoped | yes | scoped | scoped | no | no | no | read-only |
+| Link a Project resource to a user | yes | planner only | request only | no | no | no | no | no | read-only |
 | Manage users | admin only | no | request only | no | no | no | no | no | no |
 | Manage roles | admin only | no | request only | no | no | no | no | no | no |
 | Manage permissions | admin only | no | request only | no | no | no | no | no | no |

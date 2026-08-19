@@ -46,6 +46,7 @@ export type Capability =
   | "REJECT_IMPORT_SNAPSHOT"
   | "RECONCILE_TASK_LINEAGE"
   | "MANAGE_IMPORT_PROFILE"
+  | "MANAGE_RESOURCE_LINK"
   | "RECORD_APPROVAL"
   | "CREATE_EXPORT_PREVIEW"
   | "APPROVE_EXPORT_BATCH"
@@ -79,6 +80,7 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   REJECT_IMPORT_SNAPSHOT: ["planner", "admin"],
   RECONCILE_TASK_LINEAGE: ["planner"],
   MANAGE_IMPORT_PROFILE: ["planner"],
+  MANAGE_RESOURCE_LINK: ["planner", "admin"],
   RECORD_APPROVAL: ["planner"],
   CREATE_EXPORT_PREVIEW: ["planner"],
   APPROVE_EXPORT_BATCH: ["planner"],

@@ -67,8 +67,8 @@ Implemented foundations include:
   HTTP and surfaced in the console and the field app, with composing a package and reporting on
   one held as separate capabilities so a planner may build a package without filing reports on it;
 - a Master Console on the baseline zones — Today, Tasks, Problems, Evidence, Exports — with
-  import review, operational mapping, planner review and the export lifecycle gathered under
-  Exports as addressable sections, each reading and writing through the API;
+  import review, operational mapping, field identity, planner review and the export lifecycle
+  gathered under Exports as addressable sections, each reading and writing through the API;
 - a Today attention surface that reports what is awaiting review, what is blocking work, and
   what is waiting to be acknowledged, and links to the zone that owns each decision;
 - a Mobile Field App on the baseline zones — My Work, Today, Problems, Evidence, Sync — with an
@@ -77,6 +77,13 @@ Implemented foundations include:
   double-report or raise the same problem twice, showing sync state rather than implying delivery,
   marking an unsent report on the work card itself, and listing a problem raised with no signal
   alongside the project's open ones rather than losing it;
+- assignment-scoped work lists: an explicit, planner-curated link says which Microsoft Project
+  resource is which Shutdown Tracker user, so the field app shows a person their own work rather
+  than the whole schedule. The link is never inferred from a name, survives re-import because it
+  is keyed on the resource's Project UID rather than on a snapshot row, and grants relevance only
+  — no authorization check reads it, so holding one confers nothing and holding none takes nothing
+  away. An empty work list says which of its four causes it is, because only one of them means the
+  reader is finished;
 - role-aware controls in both apps, checked against a capability map that a test compares
   against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
@@ -101,8 +108,6 @@ Not production-complete yet:
 - offline evidence capture in the field app. A photo is sent as it is taken and needs a
   connection, because the offline queue holds small JSON reports and a queue of megabyte photos
   needs its own eviction and retry rules;
-- assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
-  rather than only the work assigned to the signed-in user;
 - Saved Operational Views and global operational Scope;
 - reporting policy cadences and generated reporting periods;
 - production object storage;

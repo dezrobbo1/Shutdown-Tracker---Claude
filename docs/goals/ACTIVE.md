@@ -2,7 +2,8 @@
 
 ## Status
 
-Active on `feat/offline-problem-raising`.
+Active on `feat/assignment-scoped-work`. Every slice of this goal is now merged or in review;
+see "Completion" below.
 
 Two goals are complete and merged, and are kept below as history: the green baseline that opened
 this repository, and the candidate schedule Microsoft Project can open. The checks the first one
@@ -125,9 +126,37 @@ the next starts.
    connection at the moment it was raised, which is the moment there is least likely to be one. V012
    gives `problems` an idempotency key, so the queue can hold one on the same terms as progress, and
    an unsent problem is listed on the screen that raised it rather than disappearing from it.
-5. **Assignment-scoped work lists.** The field app lists the snapshot's leaf tasks rather than the
-   signed-in user's work, because nothing links a Microsoft Project resource to a Shutdown Tracker
-   user. Needs a product decision on that link before it is code.
+5. **Assignment-scoped work lists.** *(done, `feat/assignment-scoped-work`)* The field app listed
+   the snapshot's leaf tasks rather than the signed-in user's work, because nothing linked a
+   Microsoft Project resource to a Shutdown Tracker user. The product decision came first and is
+   recorded in `docs/product/field-identity-and-assigned-work.md`: the link is explicit rather than
+   inferred, survives re-import, and grants relevance only. V013 gives it a table, the field app
+   shows the reader their own work, and Exports > People is where a planner curates it.
+
+## Completion
+
+All five slices are done. The goal's own conditions are met:
+
+- Every capability the two applications offer is reachable end to end, with API, authorization,
+  audit and tests behind it.
+- The states the product can be in are states it shows. Evidence whose file never arrived reads as
+  outstanding; a work list that is empty says which of its four causes it is.
+- The information architecture is unchanged: five console zones, five field zones. Slices 1–4 added
+  no navigation. Slice 5 added one section inside Exports, beside Mapping, which is what the
+  architecture reserves sections for.
+- `docs/product/frontend-visual-review-scope.md` and the root `README.md` describe what the
+  applications actually do.
+
+Nothing in this goal was recorded as not taken.
+
+## Next after this goal
+
+`README.md`'s "Not production-complete yet" list is the menu. The two largest items left on the
+candidate-schedule side are the source-versus-candidate delta and the planner adoption record:
+candidate generation exists, but nothing computes the semantic difference between source and
+candidate, classifies each difference as an approved input or a Project-calculated consequence, or
+records a separate master-adoption decision. Production authentication is the largest item overall
+and is its own goal.
 
 ## Success criteria
 

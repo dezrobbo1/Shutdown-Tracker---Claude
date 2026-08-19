@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ClipboardList, RefreshCw, ShieldAlert, Sunrise, UploadCloud } from "lucide-react";
 import type {
+  AssignedWorkView,
   CriticalUpdateSubmitRequest,
   CriticalWorkPackageReportingSummary,
   EvidenceRecord,
@@ -65,10 +66,10 @@ type Screen = "work" | "today" | "problems" | "evidence" | "sync" | "progress";
 /**
  * How many tasks the work list renders.
  *
- * The list is every leaf task in the schedule, not the reader's own work: nothing links a
- * Microsoft Project resource to a Shutdown Tracker user yet, so there is nothing to filter on.
- * The cap keeps a large schedule usable on a phone, and the list says when it has truncated
- * rather than quietly ending.
+ * The list is now the reader's own work: the server resolves it from the resources linked to
+ * them and returns only those leaf tasks. The cap stays because a resource on a large shutdown
+ * can still hold hundreds of tasks, and the list says when it has truncated rather than quietly
+ * ending.
  */
 const WORK_LIST_LIMIT = 100;
 
@@ -79,6 +80,10 @@ export function App() {
 
   const [screen, setScreen] = useState<Screen>("work");
   const [tasks, setTasks] = useState<ImportReviewTaskRow[]>([]);
+  // The reader's own work, kept separate from `tasks`. `tasks` stays the whole schedule because
+  // the problem and evidence pickers need it: somebody who sees a fault on a job that is not
+  // theirs must still be able to report it against that job.
+  const [assigned, setAssigned] = useState<AssignedWorkView | null>(null);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
   const [handover, setHandover] = useState<HandoverNoteRecord[]>([]);
   const [criticalPackages, setCriticalPackages] = useState<CriticalWorkPackageReportingSummary[]>([]);
@@ -101,6 +106,9 @@ export function App() {
       }
       const detail = await client.importReview.getSnapshot(session.projectId, newest.id);
       setTasks(detail.tasks.filter((task) => !task.summary));
+      // Failing to resolve assigned work must not cost the reader the rest of the screen, so this
+      // falls back to null and My Work says it could not be resolved rather than showing nothing.
+      setAssigned(await client.assignedWork.mine(session.projectId).catch(() => null));
       const open = await client.problems.listOpen(session.projectId).catch(() => []);
       setProblems(open);
       const unacknowledged = await client.handover
@@ -209,7 +217,7 @@ export function App() {
 
         {screen === "work" ? (
           <WorkList
-            tasks={tasks}
+            assigned={assigned}
             blockingTaskIds={blockingTaskIds}
             unsentByTaskId={unsentByTaskId}
             loadMessage={loadMessage}
@@ -239,7 +247,7 @@ export function App() {
 
         {screen === "today" ? (
           <TodayScreen
-            tasks={tasks}
+            assigned={assigned}
             problems={problems}
             handover={handover}
             waiting={waiting}
@@ -335,30 +343,72 @@ export function App() {
   );
 }
 
-function WorkList({
-  tasks,
+/**
+ * My Work.
+ *
+ * An empty list is not one fact, so this does not render it as one. A schedule nobody has
+ * accepted, an account no Project resource points at, a link whose resource the newest schedule
+ * has lost, and a genuinely clear day all say different things to somebody standing on site with
+ * a radio in their hand — and only the last one means "you are done". Each says which it is and,
+ * where somebody else has to act, who.
+ */
+export function WorkList({
+  assigned,
   blockingTaskIds,
   unsentByTaskId,
   loadMessage,
   onSelect
 }: {
-  tasks: ImportReviewTaskRow[];
+  assigned: AssignedWorkView | null;
   blockingTaskIds: Set<string>;
   unsentByTaskId: Map<string, QueuedSubmission>;
   loadMessage: string;
   onSelect: (task: ImportReviewTaskRow) => void;
 }) {
-  if (tasks.length === 0) {
-    return <p className="boundary-copy">{loadMessage || "No work is on this device."}</p>;
+  if (assigned === null) {
+    return (
+      <p className="boundary-copy">
+        {loadMessage || "Your work could not be resolved. Open Sync to retry when you have signal."}
+      </p>
+    );
+  }
+
+  const tasks = assigned.tasks;
+
+  if (assigned.projectSnapshotId === null) {
+    return (
+      <p className="boundary-copy">
+        No schedule has been accepted for this project yet, so no work is assigned to anyone.
+      </p>
+    );
+  }
+
+  if (!assigned.linked) {
+    return (
+      <p className="boundary-copy">
+        No Microsoft Project resource is linked to your account, so this app cannot tell which work
+        is yours. A planner links you to your resource; until then this list stays empty rather than
+        guessing.
+      </p>
+    );
   }
 
   return (
-    <section className="work-list" aria-label="Work in this schedule">
+    <section className="work-list" aria-label="Work assigned to you">
       {loadMessage ? <p className="boundary-copy">{loadMessage}</p> : null}
+      {assigned.unmatchedResourceUids.length > 0 ? (
+        <p className="boundary-copy">
+          {assigned.unmatchedResourceUids.length === assigned.linkedResourceUids.length
+            ? "The accepted schedule does not carry the resource you are linked to, so none of your work can be found. Tell a planner."
+            : `The accepted schedule does not carry ${assigned.unmatchedResourceUids.length} of the resources you are linked to, so some of your work may be missing. Tell a planner.`}
+        </p>
+      ) : null}
+      {tasks.length === 0 ? (
+        <p className="boundary-copy">None of the accepted schedule&apos;s work is assigned to you.</p>
+      ) : null}
       {tasks.length > WORK_LIST_LIMIT ? (
         <p className="boundary-copy">
-          Showing the first {WORK_LIST_LIMIT} of {tasks.length} tasks in this schedule. This is
-          every task, not the work assigned to you.
+          {`Showing the first ${WORK_LIST_LIMIT} of ${tasks.length} tasks assigned to you.`}
         </p>
       ) : null}
       {tasks.slice(0, WORK_LIST_LIMIT).map((task) => (
@@ -683,7 +733,7 @@ function SyncQueue({
  * told. Anything longer belongs on the screen that owns it.
  */
 function TodayScreen({
-  tasks,
+  assigned,
   problems,
   handover,
   waiting,
@@ -693,7 +743,7 @@ function TodayScreen({
   canSubmitCriticalUpdate,
   onCriticalUpdate
 }: {
-  tasks: ImportReviewTaskRow[];
+  assigned: AssignedWorkView | null;
   problems: ProblemRecord[];
   handover: HandoverNoteRecord[];
   waiting: number;
@@ -708,7 +758,7 @@ function TodayScreen({
 }) {
   const blocking = problems.filter((problem) => problem.blocksExecution);
 
-  if (tasks.length === 0 && loadMessage) {
+  if (assigned === null && loadMessage) {
     return <p className="boundary-copy">{loadMessage}</p>;
   }
 
@@ -730,7 +780,22 @@ function TodayScreen({
         label="handover notes need acknowledging"
         settled="No handover note is waiting on you."
       />
-      <TodayRow count={tasks.length} label="tasks are on this device" settled="No work is on this device." />
+      {/*
+        Counting the reader's own work, not the schedule's. "No work is assigned to you" is only
+        true once a resource is linked to them; before that the count is not zero, it is unknown,
+        and saying zero would read as a clear day.
+      */}
+      {assigned?.linked ? (
+        <TodayRow
+          count={assigned.tasks.length}
+          label="tasks are assigned to you"
+          settled="No work in the accepted schedule is assigned to you."
+        />
+      ) : (
+        <p className="boundary-copy">
+          No Microsoft Project resource is linked to your account, so your work cannot be counted.
+        </p>
+      )}
 
       {blocking.length > 0 ? (
         <div className="today-detail">

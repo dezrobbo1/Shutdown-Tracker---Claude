@@ -14,6 +14,7 @@ import { PlannerReviewZone, SupervisorReviewZone } from "./zones/ReviewQueueZone
 import { ProblemsZone } from "./zones/ProblemsZone";
 import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
+import { PeopleZone } from "./zones/PeopleZone";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone } from "./zones/EvidenceZone";
@@ -178,6 +179,8 @@ function ZoneOutlet({
       return <ImportReviewZone {...props} />;
     case "exports/mapping":
       return <MappingZone {...props} />;
+    case "exports/people":
+      return <PeopleZone {...props} />;
     case "exports/planner-review":
       return <PlannerReviewZone {...props} />;
     case "exports/batches":
