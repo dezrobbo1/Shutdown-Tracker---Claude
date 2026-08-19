@@ -131,6 +131,88 @@ class OperationalRecordServiceDatabaseTests extends AbstractDatabaseTest {
     }
 
     @Test
+    void aRetriedFieldCaptureReturnsTheProblemItAlreadyRaised() {
+        // The offline queue resends the same capture until the server confirms it. Without
+        // this, a reply lost on the way back would leave the device retrying and the project
+        // holding one problem per attempt.
+        ProblemCreateRequest capture = new ProblemCreateRequest(
+                taskId, "Scaffold missing", "Cannot reach the valve.", ProblemSeverity.HIGH, true,
+                "capture-key-1", "local-1");
+
+        ProblemRecord first = service.raiseProblem(projectId, fieldUser, capture);
+        ProblemRecord retried = service.raiseProblem(projectId, fieldUser, capture);
+
+        assertThat(retried.id()).isEqualTo(first.id());
+        assertThat(service.openProblems(projectId)).hasSize(1);
+    }
+
+    @Test
+    void aReplayedCaptureIsNotAuditedAsASecondRaising() {
+        ProblemCreateRequest capture = new ProblemCreateRequest(
+                taskId, "Scaffold missing", null, ProblemSeverity.HIGH, true, "capture-key-1", "local-1");
+
+        service.raiseProblem(projectId, fieldUser, capture);
+        service.raiseProblem(projectId, fieldUser, capture);
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT count(*) FROM audit_events WHERE event_type = 'problem.raised'", Integer.class))
+                .describedAs("the problem was raised once, and the audit trail must say so")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void theSameKeyOnAnotherProjectRaisesItsOwnProblem() {
+        // Keys are generated on a device and only have to be unique there. Scoping the
+        // uniqueness to the project is what makes two devices unable to collide.
+        UUID otherProjectId = fixtures.createImportChain("Boiler Shutdown").projectId();
+        fixtures.grantMembership(otherProjectId, fieldUser.userId(), "field_user");
+
+        ProblemCreateRequest capture = new ProblemCreateRequest(
+                null, "Scaffold missing", null, ProblemSeverity.HIGH, true, "capture-key-1", "local-1");
+
+        ProblemRecord here = service.raiseProblem(projectId, fieldUser, capture);
+        ProblemRecord there = service.raiseProblem(otherProjectId, fieldUser, capture);
+
+        assertThat(there.id()).isNotEqualTo(here.id());
+    }
+
+    @Test
+    void problemsRaisedWithoutAKeyAreNeverTreatedAsRetriesOfEachOther() {
+        // A console raises problems with no key at all. The partial unique index has to
+        // ignore those, or the second one raised would be rejected as a duplicate.
+        service.raiseProblem(projectId, supervisor, problemRequest());
+        service.raiseProblem(projectId, supervisor, problemRequest());
+
+        assertThat(service.openProblems(projectId)).hasSize(2);
+    }
+
+    @Test
+    void aBlankKeyIsTreatedAsNoKey() {
+        ProblemRecord first = service.raiseProblem(projectId, fieldUser, new ProblemCreateRequest(
+                taskId, "Scaffold missing", null, ProblemSeverity.HIGH, true, "   ", ""));
+        ProblemRecord second = service.raiseProblem(projectId, fieldUser, new ProblemCreateRequest(
+                taskId, "Guard missing", null, ProblemSeverity.HIGH, true, "   ", ""));
+
+        assertThat(second.id()).isNotEqualTo(first.id());
+    }
+
+    @Test
+    void theDatabaseRefusesASecondProblemUnderOneKey() {
+        // The service checks first; this asserts the index behind it, so a concurrent pair of
+        // retries cannot slip two rows past the check.
+        service.raiseProblem(projectId, fieldUser, new ProblemCreateRequest(
+                taskId, "Scaffold missing", null, ProblemSeverity.HIGH, true, "capture-key-1", "local-1"));
+
+        assertThatThrownBy(() -> jdbcTemplate().update(
+                """
+                INSERT INTO problems (project_id, title, raised_by_user_id, idempotency_key)
+                VALUES (?, 'Scaffold missing', ?, 'capture-key-1')
+                """,
+                projectId, fieldUser.userId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void openProblemQueueExcludesClosedOnes() {
         ProblemRecord first = service.raiseProblem(projectId, fieldUser, problemRequest());
         service.raiseProblem(projectId, fieldUser, problemRequest());

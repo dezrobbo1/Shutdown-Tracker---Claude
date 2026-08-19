@@ -48,11 +48,12 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 """
                 INSERT INTO problems (
                     project_id, imported_task_id, title, description, severity,
-                    blocks_execution, raised_by_user_id
+                    blocks_execution, raised_by_user_id, idempotency_key, offline_local_id
                 )
                 VALUES (
                     :projectId, :importedTaskId, :title, :description,
-                    CAST(:severity AS problem_severity), :blocksExecution, :raisedBy
+                    CAST(:severity AS problem_severity), :blocksExecution, :raisedBy,
+                    :idempotencyKey, :offlineLocalId
                 )
                 RETURNING
                 """ + PROBLEM_COLUMNS,
@@ -63,7 +64,9 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                         .addValue("description", request.description())
                         .addValue("severity", request.severity().databaseValue())
                         .addValue("blocksExecution", request.blocksExecution())
-                        .addValue("raisedBy", raisedByUserId),
+                        .addValue("raisedBy", raisedByUserId)
+                        .addValue("idempotencyKey", request.idempotencyKey())
+                        .addValue("offlineLocalId", request.offlineLocalId()),
                 this::mapProblem);
     }
 
@@ -72,6 +75,15 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
         return jdbcTemplate.query(
                 "SELECT " + PROBLEM_COLUMNS + " FROM problems WHERE id = :id AND project_id = :projectId",
                 new MapSqlParameterSource().addValue("id", problemId).addValue("projectId", projectId),
+                this::mapProblem).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ProblemRecord> findProblemByIdempotencyKey(UUID projectId, String idempotencyKey) {
+        return jdbcTemplate.query(
+                "SELECT " + PROBLEM_COLUMNS
+                        + " FROM problems WHERE project_id = :projectId AND idempotency_key = :key",
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("key", idempotencyKey),
                 this::mapProblem).stream().findFirst();
     }
 

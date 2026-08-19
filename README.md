@@ -72,9 +72,11 @@ Implemented foundations include:
 - a Today attention surface that reports what is awaiting review, what is blocking work, and
   what is waiting to be acknowledged, and links to the zone that owns each decision;
 - a Mobile Field App on the baseline zones — My Work, Today, Problems, Evidence, Sync — with an
-  offline execution queue: progress and Critical Updates are stored on the device before they are
-  sent, each carrying a device-generated idempotency key so a retry cannot double-report, showing
-  sync state rather than implying delivery, and marking an unsent report on the work card itself;
+  offline execution queue: progress, Critical Updates and raised problems are stored on the device
+  before they are sent, each carrying a device-generated idempotency key so a retry cannot
+  double-report or raise the same problem twice, showing sync state rather than implying delivery,
+  marking an unsent report on the work card itself, and listing a problem raised with no signal
+  alongside the project's open ones rather than losing it;
 - role-aware controls in both apps, checked against a capability map that a test compares
   against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
@@ -99,8 +101,6 @@ Not production-complete yet:
 - offline evidence capture in the field app. A photo is sent as it is taken and needs a
   connection, because the offline queue holds small JSON reports and a queue of megabyte photos
   needs its own eviction and retry rules;
-- offline problem raising; raising a problem needs a connection, because problem creation has
-  no server-side idempotency key and a queued retry could raise the same problem twice;
 - assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
   rather than only the work assigned to the signed-in user;
 - Saved Operational Views and global operational Scope;

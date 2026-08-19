@@ -1,4 +1,8 @@
-import type { CriticalUpdateSubmitRequest, TaskProgressSubmitRequest } from "@shutdown-tracker/api-client";
+import type {
+  CriticalUpdateSubmitRequest,
+  ProblemCreateRequest,
+  TaskProgressSubmitRequest
+} from "@shutdown-tracker/api-client";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 
 /**
@@ -16,11 +20,11 @@ import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
  * 3. Sync state is visible and never inferred. "Saved on this device" and "the server has it"
  *    are different facts, and a supervisor asking whether an update landed needs the second.
  *
- * The queue carries more than one kind of report. Progress and Critical Updates are captured in
- * the same places, under the same conditions, and both are safe to retry because the server pairs
- * an idempotency key with the project and returns the original submission for a repeated key. What
- * differs is only the endpoint and what a refusal means, so the kind travels on the item and the
- * mechanics stay in one place.
+ * The queue carries more than one kind of report. Progress, Critical Updates and raised problems
+ * are captured in the same places, under the same conditions, and all three are safe to retry
+ * because the server pairs an idempotency key with the project and returns the original submission
+ * for a repeated key. What differs is only the endpoint and what a refusal means, so the kind
+ * travels on the item and the mechanics stay in one place.
  */
 
 export type SyncState =
@@ -31,7 +35,7 @@ export type SyncState =
   | "REJECTED";
 
 /** What a queued item reports. The endpoint and the meaning of a refusal follow from it. */
-export type QueuedSubmissionKind = "progress" | "critical-update";
+export type QueuedSubmissionKind = "progress" | "critical-update" | "problem";
 
 type QueuedEnvelope = {
   /** Generated on the device. Identifies this capture across retries and restarts. */
@@ -49,7 +53,8 @@ type QueuedEnvelope = {
 
 export type QueuedSubmission =
   | (QueuedEnvelope & { kind: "progress"; request: TaskProgressSubmitRequest })
-  | (QueuedEnvelope & { kind: "critical-update"; request: CriticalUpdateSubmitRequest });
+  | (QueuedEnvelope & { kind: "critical-update"; request: CriticalUpdateSubmitRequest })
+  | (QueuedEnvelope & { kind: "problem"; request: ProblemCreateRequest });
 
 /**
  * Durable storage for the queue.
@@ -107,20 +112,30 @@ export function isPermanentRejection(error: unknown) {
  * What a refusal means to the person who made the capture.
  *
  * The status alone does not say it: a 404 on a progress report means the task left the snapshot,
- * and a 404 on a Critical Update means the work package is gone. Both are things the reporter can
- * act on, and neither is helped by being told "404".
+ * a 404 on a Critical Update means the work package is gone, and a 404 on a problem means the
+ * task it was raised against has left the snapshot. All are things the reporter can act on, and
+ * none is helped by being told "404".
  */
+const queueRefusals: Record<QueuedSubmissionKind, Record<403 | 404, string>> = {
+  progress: {
+    403: "Your role on this project cannot report progress on that task.",
+    404: "That task is not part of the current schedule snapshot."
+  },
+  "critical-update": {
+    403: "Your role on this project cannot file a Critical Update.",
+    404: "That critical work package no longer exists."
+  },
+  problem: {
+    403: "Your role on this project cannot raise problems.",
+    404: "The task this was raised against is not part of the current schedule snapshot."
+  }
+};
+
+/** @see queueRefusals */
 export function describeQueueError(error: unknown, kind: QueuedSubmissionKind = "progress") {
   if (error instanceof ShutdownTrackerApiError) {
-    if (error.status === 403) {
-      return kind === "progress"
-        ? "Your role on this project cannot report progress on that task."
-        : "Your role on this project cannot file a Critical Update.";
-    }
-    if (error.status === 404) {
-      return kind === "progress"
-        ? "That task is not part of the current schedule snapshot."
-        : "That critical work package no longer exists.";
+    if (error.status === 403 || error.status === 404) {
+      return queueRefusals[kind][error.status];
     }
     return `Rejected by the server (${error.status}): ${error.responseBody || error.message}`;
   }
@@ -146,7 +161,7 @@ export function normalizeStoredSubmission(stored: unknown): QueuedSubmission | n
   if (typeof item.localId !== "string" || item.request === undefined) {
     return null;
   }
-  if (item.kind === "progress" || item.kind === "critical-update") {
+  if (item.kind === "progress" || item.kind === "critical-update" || item.kind === "problem") {
     return item as QueuedSubmission;
   }
   return {
@@ -210,6 +225,19 @@ export class OfflineSubmissionQueue {
     workPackageName: string
   ): Promise<QueuedSubmission> {
     return this.enqueue("critical-update", request, workPackageName);
+  }
+
+  /**
+   * Records a raised problem on the device.
+   *
+   * A problem is raised where the work is, which is where there is no signal. Holding it in the
+   * queue is only safe because the server pairs the idempotency key with the project and returns
+   * the problem the first capture raised, so a retry cannot raise the same thing twice.
+   */
+  async enqueueProblem(
+    request: Omit<ProblemCreateRequest, "idempotencyKey" | "offlineLocalId">
+  ): Promise<QueuedSubmission> {
+    return this.enqueue("problem", request, request.title);
   }
 
   private async enqueue(

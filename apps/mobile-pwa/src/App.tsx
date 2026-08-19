@@ -158,6 +158,17 @@ export function App() {
     return byTask;
   }, [queue.state.items]);
 
+  /**
+   * Problems raised on this device that the server has not confirmed.
+   *
+   * The list on the Problems screen is the server's answer. Without these, a problem raised
+   * with no signal disappears from the screen that was just used to raise it.
+   */
+  const unsentProblems = useMemo(
+    () => queue.state.items.filter((item) => item.kind === "problem" && item.syncState !== "SYNCED"),
+    [queue.state.items]
+  );
+
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const waiting = pendingCount(queue.state.items);
   const rejected = rejectedCount(queue.state.items);
@@ -245,13 +256,15 @@ export function App() {
         {screen === "problems" ? (
           <ProblemsScreen
             problems={problems}
+            unsentProblems={unsentProblems}
             tasks={tasks}
             defaultTaskId={selectedTaskId}
             canRaise={fieldSessionAllows(session, "RAISE_PROBLEM")}
             onRaise={async (request) => {
-              await client.problems.raise(session.projectId, request);
+              await queue.captureProblem(request);
+              // The list above is the server's. Reloading it picks up the problem once the
+              // queue has sent it; until then the unsent entry is what shows.
               await loadWork();
-              setScreen("problems");
             }}
           />
         ) : null}
@@ -529,7 +542,8 @@ function ProblemCapture({
       </div>
       <p className="boundary-copy">
         A problem is a record someone has to answer, not a message. Marking it blocking says
-        work cannot continue.
+        work cannot continue. It is kept on this device first and sent when there is a
+        connection, so it survives being raised where there is none.
       </p>
 
       <form
@@ -550,7 +564,9 @@ function ProblemCapture({
             .then(() => {
               setTitle("");
               setDescription("");
-              setMessage("Problem raised.");
+              // "Saved on this device" and "the server has it" are different facts. Sync owns
+              // the second, and the entry above this form shows which one this problem is at.
+              setMessage("Saved on this device. Its progress is in Sync.");
             })
             .catch((error: unknown) => setMessage(describeRaiseFailure(error)))
             .finally(() => setBusy(false));
@@ -883,12 +899,14 @@ function TodayRow({ count, label, settled }: { count: number; label: string; set
 /** Open problems, and the form to raise another. */
 function ProblemsScreen({
   problems,
+  unsentProblems,
   tasks,
   defaultTaskId,
   canRaise,
   onRaise
 }: {
   problems: ProblemRecord[];
+  unsentProblems: QueuedSubmission[];
   tasks: ImportReviewTaskRow[];
   defaultTaskId: string | null;
   canRaise: boolean;
@@ -897,19 +915,31 @@ function ProblemsScreen({
   return (
     <>
       <section className="problem-list" aria-label="Open problems">
-        {problems.length === 0 ? (
+        {problems.length === 0 && unsentProblems.length === 0 ? (
           <p className="boundary-copy">No problems are open on this project.</p>
-        ) : (
-          problems.slice(0, 30).map((problem) => (
-            <article className="sync-queue-card" key={problem.id}>
-              <div className="sync-queue-card-head">
-                <strong>{problem.title}</strong>
-                {problem.blocksExecution ? <MobileChip label="Blocked" /> : null}
-              </div>
-              <span>{problem.description ?? "No detail recorded."}</span>
-            </article>
-          ))
-        )}
+        ) : null}
+
+        {/* Raised here and not yet confirmed. Shown first, and never as though the project
+            already holds them, because nobody else can see one of these yet. */}
+        {unsentProblems.map((item) => (
+          <article className="sync-queue-card" key={item.localId}>
+            <div className="sync-queue-card-head">
+              <strong>{item.subject}</strong>
+              <MobileChip label={syncStateLabels[item.syncState]} />
+            </div>
+            <span>{queuedItemDetail(item)}</span>
+          </article>
+        ))}
+
+        {problems.slice(0, 30).map((problem) => (
+          <article className="sync-queue-card" key={problem.id}>
+            <div className="sync-queue-card-head">
+              <strong>{problem.title}</strong>
+              {problem.blocksExecution ? <MobileChip label="Blocked" /> : null}
+            </div>
+            <span>{problem.description ?? "No detail recorded."}</span>
+          </article>
+        ))}
       </section>
 
       <ProblemCapture
@@ -1118,27 +1148,27 @@ function NavButton({
 }
 
 /**
+ * What went wrong when a problem could not even be captured.
+ *
+ * Sending is no longer part of raising one: the capture is written to the queue and the network
+ * is Sync's business, so a dead connection never reaches here. What can still reach here is the
+ * device failing to store it, and that has to be said plainly — there is nothing holding the
+ * problem afterwards, and the person has to know to raise it again.
+ */
+export function describeRaiseFailure(error: unknown) {
+  const detail = error instanceof Error ? error.message : "";
+  if (detail === "") {
+    return "This device could not keep the problem. Raise it again.";
+  }
+  return `This device could not keep the problem: ${detail}. Raise it again.`;
+}
+
+/**
  * The percentage a reporter should see.
  *
  * An unsent report is the newer fact for the person holding the device, so it wins over the
  * server value — with the sync chip beside it saying the server does not have it yet.
  */
-/**
- * Why a problem could not be raised.
- *
- * Raising a problem needs a connection: unlike a progress report it is not queued, because
- * the server has no idempotency key for it and a retry could raise the same problem twice.
- * That makes it important to say the record was not kept, rather than showing a bare network
- * error that leaves someone assuming it was.
- */
-export function describeRaiseFailure(error: unknown) {
-  const detail = error instanceof Error ? error.message : "";
-  if (detail === "" || /fetch|network|load failed/i.test(detail)) {
-    return "Could not send, and this is not saved on this device. Raise it again when you have a connection.";
-  }
-  return detail;
-}
-
 export function workCardPercent(
   task: ImportReviewTaskRow,
   unsent: QueuedSubmission | undefined
@@ -1154,9 +1184,9 @@ export function workCardPercent(
 /**
  * The one line under a queued item's subject in the sync list.
  *
- * The two kinds report different things, so they say different things: a progress report is a
- * state and a percentage, and a Critical Update is what the crew is on. A shared phrasing would
- * have to leave out whichever half did not fit.
+ * The kinds report different things, so they say different things: a progress report is a state
+ * and a percentage, a Critical Update is what the crew is on, and a problem is what is wrong and
+ * whether it stops work. A shared phrasing would have to leave out whichever half did not fit.
  */
 export function queuedItemDetail(item: QueuedSubmission) {
   if (item.kind === "progress") {
@@ -1164,6 +1194,12 @@ export function queuedItemDetail(item: QueuedSubmission) {
     return `${executionStateLabels[item.request.executionState]}${
       percent === null || percent === undefined ? "" : ` · ${percent}%`
     }`;
+  }
+  if (item.kind === "problem") {
+    const detail = item.request.description?.trim();
+    // Blocking is the half a supervisor reads first, so it leads.
+    const lead = item.request.blocksExecution ? "Blocked" : "Problem";
+    return detail === undefined || detail === "" ? lead : `${lead} · ${detail}`;
   }
   return item.request.currentFocus?.trim() || "Critical Update";
 }
