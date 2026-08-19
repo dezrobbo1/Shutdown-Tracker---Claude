@@ -64,9 +64,9 @@ Every future visual surface must be labelled with one of these statuses in the b
 | Task progress | Submit, supervisor queue and review, planner queue and review, wired |
 | Problems, actions, handover | Wired; reads are open/unacknowledged queues only |
 | Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired |
-| Evidence | Register and per-task read, wired. **No binary upload exists in either app or the API** |
-| Critical Watch | Service and repository exist server-side; **no controller and no UI** |
-| Mobile offline queue | Durable IndexedDB queue for progress, with idempotency keys and visible sync state |
+| Evidence | Register, upload the file, download it, and read it back per task or across the project, wired in both apps. The project list is bounded and says when it was cut. Storage is the local filesystem implementation; production object storage is still open. Capture needs a connection in the field app and says so |
+| Critical Watch | Watchlists, work packages and Critical Update reporting are reachable over HTTP and surfaced in the console. The field app files Critical Updates from Today, through the offline queue; composing a package stays a planning act and is console-only |
+| Mobile offline queue | Durable IndexedDB queue for progress and Critical Updates, with idempotency keys and visible sync state. Evidence binaries are not queued |
 | Mobile problem raising | Online only; not queued, because problem creation has no server-side idempotency key |
 | Role-aware controls | Write controls gated by capability in both apps, checked against the server's own enum |
 
@@ -279,6 +279,13 @@ A future frontend PR should be rejected or revised if:
 
 ## Next coding implication
 
-After the cleanup pass, the next visual PR should add the static Critical Watch, Critical Update, and entity-linked Discussion review surfaces without creating a generic dashboard, chat inbox, or production write workflow.
+Critical Watch and Critical Update reporting have since been built and wired in both applications,
+so the next surface from that list is entity-linked Discussion — still a static review surface until
+its product and API contracts are approved.
+
+The remaining frontend gaps are listed under "Not production-complete yet" in the root `README.md`.
+Neither of the two that remain is purely frontend work: offline problem raising needs a server-side
+idempotency key on problem creation, and assignment-scoped work lists need something linking a
+Microsoft Project resource to a Shutdown Tracker user.
 
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.

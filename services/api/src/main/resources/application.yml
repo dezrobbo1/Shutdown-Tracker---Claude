@@ -38,6 +38,9 @@ shutdown-tracker:
     shared-secret: ${SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET:}
     connect-timeout: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_CONNECT_TIMEOUT:5s}
     read-timeout: ${SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_READ_TIMEOUT:2m}
+  evidence-storage:
+    local-root: ${SHUTDOWN_TRACKER_EVIDENCE_STORAGE_LOCAL_ROOT:.shutdown-tracker/evidence}
+    max-size-bytes: ${SHUTDOWN_TRACKER_EVIDENCE_STORAGE_MAX_SIZE_BYTES:52428800}
   export-artifact-storage:
     local-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT:.shutdown-tracker/export-artifacts}
   review-project-bootstrap:

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TaskProgressSubmitRequest } from "@shutdown-tracker/api-client";
-import { OfflineProgressQueue, createMemoryQueueStore } from "./offlineQueue";
-import type { QueueStore, QueuedProgressUpdate } from "./offlineQueue";
+import type { CriticalUpdateSubmitRequest, TaskProgressSubmitRequest } from "@shutdown-tracker/api-client";
+import { OfflineSubmissionQueue } from "./offlineQueue";
+import type { QueueStore, QueuedSubmission } from "./offlineQueue";
 import { createQueueStore } from "./indexedDbQueueStore";
 import type { FieldApiClient } from "./fieldSession";
 
@@ -14,7 +14,7 @@ import type { FieldApiClient } from "./fieldSession";
  */
 
 export type FieldQueueState = {
-  items: QueuedProgressUpdate[];
+  items: QueuedSubmission[];
   durable: boolean;
   online: boolean;
   flushing: boolean;
@@ -25,7 +25,7 @@ export function useFieldQueue(
   projectId: string,
   options: { store?: QueueStore; durable?: boolean } = {}
 ) {
-  const [items, setItems] = useState<QueuedProgressUpdate[]>([]);
+  const [items, setItems] = useState<QueuedSubmission[]>([]);
   const [flushing, setFlushing] = useState(false);
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine !== false
@@ -38,9 +38,13 @@ export function useFieldQueue(
 
   const queue = useMemo(
     () =>
-      new OfflineProgressQueue({
+      new OfflineSubmissionQueue({
         store: storage.store,
-        submit: (request: TaskProgressSubmitRequest) => client.taskProgress.submit(projectId, request),
+        // Which endpoint a kind goes to is decided here; the queue only decides when to send.
+        submit: (item) =>
+          item.kind === "progress"
+            ? client.taskProgress.submit(projectId, item.request)
+            : client.criticalWatch.submitUpdate(projectId, item.request),
         newId: newLocalId
       }),
     [storage.store, client, projectId]
@@ -75,19 +79,34 @@ export function useFieldQueue(
     }
   }, [queue]);
 
+  const sendIfConnected = useCallback(async () => {
+    await refresh();
+    // Sending immediately when there is a connection; the capture is already safe either way.
+    if (typeof navigator === "undefined" || navigator.onLine !== false) {
+      await flush();
+    }
+  }, [refresh, flush]);
+
   const capture = useCallback(
     async (
       request: Omit<TaskProgressSubmitRequest, "idempotencyKey" | "offlineLocalId">,
       taskName: string
     ) => {
-      await queue.enqueue(request, taskName);
-      await refresh();
-      // Sending immediately when there is a connection; the capture is already safe either way.
-      if (typeof navigator === "undefined" || navigator.onLine !== false) {
-        await flush();
-      }
+      await queue.enqueueProgress(request, taskName);
+      await sendIfConnected();
     },
-    [queue, refresh, flush]
+    [queue, sendIfConnected]
+  );
+
+  const captureCriticalUpdate = useCallback(
+    async (
+      request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+      workPackageName: string
+    ) => {
+      await queue.enqueueCriticalUpdate(request, workPackageName);
+      await sendIfConnected();
+    },
+    [queue, sendIfConnected]
   );
 
   const retry = useCallback(
@@ -126,7 +145,7 @@ export function useFieldQueue(
 
   const state: FieldQueueState = { items, durable: storage.durable, online, flushing };
 
-  return { state, capture, flush, retry, clearSettled, refresh };
+  return { state, capture, captureCriticalUpdate, flush, retry, clearSettled, refresh };
 }
 
 /**

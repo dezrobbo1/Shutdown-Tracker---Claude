@@ -1,5 +1,9 @@
 package com.shutdowntracker.api.operations;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -11,10 +15,14 @@ import com.shutdowntracker.api.importedproject.ImportedProjectPersistenceService
 import com.shutdowntracker.api.importedproject.ImportedProjectSnapshotCreateRequest;
 import com.shutdowntracker.api.importedproject.ImportedTaskCreateRequest;
 import com.shutdowntracker.api.importedproject.JdbcImportedProjectRepository;
+import com.shutdowntracker.api.operations.storage.EvidenceStorageProperties;
+import com.shutdowntracker.api.operations.storage.LocalEvidenceStorage;
 import com.shutdowntracker.api.support.AbstractDatabaseTest;
 import com.shutdowntracker.api.support.DatabaseFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
@@ -30,13 +38,20 @@ class OperationalRecordServiceDatabaseTests extends AbstractDatabaseTest {
     private UUID taskId;
     private Actor supervisor;
     private Actor fieldUser;
+    private EvidenceStorageProperties evidenceStorageProperties;
+
+    @TempDir
+    private Path evidenceRoot;
 
     @BeforeEach
     void setUp() {
         NamedParameterJdbcTemplate named = new NamedParameterJdbcTemplate(dataSource());
+        evidenceStorageProperties = new EvidenceStorageProperties(evidenceRoot, 1_048_576L);
         service = new OperationalRecordService(
                 new JdbcOperationalRecordRepository(named),
-                new JdbcAuditEventRecorder(named, new ObjectMapper()));
+                new JdbcAuditEventRecorder(named, new ObjectMapper()),
+                new LocalEvidenceStorage(evidenceStorageProperties),
+                evidenceStorageProperties);
         fixtures = new DatabaseFixtures(jdbcTemplate());
 
         DatabaseFixtures.ImportChain chain = fixtures.createImportChain("Kiln Shutdown");
@@ -167,6 +182,156 @@ class OperationalRecordServiceDatabaseTests extends AbstractDatabaseTest {
 
         assertThat(evidence.status()).isEqualTo(EvidenceStatus.UPLOADED);
         assertThat(service.evidenceForTask(projectId, taskId)).hasSize(1);
+    }
+
+    @Test
+    void uploadingAFileCompletesAPendingEvidenceRecord() throws IOException {
+        EvidenceRecord registered = registerPendingEvidence();
+
+        EvidenceRecord uploaded = service.uploadEvidenceContent(
+                projectId, fieldUser, registered.id(), photo("guard-removed.jpg", "front guard off"));
+
+        assertThat(uploaded.status()).isEqualTo(EvidenceStatus.UPLOADED);
+        assertThat(uploaded.sizeBytes()).isEqualTo("front guard off".length());
+        assertThat(uploaded.contentType()).isEqualTo("image/jpeg");
+        assertThat(uploaded.storageUri()).isNotNull();
+        // Evidence is a verification artifact: what was stored has to be identifiable later.
+        assertThat(uploaded.contentHash()).hasSize(64);
+
+        // The record is only true if the bytes are actually there and are the ones sent.
+        try (var content = service.readEvidenceContent(projectId, registered.id()).content()) {
+            assertThat(new String(content.readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("front guard off");
+        }
+    }
+
+    /**
+     * Evidence is an assertion about what was seen. Overwriting the file behind an accepted record
+     * would change what a past reviewer looked at, which is what supersession exists for.
+     */
+    @Test
+    void uploadingOverAlreadyUploadedEvidenceIsRefused() {
+        EvidenceRecord registered = registerPendingEvidence();
+        service.uploadEvidenceContent(projectId, fieldUser, registered.id(), photo("guard-removed.jpg", "first"));
+
+        assertThatThrownBy(() -> service.uploadEvidenceContent(
+                projectId, fieldUser, registered.id(), photo("guard-removed.jpg", "second")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("already has its file");
+    }
+
+    @Test
+    void uploadingAFileOfADifferentSizeThanRegisteredIsRefused() {
+        EvidenceRecord registered = service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "guard-removed.jpg", "image/jpeg", null, 99L, null));
+
+        assertThatThrownBy(() -> service.uploadEvidenceContent(
+                projectId, fieldUser, registered.id(), photo("guard-removed.jpg", "not ninety-nine bytes")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("registered as 99 bytes");
+    }
+
+    @Test
+    void uploadingAnEmptyFileIsRefused() {
+        EvidenceRecord registered = registerPendingEvidence();
+
+        assertThatThrownBy(() -> service.uploadEvidenceContent(
+                projectId, fieldUser, registered.id(), photo("guard-removed.jpg", "")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("empty");
+    }
+
+    @Test
+    void uploadingToAnotherProjectsEvidenceIsNotFound() {
+        EvidenceRecord registered = registerPendingEvidence();
+        UUID otherProjectId = fixtures.createImportChain("Stack Shutdown").projectId();
+
+        assertThatThrownBy(() -> service.uploadEvidenceContent(
+                otherProjectId, fieldUser, registered.id(), photo("guard-removed.jpg", "bytes")))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("not found");
+    }
+
+    /**
+     * A registered record whose file never arrived reads as absent rather than as a broken read:
+     * the two are different states and the field user needs to know which one they are in.
+     */
+    @Test
+    void readingEvidenceThatWasNeverUploadedReportsItAsNotUploaded() {
+        EvidenceRecord registered = registerPendingEvidence();
+
+        assertThatThrownBy(() -> service.readEvidenceContent(projectId, registered.id()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("has not been uploaded");
+    }
+
+    /**
+     * {@code storage_uri} is a database column. A row naming a file outside the configured root
+     * must not turn the evidence endpoint into a way to read it.
+     */
+    @Test
+    void readingEvidenceStoredOutsideTheConfiguredRootIsRefused() throws IOException {
+        Path outside = Files.createTempFile("outside-evidence", ".txt");
+        Files.writeString(outside, "not evidence");
+        EvidenceRecord registered = service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "guard-removed.jpg", "image/jpeg",
+                outside.toUri().toString(), null, null));
+
+        try {
+            assertThatThrownBy(() -> service.readEvidenceContent(projectId, registered.id()))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("could not be read");
+        } finally {
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    /**
+     * Evidence is registered against a task, but reviewing a shutdown means asking what evidence it
+     * has, not asking task by task. The order is newest first because that is the question being
+     * asked; the task filter is still there for the other one.
+     */
+    @Test
+    void listsEveryPieceOfEvidenceInTheProjectNewestFirst() {
+        service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "first.jpg", "image/jpeg", null, null, null));
+        service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "second.jpg", "image/jpeg", null, null, null));
+
+        UUID otherProjectId = fixtures.createImportChain("Stack Shutdown").projectId();
+
+        List<EvidenceRecord> forProject = service.evidenceForProject(projectId);
+
+        assertThat(forProject).extracting(EvidenceRecord::originalFilename)
+                .containsExactly("second.jpg", "first.jpg");
+        // Another project's evidence is another project's business.
+        assertThat(service.evidenceForProject(otherProjectId)).isEmpty();
+    }
+
+    @Test
+    void boundsTheProjectEvidenceListSoOneReadCannotReturnAWholeShutdown() {
+        assertThat(OperationalRecordService.PROJECT_EVIDENCE_LIMIT).isEqualTo(200);
+
+        for (int index = 0; index < 3; index++) {
+            service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                    taskId, null, null, null, "photo-" + index + ".jpg", "image/jpeg", null, null, null));
+        }
+
+        assertThat(repository().findEvidenceForProject(projectId, 2))
+                .extracting(EvidenceRecord::originalFilename)
+                .containsExactly("photo-2.jpg", "photo-1.jpg");
+    }
+
+    private OperationalRecordRepository repository() {
+        return new JdbcOperationalRecordRepository(new NamedParameterJdbcTemplate(dataSource()));
+    }
+
+    private EvidenceRecord registerPendingEvidence() {
+        return service.registerEvidence(projectId, fieldUser, new EvidenceCreateRequest(
+                taskId, null, null, null, "guard-removed.jpg", "image/jpeg", null, null, "Guard removed."));
+    }
+
+    private MockMultipartFile photo(String filename, String content) {
+        return new MockMultipartFile("file", filename, "image/jpeg", content.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
