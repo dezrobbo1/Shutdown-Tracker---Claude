@@ -148,6 +148,16 @@ export const consoleZones: readonly ConsoleZone[] = [
         writeCapability: "MANAGE_IMPORT_PROFILE"
       },
       {
+        // Which Project resource is which person. A section beside Mapping because it is the
+        // same kind of act — saying what the Project source means operationally — and not a
+        // zone, because the five zones are the baseline.
+        id: "people",
+        label: "People",
+        eyebrow: "Field identity",
+        title: "Project resources and people",
+        writeCapability: "MANAGE_RESOURCE_LINK"
+      },
+      {
         id: "planner-review",
         label: "Planner review",
         eyebrow: "Step two",

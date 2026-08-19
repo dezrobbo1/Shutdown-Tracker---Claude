@@ -17,6 +17,7 @@ import { PlannerReviewZone, SupervisorReviewZone } from "./zones/ReviewQueueZone
 import { ProblemsZone } from "./zones/ProblemsZone";
 import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
+import { PeopleZone, resourceLabel } from "./zones/PeopleZone";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone, attachEvidenceFile, fileSizeLabel } from "./zones/EvidenceZone";
@@ -69,6 +70,8 @@ describe("console shell", () => {
     expect(sections).toContain("exports/import-review");
     expect(sections).toContain("exports/mapping");
     expect(sections).toContain("exports/planner-review");
+    // Who each Project resource is: the same kind of act as Mapping, so a section beside it.
+    expect(sections).toContain("exports/people");
     expect(sections).toContain("problems/handover");
     expect(sections).toContain("tasks/supervisor-review");
     // Critical Watch reports on scheduled work, so it is a section under Tasks rather than a
@@ -173,6 +176,72 @@ describe("capability gating mirrors the product rules", () => {
 
     expect(admin.canAcceptSnapshot).toBe(true);
     expect(admin.canManageMapping).toBe(false);
+
+    // Linking a Project resource to a person is shared with the admin, who maintains who the
+    // users are. It is the one mapping-shaped act that is not planner-only.
+    expect(admin.canManageResourceLink).toBe(true);
+  });
+
+  it("does not let a resource link become a permission", () => {
+    const field = buildZoneSession(
+      buildConsoleSession({
+        VITE_SHUTDOWN_TRACKER_PROJECT_ID: "p",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ID: "u",
+        VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "field_user"
+      })
+    );
+
+    // A field user is the person a link is about, and still cannot curate one. The link decides
+    // what their work list shows; it is not a grant, and it is not theirs to make.
+    expect(field.canManageResourceLink).toBe(false);
+    expect(capabilityAllows("MANAGE_RESOURCE_LINK", "planner")).toBe(true);
+    expect(capabilityAllows("MANAGE_RESOURCE_LINK", "admin")).toBe(true);
+    expect(capabilityAllows("MANAGE_RESOURCE_LINK", "supervisor")).toBe(false);
+  });
+});
+
+describe("linking a person to their Project resource", () => {
+  const session = buildZoneSession(buildConsoleSession({}));
+  const client = createConsoleApiClient(session, {
+    fetchImpl: () => Promise.reject(new Error("no network in tests"))
+  });
+
+  it("says a link decides visibility rather than access", () => {
+    const html = renderToString(<PeopleZone session={session} client={client} />);
+
+    // The sentence a planner needs before they start linking people: this is not access control.
+    expect(html).toContain("grants no permission and takes");
+  });
+
+  it("does not offer the link form to somebody who may not link", () => {
+    const html = renderToString(<PeopleZone session={session} client={client} />);
+
+    // An unconfigured session holds no capability, so the form is not rendered as a control
+    // that will fail on submit — the panel says whose job it is instead.
+    expect(html).toContain("Linking a resource to a person is planner-owned.");
+    expect(html).not.toContain("Choose a resource from the accepted schedule");
+  });
+
+  it("shows how much work a resource carries, so a crew is not lost among materials", () => {
+    expect(
+      resourceLabel({
+        resourceExternalUid: "R-MECH",
+        name: "Mechanical crew",
+        assignedLeafTaskCount: 12,
+        linkedUserDisplayName: null
+      })
+    ).toBe("Mechanical crew — 12 tasks");
+
+    // Already linked resources say who holds them rather than vanishing from the list, so a
+    // planner can see why one is unavailable instead of wondering where it went.
+    expect(
+      resourceLabel({
+        resourceExternalUid: "R-ELEC",
+        name: "Electrical crew",
+        assignedLeafTaskCount: 1,
+        linkedUserDisplayName: "Sam Okafor"
+      })
+    ).toBe("Electrical crew — 1 task — already linked to Sam Okafor");
   });
 });
 
@@ -377,6 +446,7 @@ describe("every zone renders", () => {
     ["handover", HandoverZone],
     ["evidence", EvidenceZone],
     ["mapping", MappingZone],
+    ["people", PeopleZone],
     ["export", ExportZone],
     ["critical-watch", CriticalWatchZone]
   ] as const;

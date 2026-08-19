@@ -35,7 +35,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "V009__task_execution_and_progress.sql",
                         "V010__problems_actions_evidence_handover.sql",
                         "V011__import_profiles_and_operational_categories.sql",
-                        "V012__problem_offline_capture.sql");
+                        "V012__problem_offline_capture.sql",
+                        "V013__project_resource_links.sql");
     }
 
     @Test

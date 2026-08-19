@@ -7,8 +7,10 @@ import type {
   TaskProgressSubmitRequest,
   TaskProgressUpdateRecord
 } from "@shutdown-tracker/api-client";
+import type { AssignedWorkView, ImportReviewTaskRow } from "@shutdown-tracker/api-client";
 import {
   App,
+  WorkList,
   captureFieldEvidence,
   describeRaiseFailure,
   mobileChipTone,
@@ -621,5 +623,121 @@ describe("the queue carries Critical Updates as well as progress", () => {
     expect(normalizeStoredSubmission(current)?.kind).toBe("critical-update");
     expect(normalizeStoredSubmission(null)).toBeNull();
     expect(normalizeStoredSubmission({ localId: "local-3" })).toBeNull();
+  });
+});
+
+/**
+ * My Work has to tell four situations apart.
+ *
+ * Every one of them renders an empty list, and only one of them means the reader is finished for
+ * the day. Collapsing them is the exact failure the active goal names: a screen that implies a
+ * capability, or a state, that is not real. These assert the distinction survives.
+ */
+describe("my work says which kind of empty it is", () => {
+  function workView(overrides: Partial<AssignedWorkView> = {}): AssignedWorkView {
+    return {
+      projectId: "project-1",
+      projectSnapshotId: "snapshot-1",
+      snapshotVersion: 3,
+      linked: true,
+      linkedResourceUids: ["R-1"],
+      unmatchedResourceUids: [],
+      tasks: [],
+      ...overrides
+    };
+  }
+
+  function task(id: string, name: string): ImportReviewTaskRow {
+    return {
+      id,
+      externalUid: id,
+      externalId: id,
+      name,
+      wbs: "1.1",
+      outlineNumber: "1.1",
+      outlineLevel: 2,
+      summary: false,
+      parentExternalUid: null,
+      parentImportedTaskId: null,
+      plannedStart: null,
+      plannedFinish: null,
+      actualStart: null,
+      actualFinish: null,
+      percentComplete: null,
+      physicalPercentComplete: null,
+      notes: null
+    };
+  }
+
+  function render(assigned: AssignedWorkView | null, loadMessage = "") {
+    return renderToString(
+      <WorkList
+        assigned={assigned}
+        blockingTaskIds={new Set()}
+        unsentByTaskId={new Map()}
+        loadMessage={loadMessage}
+        onSelect={() => undefined}
+      />
+    );
+  }
+
+  it("says no schedule has been accepted, rather than showing an empty day", () => {
+    const html = render(workView({ projectSnapshotId: null, linked: false, linkedResourceUids: [] }));
+
+    expect(html).toContain("No schedule has been accepted");
+    expect(html).not.toContain("assigned to you.</p>");
+  });
+
+  it("says nobody has linked the reader, rather than that they have no work", () => {
+    const html = render(workView({ linked: false, linkedResourceUids: [] }));
+
+    // The distinction that matters: "we cannot tell" is not "there is nothing".
+    expect(html).toContain("No Microsoft Project resource is linked to your account");
+    expect(html).toContain("A planner links you to your resource");
+  });
+
+  it("says the schedule lost the linked resource, rather than emptying the list quietly", () => {
+    const html = render(workView({ unmatchedResourceUids: ["R-1"] }));
+
+    expect(html).toContain("does not carry the resource you are linked to");
+    expect(html).toContain("Tell a planner");
+  });
+
+  it("distinguishes some resources missing from all of them missing", () => {
+    const html = render(
+      workView({ linkedResourceUids: ["R-1", "R-2"], unmatchedResourceUids: ["R-2"] })
+    );
+
+    expect(html).toContain("does not carry 1 of the resources");
+    expect(html).toContain("some of your work may be missing");
+  });
+
+  it("says the day is clear only when it is", () => {
+    const html = render(workView());
+
+    expect(html).toContain("None of the accepted schedule&#x27;s work is assigned to you.");
+    expect(html).not.toContain("linked to your account");
+  });
+
+  it("lists the work when there is work", () => {
+    const html = render(workView({ tasks: [task("task-1", "C2 Cyclone — remove access cover")] }));
+
+    expect(html).toContain("C2 Cyclone — remove access cover");
+    expect(html).not.toContain("None of the accepted schedule");
+  });
+
+  it("says it could not resolve the work rather than claiming there is none", () => {
+    // The load failed. Reporting that as an empty list would tell somebody on site to go home.
+    const html = render(null);
+
+    expect(html).toContain("Your work could not be resolved");
+  });
+
+  it("says how many it truncated, and does not claim to be showing the schedule", () => {
+    const many = Array.from({ length: 140 }, (_, index) => task(`task-${index}`, `Job ${index}`));
+    const html = render(workView({ tasks: many }));
+
+    expect(html).toContain("Showing the first 100 of 140 tasks assigned to you.");
+    expect(html).not.toContain("every task");
   });
 });

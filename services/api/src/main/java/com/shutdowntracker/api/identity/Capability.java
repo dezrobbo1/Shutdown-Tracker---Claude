@@ -25,14 +25,25 @@ public enum Capability {
     // Mapping configuration is planner-owned. An admin may administer who can configure
     // mappings but does not own the planner's interpretation of Project fields.
     MANAGE_IMPORT_PROFILE(ProjectRole.PLANNER),
+    // Deciding which Microsoft Project resource is which person. Planner-owned for the same
+    // reason as the import profile — it is an interpretation of the Project source — and shared
+    // with an admin, who is the role that maintains who the users are in the first place.
+    //
+    // This capability governs curating the links. It is never consulted when deciding what
+    // somebody may do: a link narrows a work list and confers no authority, so the capabilities
+    // below are unchanged by whether the actor holds one.
+    MANAGE_RESOURCE_LINK(ProjectRole.PLANNER, ProjectRole.ADMIN),
     RECORD_APPROVAL(ProjectRole.PLANNER),
     CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER),
     APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),
     GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER),
     RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER),
 
-    // Execution. Field users and contractors submit for their own assigned work;
-    // narrowing that to the specific assignment is responsibility scoping, still to come.
+    // Execution. Field users and contractors submit for their own assigned work. The grant
+    // stays by role even though project_resource_links now models who holds which resource,
+    // because that link is relevance and this is permission. Narrowing the grant to it would
+    // stop a supervisor reporting on behalf of a crew that has none, and would quietly turn
+    // Project resource data into an authorization source, which AGENTS.md forbids.
     SUBMIT_TASK_PROGRESS(
             ProjectRole.FIELD_USER,
             ProjectRole.CONTRACTOR,
@@ -70,10 +81,10 @@ public enum Capability {
     // watchlist is a planning act; reporting against one is an execution act, which is why
     // these are two capabilities and not one.
     MANAGE_CRITICAL_WATCHLIST(ProjectRole.PLANNER, ProjectRole.SHUTDOWN_CONTROL),
-    // The matrix says "assigned Field User, assigned Contractor". Narrowing to the specific
-    // assignment is responsibility scoping, which no table models yet, so the grant is by
-    // role for now — the same compromise SUBMIT_TASK_PROGRESS already makes. A planner is
-    // deliberately absent: planners compose Critical Work Packages, they do not report on them.
+    // The matrix says "assigned Field User, assigned Contractor". The grant is by role, for
+    // the reason SUBMIT_TASK_PROGRESS gives above: the resource link decides relevance, not
+    // authority. A planner is deliberately absent: planners compose Critical Work Packages,
+    // they do not report on them.
     SUBMIT_CRITICAL_UPDATE(
             ProjectRole.SHUTDOWN_CONTROL,
             ProjectRole.COORDINATOR,

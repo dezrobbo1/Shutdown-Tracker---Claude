@@ -1,4 +1,5 @@
 export * from "./identity";
+import type { ProjectRole } from "./identity";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -122,6 +123,82 @@ export type ImportReviewTaskRow = {
   percentComplete: number | null;
   physicalPercentComplete: number | null;
   notes: string | null;
+};
+
+/**
+ * One explicit link from a Microsoft Project resource to a Shutdown Tracker user.
+ *
+ * `matchedInSnapshot` is resolved against the newest accepted snapshot rather than stored, and is
+ * false for a link whose resource that snapshot no longer carries. `resourceNameAtLink` is what the
+ * resource was called when somebody linked it, kept so an unmatched link can still say what it
+ * pointed at.
+ */
+export type ProjectResourceLinkRecord = {
+  id: string;
+  projectId: string;
+  userId: string;
+  userDisplayName: string;
+  resourceExternalUid: string;
+  resourceNameAtLink: string | null;
+  active: boolean;
+  linkedAt: string;
+  linkedByUserId: string;
+  revokedAt: string | null;
+  revokedByUserId: string | null;
+  matchedInSnapshot: boolean;
+  resourceNameInSnapshot: string | null;
+};
+
+/**
+ * What Microsoft Project says is the reader's own work.
+ *
+ * The empty cases are deliberately distinguishable. `projectSnapshotId` null means no schedule has
+ * been accepted; `linked` false means no resource has been linked to this user, so the question has
+ * no answer rather than the answer "nothing"; `unmatchedResourceUids` non-empty means a link points
+ * at a resource the accepted snapshot has lost. An interface that renders all of these as "no work"
+ * tells somebody on site they are finished when they are not.
+ */
+export type AssignedWorkView = {
+  projectId: string;
+  projectSnapshotId: string | null;
+  snapshotVersion: number | null;
+  linked: boolean;
+  linkedResourceUids: string[];
+  unmatchedResourceUids: string[];
+  tasks: ImportReviewTaskRow[];
+};
+
+export type LinkableUser = {
+  userId: string;
+  displayName: string;
+  role: ProjectRole;
+};
+
+/**
+ * A Project resource a link can point at.
+ *
+ * `assignedLeafTaskCount` is what makes the list usable: a shutdown schedule carries plant,
+ * materials and cost resources beside people, and the ones worth linking are the ones work is
+ * booked against.
+ */
+export type LinkableResource = {
+  resourceExternalUid: string;
+  name: string | null;
+  resourceType: string | null;
+  assignedLeafTaskCount: number;
+  linkedUserId: string | null;
+  linkedUserDisplayName: string | null;
+};
+
+export type LinkCandidates = {
+  users: LinkableUser[];
+  resources: LinkableResource[];
+  projectSnapshotId: string | null;
+};
+
+export type ProjectResourceLinkCreateRequest = {
+  userId: string;
+  resourceExternalUid: string;
 };
 
 export type ImportReviewResourceRow = {
@@ -1061,6 +1138,41 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           defaultHeaders,
           taskProgressPath(projectId, `${progressUpdateId}/planner-review`),
           { method: "POST", body: request }
+        )
+    },
+    assignedWork: {
+      /** The acting user's own work. There is no user parameter: the server answers for the caller. */
+      mine: (projectId: string) =>
+        requestJson<AssignedWorkView>(transport, baseUrl, defaultHeaders, projectPath(projectId, "assigned-work")),
+      candidates: (projectId: string) =>
+        requestJson<LinkCandidates>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, "resource-links/candidates")
+        ),
+      listLinks: (projectId: string) =>
+        requestJson<ProjectResourceLinkRecord[]>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, "resource-links")
+        ),
+      link: (projectId: string, request: ProjectResourceLinkCreateRequest) =>
+        requestJson<ProjectResourceLinkRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, "resource-links"),
+          { method: "POST", body: request }
+        ),
+      revokeLink: (projectId: string, linkId: string) =>
+        requestJson<ProjectResourceLinkRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          projectPath(projectId, `resource-links/${linkId}/revoke`),
+          { method: "POST" }
         )
     },
     problems: {

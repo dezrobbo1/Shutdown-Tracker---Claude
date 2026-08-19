@@ -24,6 +24,7 @@ export type ZoneSession = ConsoleSession & {
   canManageCriticalWatchlist: boolean;
   canSubmitCriticalUpdate: boolean;
   canManageMapping: boolean;
+  canManageResourceLink: boolean;
   canCreateExportPreview: boolean;
   canApproveExport: boolean;
   canGenerateArtifact: boolean;
@@ -53,6 +54,9 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
     canManageCriticalWatchlist: sessionAllows(session, "MANAGE_CRITICAL_WATCHLIST"),
     canSubmitCriticalUpdate: sessionAllows(session, "SUBMIT_CRITICAL_UPDATE"),
     canManageMapping: sessionAllows(session, "MANAGE_IMPORT_PROFILE"),
+    // Deciding which Project resource is which person. Planner-owned like the mapping above,
+    // and shared with an admin, who is the role that maintains who the users are.
+    canManageResourceLink: sessionAllows(session, "MANAGE_RESOURCE_LINK"),
     canCreateExportPreview: sessionAllows(session, "CREATE_EXPORT_PREVIEW"),
     canApproveExport: sessionAllows(session, "APPROVE_EXPORT_BATCH"),
     canGenerateArtifact: sessionAllows(session, "GENERATE_EXPORT_ARTIFACT"),

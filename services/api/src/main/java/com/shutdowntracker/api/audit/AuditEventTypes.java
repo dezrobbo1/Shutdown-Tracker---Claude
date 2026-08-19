@@ -2,6 +2,8 @@ package com.shutdowntracker.api.audit;
 
 public final class AuditEventTypes {
 
+    public static final String PROJECT_RESOURCE_LINKED = "project_resource_linked";
+    public static final String PROJECT_RESOURCE_LINK_REVOKED = "project_resource_link_revoked";
     public static final String IMPORT_SNAPSHOT_ACCEPTED = "import_snapshot_accepted";
     public static final String IMPORT_SNAPSHOT_REJECTED = "import_snapshot_rejected";
     public static final String SOURCE_FILE_UPLOADED = "source_file_uploaded";

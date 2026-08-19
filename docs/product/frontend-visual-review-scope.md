@@ -285,8 +285,14 @@ its product and API contracts are approved.
 
 The remaining frontend gaps are listed under "Not production-complete yet" in the root `README.md`.
 Offline problem raising is done: it needed a server-side idempotency key on problem creation before
-it could be code, and V012 added one. The one that remains is not purely frontend work either —
-assignment-scoped work lists need something linking a Microsoft Project resource to a Shutdown
-Tracker user, which is a product decision before it is an implementation.
+it could be code, and V012 added one. Assignment-scoped work lists are done too, and needed a
+product decision first rather than a screen: V013 links a Microsoft Project resource to a Shutdown
+Tracker user explicitly, and the field app now shows the reader's own work. The decision, and the
+four different kinds of empty work list it has to keep apart, are in
+[Field Identity and Assigned Work](field-identity-and-assigned-work.md).
+
+The console gained one section for it — Exports > People — because saying which resource is which
+person is the same kind of act as Operational Mapping. The five console zones and five field zones
+are unchanged.
 
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.
