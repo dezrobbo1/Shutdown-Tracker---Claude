@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 
 /**
  * The order MSPDI requires for the child elements of a {@code <Task>}.
@@ -47,15 +48,17 @@ final class MspdiTaskElementOrder {
     }
 
     /**
-     * The schema position of an element the candidate did not write, used only to decide where an
-     * inserted element belongs relative to it.
+     * The schema position of an element the candidate did not write, when this binding models it.
      *
-     * <p>Unknown elements sort last. A source file may legitimately carry extension elements this
-     * MSPDI binding does not model, and refusing to place an approved field because of one would
-     * fail a candidate over something unrelated to the approved input.
+     * <p>Empty for an element the binding does not know. A source written by a newer Microsoft
+     * Project may legitimately carry one, and refusing to place an approved field because of it
+     * would fail a candidate over something unrelated to the approved input. Its position in the
+     * sequence is genuinely unknown, though, so it cannot be used to decide where anything else
+     * belongs — only the elements with a known position can.
      */
-    static int positionOfOrLast(String elementLocalName) {
-        return POSITIONS.getOrDefault(elementLocalName, Integer.MAX_VALUE);
+    static OptionalInt knownPositionOf(String elementLocalName) {
+        Integer position = POSITIONS.get(elementLocalName);
+        return position == null ? OptionalInt.empty() : OptionalInt.of(position);
     }
 
     private static Map<String, Integer> loadPositions() {
@@ -85,7 +88,18 @@ final class MspdiTaskElementOrder {
 
         List<String> ordered = new ArrayList<>();
         for (String property : xmlType.propOrder()) {
-            ordered.add(elementNamesByProperty.getOrDefault(property, property));
+            String elementName = elementNamesByProperty.get(property);
+            if (elementName == null) {
+                // Falling back to the property name would put a camel-cased name in the table that
+                // no MSPDI element ever matches, so that element would silently lose its position
+                // and stop being able to place anything. A binding this code cannot read is a
+                // reason to stop, not to guess.
+                throw new IllegalStateException(
+                        "MPXJ's MSPDI task binding declares an element order entry with no matching "
+                                + "field: " + property
+                );
+            }
+            ordered.add(elementName);
         }
 
         Map<String, Integer> positions = new HashMap<>();

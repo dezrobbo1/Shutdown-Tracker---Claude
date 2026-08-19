@@ -8,8 +8,9 @@ Two goals are complete and merged, and are kept below as history: the green base
 this repository, and the candidate schedule Microsoft Project can open. The checks the first one
 fixed are the ones every goal since has been validated by.
 
-A separate branch, `fix/candidate-element-placement`, carries a follow-up correction to the
-candidate goal. It is not part of this goal and does not gate it.
+A follow-up correction to the candidate goal, `fix/candidate-element-placement`, is merged as
+pull request [#5](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/5). It repaired
+where an approved field is written into the source document, and gated nothing in this goal.
 
 This repository is a fresh start. Its history carries the work previously developed on the
 `claude-branch` of `dezrobbo1/Shutdown-Tracker`, minus the source-material archive. No external

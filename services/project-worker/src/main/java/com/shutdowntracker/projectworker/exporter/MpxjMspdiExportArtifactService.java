@@ -23,6 +23,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -243,14 +244,23 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
 
     /**
      * The first existing child that must follow the new element, or {@code null} to append.
+     *
+     * <p>Only elements whose schema position this binding knows can answer that question. An
+     * element the binding does not model — a source written by a newer Microsoft Project may carry
+     * one — has no known position, so it is skipped rather than treated as belonging last. Treating
+     * it as last stopped the search at the first such element and inserted the approved field
+     * immediately before it, which places the field wherever that element happens to sit rather
+     * than where the schema puts it.
      */
     private Node insertionPointFor(Element taskElement, String elementName) {
         int target = MspdiTaskElementOrder.positionOf(elementName);
         Node child = taskElement.getFirstChild();
         while (child != null) {
-            if (child instanceof Element element
-                    && MspdiTaskElementOrder.positionOfOrLast(element.getLocalName()) > target) {
-                return element;
+            if (child instanceof Element element) {
+                OptionalInt position = MspdiTaskElementOrder.knownPositionOf(element.getLocalName());
+                if (position.isPresent() && position.getAsInt() > target) {
+                    return element;
+                }
             }
             child = child.getNextSibling();
         }

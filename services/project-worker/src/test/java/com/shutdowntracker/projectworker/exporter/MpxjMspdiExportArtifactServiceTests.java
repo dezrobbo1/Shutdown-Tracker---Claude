@@ -381,6 +381,68 @@ class MpxjMspdiExportArtifactServiceTests {
                 .hasMessage("microsoftProjectTaskUid must be a canonical positive integer.");
     }
 
+    /**
+     * The approved fields are absent from every task in the accepted source, so each one is an
+     * insertion rather than an overwrite. MSPDI declares a task's children as an
+     * {@code xsd:sequence}, so where the element lands is part of whether the candidate is a
+     * document Microsoft Project will open.
+     *
+     * <p>Nothing else covers this. The element-name assertions elsewhere in this class check that a
+     * field is present, and {@link MspdiCandidateDifference} matches children by name and
+     * occurrence, so both are satisfied by a field written in the wrong place.
+     */
+    @Test
+    void insertsApprovedFieldsAtTheirMspdiSchemaPositions() throws Exception {
+        Path outputPath = tempDir.resolve("schema-order.mspdi.xml");
+
+        service.generate(syntheticRequest(), SOURCE_FIXTURE, outputPath);
+
+        Element tasks = directChild(parseDocumentElement(outputPath), "Tasks");
+        // Task 2 ends at Summary, so both approved fields follow it, in schema order.
+        assertThat(directElementNames(taskElement(tasks, "2")))
+                .endsWith("Summary", "PercentComplete", "ActualStart");
+        // Task 3 carries a dependency, which closes the sequence after the progress fields. An
+        // approved field appended to the end of the task would land after it and be out of order.
+        assertThat(directElementNames(taskElement(tasks, "3")))
+                .endsWith("Summary", "ActualFinish", "PredecessorLink");
+    }
+
+    /**
+     * A source written by a newer Microsoft Project may carry a task element this MPXJ binding does
+     * not model. Its schema position is unknowable, so it cannot decide where an approved field
+     * belongs — the known elements around it can.
+     */
+    @Test
+    void placesApprovedFieldsByTheElementsTheBindingKnowsRatherThanTheOnesItDoesNot() throws Exception {
+        Path unmodelledSource = tempDir.resolve("unmodelled-element-source.mspdi.xml");
+        Files.writeString(unmodelledSource, Files.readString(SOURCE_FIXTURE).replace(
+                "<OutlineNumber>1.2</OutlineNumber>",
+                "<OutlineNumber>1.2</OutlineNumber>\n      <UnmodelledTaskElement>1</UnmodelledTaskElement>"
+        ));
+        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
+                "Synthetic Unmodelled Element",
+                sourceDescriptorFor(unmodelledSource),
+                List.of(new ProjectExportArtifactTask(
+                        "synthetic-task-a2",
+                        "3",
+                        "3",
+                        "Synthetic Task A2",
+                        true,
+                        List.of(new ProjectExportArtifactFieldValue(
+                                ProjectExportArtifactField.ACTUAL_FINISH,
+                                "2026-01-06T15:00:00Z"))
+                ))
+        );
+        Path outputPath = tempDir.resolve("unmodelled-element-candidate.mspdi.xml");
+
+        service.generate(request, unmodelledSource, outputPath);
+
+        Element tasks = directChild(parseDocumentElement(outputPath), "Tasks");
+        assertThat(directElementNames(taskElement(tasks, "3")))
+                .containsSequence("OutlineNumber", "UnmodelledTaskElement", "OutlineLevel")
+                .containsSequence("Summary", "ActualFinish", "PredecessorLink");
+    }
+
     private ProjectExportArtifactRequest syntheticRequest() {
         return new ProjectExportArtifactRequest(
                 "Synthetic Export Preview",
@@ -519,6 +581,22 @@ class MpxjMspdiExportArtifactServiceTests {
             child = child.getNextSibling();
         }
         throw new AssertionError("Expected XML element was not found: " + localName);
+    }
+
+    private Element parseDocumentElement(Path path) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        return factory.newDocumentBuilder().parse(path.toFile()).getDocumentElement();
+    }
+
+    private ProjectExportArtifactSource sourceDescriptorFor(Path path) throws Exception {
+        return new ProjectExportArtifactSource(
+                UUID.fromString("00000000-0000-0000-0000-0000000000f2"),
+                path.toUri().toString(),
+                HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))
+                )
+        );
     }
 
     private List<String> directElementNames(Element parent) {
