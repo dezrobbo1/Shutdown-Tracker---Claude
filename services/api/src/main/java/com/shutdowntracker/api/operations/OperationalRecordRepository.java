@@ -17,6 +17,9 @@ public interface OperationalRecordRepository {
 
     Optional<ProblemRecord> findProblem(UUID projectId, UUID problemId);
 
+    /** The problem an earlier capture with this key already raised, if there is one. */
+    Optional<ProblemRecord> findProblemByIdempotencyKey(UUID projectId, String idempotencyKey);
+
     ProblemRecord assignProblem(UUID problemId, UUID assigneeUserId);
 
     ProblemRecord closeProblem(UUID problemId, UUID resolvedByUserId, String resolutionNote);

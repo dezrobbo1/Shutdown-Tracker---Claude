@@ -2,7 +2,7 @@
 
 ## Status
 
-Active on `feat/field-critical-updates`.
+Active on `feat/offline-problem-raising`.
 
 Two goals are complete and merged, and are kept below as history: the green baseline that opened
 this repository, and the candidate schedule Microsoft Project can open. The checks the first one
@@ -120,8 +120,10 @@ the next starts.
 3. **Critical Update reporting from the field app.** *(done, `feat/field-critical-updates`)* The
    console could file one; a field user or contractor could not, which was the wrong way round.
    Filed from Today and carried by the offline queue, which now holds more than one kind of report.
-4. **Offline problem raising.** Blocked on problem creation having no server-side idempotency key,
-   so a queued retry could raise the same problem twice. Needs a migration.
+4. **Offline problem raising.** *(done, `feat/offline-problem-raising`)* Raising a problem needed a
+   connection at the moment it was raised, which is the moment there is least likely to be one. V012
+   gives `problems` an idempotency key, so the queue can hold one on the same terms as progress, and
+   an unsent problem is listed on the screen that raised it rather than disappearing from it.
 5. **Assignment-scoped work lists.** The field app lists the snapshot's leaf tasks rather than the
    signed-in user's work, because nothing links a Microsoft Project resource to a Shutdown Tracker
    user. Needs a product decision on that link before it is code.

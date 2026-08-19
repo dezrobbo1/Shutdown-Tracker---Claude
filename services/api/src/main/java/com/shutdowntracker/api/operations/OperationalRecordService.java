@@ -52,9 +52,23 @@ public class OperationalRecordService {
         this.evidenceStorageProperties = evidenceStorageProperties;
     }
 
+    /**
+     * Raises a problem.
+     *
+     * <p>A repeated idempotency key returns the problem the first capture raised, which is what
+     * makes a problem safe to hold in the field app's offline queue: a retry over a bad
+     * connection cannot produce a second record of the same thing. The replay is not audited
+     * again — the problem was raised once, and an audit trail saying otherwise would be wrong.
+     */
     @Transactional
     public ProblemRecord raiseProblem(UUID projectId, Actor actor, ProblemCreateRequest request) {
         Objects.requireNonNull(actor, "actor is required.");
+        if (request.idempotencyKey() != null) {
+            var existing = repository.findProblemByIdempotencyKey(projectId, request.idempotencyKey());
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
         ProblemRecord problem = repository.createProblem(projectId, actor.userId(), request);
         audit(projectId, actor, "problem.raised", "problem", problem.id(), problem.title(),
                 Map.of("severity", problem.severity().databaseValue(),

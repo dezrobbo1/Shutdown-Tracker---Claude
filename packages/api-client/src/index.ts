@@ -507,12 +507,21 @@ export type ProblemStatus =
   | "REOPENED"
   | "SUPERSEDED";
 
+/**
+ * Raising a problem.
+ *
+ * There is no raiser field: the server attributes it to the authenticated actor.
+ * `idempotencyKey` lets a problem captured in the field be retried without being raised
+ * twice; a repeat returns the problem the first capture raised.
+ */
 export type ProblemCreateRequest = {
   importedTaskId?: string | null;
   title: string;
   description?: string | null;
   severity?: ProblemSeverity;
   blocksExecution: boolean;
+  idempotencyKey?: string | null;
+  offlineLocalId?: string | null;
 };
 
 export type ProblemRecord = {

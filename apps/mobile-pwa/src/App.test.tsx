@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
 import type {
   CriticalUpdateSubmitRequest,
+  ProblemCreateRequest,
   TaskProgressSubmitRequest,
   TaskProgressUpdateRecord
 } from "@shutdown-tracker/api-client";
@@ -11,6 +12,7 @@ import {
   captureFieldEvidence,
   describeRaiseFailure,
   mobileChipTone,
+  queuedItemDetail,
   toInstant,
   validateFieldProgress,
   workCardPercent
@@ -104,16 +106,14 @@ describe("field app shell", () => {
     expect(html).not.toContain("Review mode");
   });
 
-  it("says a problem was not kept when it could not be sent", () => {
-    // A progress report survives a dead connection; a problem does not, and the difference
-    // has to be visible or someone walks away believing it was recorded.
-    expect(describeRaiseFailure(new TypeError("Failed to fetch"))).toContain("not saved on this device");
-    expect(describeRaiseFailure(new Error("Network request failed"))).toContain("not saved on this device");
-
-    // A real answer from the server is more useful than the generic line.
-    expect(describeRaiseFailure(new Error("Your role on this project cannot raise problems."))).toBe(
-      "Your role on this project cannot raise problems."
+  it("says a problem was not kept when the device could not keep it", () => {
+    // A dead connection no longer reaches here: the capture goes to the queue and Sync owns
+    // the sending. What is left is the device failing to store it, and then nothing holds the
+    // problem — so the line has to send the person back to raise it again.
+    expect(describeRaiseFailure(new Error("QuotaExceededError"))).toBe(
+      "This device could not keep the problem: QuotaExceededError. Raise it again."
     );
+    expect(describeRaiseFailure(null)).toBe("This device could not keep the problem. Raise it again.");
   });
 
   it("names the sync states so saved and sent are not confused", () => {
@@ -466,10 +466,16 @@ describe("the queue carries Critical Updates as well as progress", () => {
 
     await queue.enqueueProgress(capture, "Remove guard");
     await queue.enqueueCriticalUpdate(criticalUpdate, "C2 Cyclone — internals");
+    await queue.enqueueProblem({
+      importedTaskId: "task-1",
+      title: "Scaffold missing",
+      description: null,
+      blocksExecution: true
+    });
     await queue.enqueueProgress(capture, "Refit guard");
     await queue.flush();
 
-    expect(order).toEqual(["progress", "critical-update", "progress"]);
+    expect(order).toEqual(["progress", "critical-update", "problem", "progress"]);
   });
 
   /**
@@ -481,6 +487,69 @@ describe("the queue carries Critical Updates as well as progress", () => {
 
     expect(describeQueueError(notFound, "progress")).toContain("schedule snapshot");
     expect(describeQueueError(notFound, "critical-update")).toContain("critical work package");
+    expect(describeQueueError(notFound, "problem")).toContain("raised against");
+
+    const forbidden = new ShutdownTrackerApiError("failed", 403, "");
+    expect(describeQueueError(forbidden, "problem")).toContain("cannot raise problems");
+  });
+
+  /**
+   * A problem is raised where the work is, which is where there is no signal. Holding it in the
+   * queue is only safe because the server pairs the idempotency key with the project: the retry
+   * returns the problem the first attempt raised rather than raising a second one.
+   */
+  it("carries an idempotency key so a retry cannot raise the same problem twice", async () => {
+    const sent: ProblemCreateRequest[] = [];
+    let failFirst = true;
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async (item) => {
+        sent.push(item.request as ProblemCreateRequest);
+        if (failFirst) {
+          failFirst = false;
+          throw new TypeError("Failed to fetch");
+        }
+        return { id: "problem-1" };
+      }
+    });
+
+    await queue.enqueueProblem({
+      importedTaskId: "task-1",
+      title: "Scaffold missing",
+      description: "Cannot reach the valve.",
+      blocksExecution: true
+    });
+    await queue.flush();
+    await queue.flush();
+
+    expect(sent).toHaveLength(2);
+    expect(sent[0].idempotencyKey).toBeTruthy();
+    expect(sent[1].idempotencyKey).toBe(sent[0].idempotencyKey);
+
+    const items = await queue.list();
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("problem");
+    // The title is what identifies a problem in the sync list; nothing else on it would.
+    expect(items[0].subject).toBe("Scaffold missing");
+    expect(items[0].syncState).toBe("SYNCED");
+    expect(items[0].serverId).toBe("problem-1");
+  });
+
+  it("keeps a raised problem queued when the network fails, because it is still wrong", async () => {
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async () => {
+        throw new TypeError("Failed to fetch");
+      }
+    });
+
+    await queue.enqueueProblem({ title: "Valve seized", description: null, blocksExecution: true });
+    const items = await queue.flush();
+
+    expect(items[0].syncState).toBe("PENDING");
+    expect(items[0].lastError).toContain("Failed to fetch");
   });
 
   /**
@@ -506,6 +575,33 @@ describe("the queue carries Critical Updates as well as progress", () => {
     expect(normalized?.kind).toBe("progress");
     expect(normalized?.subject).toBe("C2 Cyclone — remove access cover");
     expect(normalized?.syncState).toBe("PENDING");
+  });
+
+  /**
+   * The sync list has one line per item. What that line has to say differs by kind, and the half
+   * a supervisor reads first on a problem is whether it stops work.
+   */
+  it("says what each queued kind is about in one line", () => {
+    expect(
+      queuedItemDetail({
+        kind: "problem",
+        request: { title: "Scaffold missing", description: "Cannot reach the valve.", blocksExecution: true }
+      } as never)
+    ).toBe("Blocked · Cannot reach the valve.");
+
+    expect(
+      queuedItemDetail({
+        kind: "problem",
+        request: { title: "Label unreadable", description: null, blocksExecution: false }
+      } as never)
+    ).toBe("Problem");
+
+    expect(
+      queuedItemDetail({
+        kind: "progress",
+        request: { executionState: "IN_PROGRESS", percentComplete: 40 }
+      } as never)
+    ).toBe("In progress · 40%");
   });
 
   it("keeps an item that already carries a kind, and drops one that is not a submission", () => {

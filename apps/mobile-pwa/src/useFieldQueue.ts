@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CriticalUpdateSubmitRequest, TaskProgressSubmitRequest } from "@shutdown-tracker/api-client";
+import type {
+  CriticalUpdateSubmitRequest,
+  ProblemCreateRequest,
+  TaskProgressSubmitRequest
+} from "@shutdown-tracker/api-client";
 import { OfflineSubmissionQueue } from "./offlineQueue";
 import type { QueueStore, QueuedSubmission } from "./offlineQueue";
 import { createQueueStore } from "./indexedDbQueueStore";
@@ -41,10 +45,15 @@ export function useFieldQueue(
       new OfflineSubmissionQueue({
         store: storage.store,
         // Which endpoint a kind goes to is decided here; the queue only decides when to send.
-        submit: (item) =>
-          item.kind === "progress"
-            ? client.taskProgress.submit(projectId, item.request)
-            : client.criticalWatch.submitUpdate(projectId, item.request),
+        submit: (item) => {
+          if (item.kind === "progress") {
+            return client.taskProgress.submit(projectId, item.request);
+          }
+          if (item.kind === "critical-update") {
+            return client.criticalWatch.submitUpdate(projectId, item.request);
+          }
+          return client.problems.raise(projectId, item.request);
+        },
         newId: newLocalId
       }),
     [storage.store, client, projectId]
@@ -109,6 +118,14 @@ export function useFieldQueue(
     [queue, sendIfConnected]
   );
 
+  const captureProblem = useCallback(
+    async (request: Omit<ProblemCreateRequest, "idempotencyKey" | "offlineLocalId">) => {
+      await queue.enqueueProblem(request);
+      await sendIfConnected();
+    },
+    [queue, sendIfConnected]
+  );
+
   const retry = useCallback(
     async (localId: string) => {
       setItems(await queue.retry(localId));
@@ -145,7 +162,7 @@ export function useFieldQueue(
 
   const state: FieldQueueState = { items, durable: storage.durable, online, flushing };
 
-  return { state, capture, captureCriticalUpdate, flush, retry, clearSettled, refresh };
+  return { state, capture, captureCriticalUpdate, captureProblem, flush, retry, clearSettled, refresh };
 }
 
 /**
