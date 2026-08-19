@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ClipboardList, RefreshCw, ShieldAlert, Sunrise, UploadCloud } from "lucide-react";
 import type {
+  CriticalUpdateSubmitRequest,
+  CriticalWorkPackageReportingSummary,
   EvidenceRecord,
   HandoverNoteRecord,
   ImportReviewTaskRow,
@@ -16,7 +18,7 @@ import {
 } from "./fieldSession";
 import { useFieldQueue } from "./useFieldQueue";
 import { pendingCount, rejectedCount } from "./offlineQueue";
-import type { QueuedProgressUpdate, SyncState } from "./offlineQueue";
+import type { QueuedSubmission, SyncState } from "./offlineQueue";
 
 /**
  * The Mobile Field App.
@@ -79,6 +81,7 @@ export function App() {
   const [tasks, setTasks] = useState<ImportReviewTaskRow[]>([]);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
   const [handover, setHandover] = useState<HandoverNoteRecord[]>([]);
+  const [criticalPackages, setCriticalPackages] = useState<CriticalWorkPackageReportingSummary[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [loadMessage, setLoadMessage] = useState(
     session.live ? "Loading assigned work…" : "No project configured for this device."
@@ -104,6 +107,10 @@ export function App() {
         .listUnacknowledged(session.projectId)
         .catch(() => []);
       setHandover(unacknowledged);
+      // One request for every active package, rather than walking watchlists on a phone.
+      setCriticalPackages(
+        await client.criticalWatch.reportingSummary(session.projectId).catch(() => [])
+      );
       setLoadMessage("");
     } catch (error) {
       // Work already on the device stays usable; only the refresh failed.
@@ -139,15 +146,28 @@ export function App() {
    * new one, which reads as if the report went nowhere. The queue already knows better.
    */
   const unsentByTaskId = useMemo(() => {
-    const byTask = new Map<string, QueuedProgressUpdate>();
+    const byTask = new Map<string, QueuedSubmission>();
     for (const item of queue.state.items) {
-      if (item.syncState === "SYNCED") {
+      // Only progress reports carry a task percentage; a queued Critical Update says nothing
+      // about how far one task has got.
+      if (item.syncState === "SYNCED" || item.kind !== "progress") {
         continue;
       }
       byTask.set(item.request.importedTaskId, item);
     }
     return byTask;
   }, [queue.state.items]);
+
+  /**
+   * Problems raised on this device that the server has not confirmed.
+   *
+   * The list on the Problems screen is the server's answer. Without these, a problem raised
+   * with no signal disappears from the screen that was just used to raise it.
+   */
+  const unsentProblems = useMemo(
+    () => queue.state.items.filter((item) => item.kind === "problem" && item.syncState !== "SYNCED"),
+    [queue.state.items]
+  );
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const waiting = pendingCount(queue.state.items);
@@ -225,19 +245,26 @@ export function App() {
             waiting={waiting}
             rejected={rejected}
             loadMessage={loadMessage}
+            criticalPackages={criticalPackages}
+            canSubmitCriticalUpdate={fieldSessionAllows(session, "SUBMIT_CRITICAL_UPDATE")}
+            onCriticalUpdate={async (request, packageName) => {
+              await queue.captureCriticalUpdate(request, packageName);
+            }}
           />
         ) : null}
 
         {screen === "problems" ? (
           <ProblemsScreen
             problems={problems}
+            unsentProblems={unsentProblems}
             tasks={tasks}
             defaultTaskId={selectedTaskId}
             canRaise={fieldSessionAllows(session, "RAISE_PROBLEM")}
             onRaise={async (request) => {
-              await client.problems.raise(session.projectId, request);
+              await queue.captureProblem(request);
+              // The list above is the server's. Reloading it picks up the problem once the
+              // queue has sent it; until then the unsent entry is what shows.
               await loadWork();
-              setScreen("problems");
             }}
           />
         ) : null}
@@ -246,7 +273,11 @@ export function App() {
           <EvidenceScreen
             tasks={tasks}
             live={session.live}
+            online={queue.state.online}
             loadEvidence={(taskId) => client.evidence.listForTask(session.projectId, taskId)}
+            captureEvidence={(taskId, file, caption) =>
+              captureFieldEvidence(client, session.projectId, taskId, file, caption)
+            }
           />
         ) : null}
 
@@ -313,7 +344,7 @@ function WorkList({
 }: {
   tasks: ImportReviewTaskRow[];
   blockingTaskIds: Set<string>;
-  unsentByTaskId: Map<string, QueuedProgressUpdate>;
+  unsentByTaskId: Map<string, QueuedSubmission>;
   loadMessage: string;
   onSelect: (task: ImportReviewTaskRow) => void;
 }) {
@@ -511,7 +542,8 @@ function ProblemCapture({
       </div>
       <p className="boundary-copy">
         A problem is a record someone has to answer, not a message. Marking it blocking says
-        work cannot continue.
+        work cannot continue. It is kept on this device first and sent when there is a
+        connection, so it survives being raised where there is none.
       </p>
 
       <form
@@ -532,7 +564,9 @@ function ProblemCapture({
             .then(() => {
               setTitle("");
               setDescription("");
-              setMessage("Problem raised.");
+              // "Saved on this device" and "the server has it" are different facts. Sync owns
+              // the second, and the entry above this form shows which one this problem is at.
+              setMessage("Saved on this device. Its progress is in Sync.");
             })
             .catch((error: unknown) => setMessage(describeRaiseFailure(error)))
             .finally(() => setBusy(false));
@@ -592,7 +626,7 @@ function SyncQueue({
   onRetry,
   onClear
 }: {
-  items: QueuedProgressUpdate[];
+  items: QueuedSubmission[];
   flushing: boolean;
   online: boolean;
   onFlush: () => void;
@@ -613,13 +647,8 @@ function SyncQueue({
           <article className="sync-queue-card" key={item.localId}>
             <div>
               <span>{formatShort(item.capturedAt)}</span>
-              <strong>{item.taskName}</strong>
-              <p>
-                {executionStateLabels[item.request.executionState]}
-                {item.request.percentComplete === null || item.request.percentComplete === undefined
-                  ? ""
-                  : ` · ${item.request.percentComplete}%`}
-              </p>
+              <strong>{item.subject}</strong>
+              <p>{queuedItemDetail(item)}</p>
               {item.lastError ? <p className="field-alert">{item.lastError}</p> : null}
             </div>
             <div className="sync-queue-side">
@@ -659,7 +688,10 @@ function TodayScreen({
   handover,
   waiting,
   rejected,
-  loadMessage
+  loadMessage,
+  criticalPackages,
+  canSubmitCriticalUpdate,
+  onCriticalUpdate
 }: {
   tasks: ImportReviewTaskRow[];
   problems: ProblemRecord[];
@@ -667,6 +699,12 @@ function TodayScreen({
   waiting: number;
   rejected: number;
   loadMessage: string;
+  criticalPackages: CriticalWorkPackageReportingSummary[];
+  canSubmitCriticalUpdate: boolean;
+  onCriticalUpdate: (
+    request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+    packageName: string
+  ) => Promise<void>;
 }) {
   const blocking = problems.filter((problem) => problem.blocksExecution);
 
@@ -705,7 +743,140 @@ function TodayScreen({
           ))}
         </div>
       ) : null}
+
+      <CriticalUpdateCapture
+        packages={criticalPackages}
+        canSubmit={canSubmitCriticalUpdate}
+        onSubmit={onCriticalUpdate}
+      />
     </section>
+  );
+}
+
+/**
+ * Filing a Critical Update from the field.
+ *
+ * On Today rather than as a sixth destination: the field zones are fixed at My Work, Today,
+ * Problems, Evidence and Sync, and `docs/product/frontend-visual-review-scope.md` places Critical
+ * Watch on Today. A shift update is a "what is happening now" act, which is what Today is.
+ *
+ * The package is chosen directly rather than derived from the task in hand. Resolving a task to
+ * its package would mean a request per package to read its reported tasks, on the connection least
+ * able to afford it, and a reporter knows which package they are reporting on.
+ *
+ * Queued, not sent: this goes through the same offline queue as progress, because it is captured
+ * in the same places under the same conditions and the server pairs the idempotency key with the
+ * project, so a retry returns the original report rather than filing a second one.
+ */
+function CriticalUpdateCapture({
+  packages,
+  canSubmit,
+  onSubmit
+}: {
+  packages: CriticalWorkPackageReportingSummary[];
+  canSubmit: boolean;
+  onSubmit: (
+    request: Omit<CriticalUpdateSubmitRequest, "idempotencyKey" | "offlineLocalId">,
+    packageName: string
+  ) => Promise<void>;
+}) {
+  const [workPackageId, setWorkPackageId] = useState("");
+  const [currentFocus, setCurrentFocus] = useState("");
+  const [blocker, setBlocker] = useState("");
+  const [nextTarget, setNextTarget] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  if (packages.length === 0) {
+    return null;
+  }
+
+  const chosen = packages.find((entry) => entry.workPackageId === workPackageId) ?? null;
+
+  const submit = async () => {
+    if (chosen === null || currentFocus.trim() === "") {
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      await onSubmit(
+        {
+          criticalWorkPackageId: chosen.workPackageId,
+          updateMode: "shift",
+          currentFocus: currentFocus.trim(),
+          currentBlockerSummary: blocker.trim() === "" ? null : blocker.trim(),
+          nextTarget: nextTarget.trim() === "" ? null : nextTarget.trim()
+        },
+        chosen.name
+      );
+      setCurrentFocus("");
+      setBlocker("");
+      setNextTarget("");
+      // "Saved on this device" and "the server has it" are different facts. Sync owns the second.
+      setMessage("Saved on this device. Its progress is in Sync.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="today-detail critical-update-capture">
+      <h2>Critical update</h2>
+      {canSubmit ? null : (
+        <p className="boundary-copy">
+          Filing a Critical Update is a reporting responsibility your role on this project does not
+          carry.
+        </p>
+      )}
+      <label className="wide-field">
+        <span>Work package</span>
+        <select value={workPackageId} onChange={(event) => setWorkPackageId(event.target.value)}>
+          <option value="">Choose a package</option>
+          {packages.map((entry) => (
+            <option value={entry.workPackageId} key={entry.workPackageId}>
+              {entry.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {chosen === null ? null : (
+        <div className="progress-form critical-update-form">
+          <label className="wide-field">
+            <span>What the crew is on</span>
+            <input
+              value={currentFocus}
+              onChange={(event) => setCurrentFocus(event.target.value)}
+              placeholder="Blanking plates on the north face"
+            />
+          </label>
+          <label className="wide-field">
+            <span>What is holding it up</span>
+            <input
+              value={blocker}
+              onChange={(event) => setBlocker(event.target.value)}
+              placeholder="Leave empty if nothing is"
+            />
+          </label>
+          <label className="wide-field">
+            <span>Next target</span>
+            <input
+              value={nextTarget}
+              onChange={(event) => setNextTarget(event.target.value)}
+              placeholder="Cover back on before shift end"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!canSubmit || saving || currentFocus.trim() === ""}
+            onClick={() => void submit()}
+          >
+            {saving ? "Saving…" : "File update"}
+          </button>
+          {message ? <p className="boundary-copy">{message}</p> : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -728,12 +899,14 @@ function TodayRow({ count, label, settled }: { count: number; label: string; set
 /** Open problems, and the form to raise another. */
 function ProblemsScreen({
   problems,
+  unsentProblems,
   tasks,
   defaultTaskId,
   canRaise,
   onRaise
 }: {
   problems: ProblemRecord[];
+  unsentProblems: QueuedSubmission[];
   tasks: ImportReviewTaskRow[];
   defaultTaskId: string | null;
   canRaise: boolean;
@@ -742,19 +915,31 @@ function ProblemsScreen({
   return (
     <>
       <section className="problem-list" aria-label="Open problems">
-        {problems.length === 0 ? (
+        {problems.length === 0 && unsentProblems.length === 0 ? (
           <p className="boundary-copy">No problems are open on this project.</p>
-        ) : (
-          problems.slice(0, 30).map((problem) => (
-            <article className="sync-queue-card" key={problem.id}>
-              <div className="sync-queue-card-head">
-                <strong>{problem.title}</strong>
-                {problem.blocksExecution ? <MobileChip label="Blocked" /> : null}
-              </div>
-              <span>{problem.description ?? "No detail recorded."}</span>
-            </article>
-          ))
-        )}
+        ) : null}
+
+        {/* Raised here and not yet confirmed. Shown first, and never as though the project
+            already holds them, because nobody else can see one of these yet. */}
+        {unsentProblems.map((item) => (
+          <article className="sync-queue-card" key={item.localId}>
+            <div className="sync-queue-card-head">
+              <strong>{item.subject}</strong>
+              <MobileChip label={syncStateLabels[item.syncState]} />
+            </div>
+            <span>{queuedItemDetail(item)}</span>
+          </article>
+        ))}
+
+        {problems.slice(0, 30).map((problem) => (
+          <article className="sync-queue-card" key={problem.id}>
+            <div className="sync-queue-card-head">
+              <strong>{problem.title}</strong>
+              {problem.blocksExecution ? <MobileChip label="Blocked" /> : null}
+            </div>
+            <span>{problem.description ?? "No detail recorded."}</span>
+          </article>
+        ))}
       </section>
 
       <ProblemCapture
@@ -768,25 +953,97 @@ function ProblemsScreen({
 }
 
 /**
- * Evidence already recorded against a task.
+ * Registers an evidence record and sends its file against it, in that order.
  *
- * Read-only: the product has no way to upload a file yet, so offering a camera button here
- * would promise something that cannot happen.
+ * Two calls rather than one because the record has to exist before there is anything to attach a
+ * file to, and because a record whose file did not arrive is a state the product shows rather than
+ * hides. Shared shape with the console: the same sequence, so the two apps cannot drift on what
+ * "captured" means.
+ */
+export async function captureFieldEvidence(
+  client: FieldApiClient,
+  projectId: string,
+  importedTaskId: string,
+  file: File,
+  caption: string
+) {
+  const registered = await client.evidence.register(projectId, {
+    importedTaskId,
+    originalFilename: file.name,
+    contentType: file.type === "" ? null : file.type,
+    sizeBytes: file.size,
+    caption: caption.trim() === "" ? null : caption.trim()
+  });
+  await client.evidence.uploadContent(projectId, registered.id, file, file.name);
+}
+
+type FieldApiClient = ReturnType<typeof createFieldApiClient>;
+
+/**
+ * Evidence against a task, and capturing more of it.
+ *
+ * Capture needs a connection, and says so rather than queueing. The progress queue holds small
+ * JSON reports; a photo is megabytes, and a queue that fills a phone's storage and then fails to
+ * send is worse than one that never accepted the photo. Offline evidence capture is its own piece
+ * of work, with its own eviction and retry rules.
  */
 function EvidenceScreen({
   tasks,
   live,
-  loadEvidence
+  online,
+  loadEvidence,
+  captureEvidence
 }: {
   tasks: ImportReviewTaskRow[];
   live: boolean;
+  online: boolean;
   loadEvidence: (taskId: string) => Promise<EvidenceRecord[]>;
+  captureEvidence: (taskId: string, file: File, caption: string) => Promise<void>;
 }) {
   const [taskId, setTaskId] = useState<string>("");
   const [records, setRecords] = useState<EvidenceRecord[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [caption, setCaption] = useState("");
+  const [capturing, setCapturing] = useState(false);
+  const [captureMessage, setCaptureMessage] = useState("");
   const [message, setMessage] = useState(
     live ? "Choose a task to see its evidence." : "No project configured for this device."
   );
+
+  const send = async () => {
+    if (taskId === "" || file === null) {
+      return;
+    }
+    setCapturing(true);
+    setCaptureMessage("Sending…");
+    try {
+      await captureEvidence(taskId, file, caption);
+      setFile(null);
+      setCaption("");
+      setCaptureMessage("Sent.");
+      await refresh(taskId);
+    } catch (error) {
+      // The record may already exist with its file still missing. Saying "not sent" would be a
+      // guess; saying what is true lets the list show which of the two happened.
+      setCaptureMessage(
+        `Could not send: ${error instanceof Error ? error.message : "unknown error"}. Check the list below.`
+      );
+      await refresh(taskId);
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const refresh = async (currentTaskId: string) => {
+    if (currentTaskId === "" || !live) {
+      return;
+    }
+    try {
+      setRecords(await loadEvidence(currentTaskId));
+    } catch {
+      // A failed refresh leaves the previous list rather than blanking it.
+    }
+  };
 
   const choose = async (nextTaskId: string) => {
     setTaskId(nextTaskId);
@@ -808,8 +1065,9 @@ function EvidenceScreen({
   return (
     <section className="evidence-list" aria-label="Evidence">
       <p className="boundary-copy">
-        Evidence captured on this device cannot be uploaded yet. This shows what has already
-        been recorded against a task.
+        {online
+          ? "A photo is sent as you take it. It is not queued, so it needs a connection."
+          : "Offline. Evidence needs a connection to send, so capture it again when you are back on."}
       </p>
       <label className="wide-field">
         <span>Task</span>
@@ -823,13 +1081,42 @@ function EvidenceScreen({
         </select>
       </label>
 
+      {taskId === "" ? null : (
+        <div className="progress-form evidence-capture">
+          <label className="wide-field">
+            <span>Photo or file</span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              aria-label="Evidence photo"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="wide-field">
+            <span>What it shows</span>
+            <input
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              placeholder="Blanking plate fitted"
+            />
+          </label>
+          <button type="button" disabled={!live || !online || capturing || file === null} onClick={() => void send()}>
+            {capturing ? "Sending…" : "Send evidence"}
+          </button>
+          {captureMessage ? <p className="boundary-copy">{captureMessage}</p> : null}
+        </div>
+      )}
+
       {message ? <p className="boundary-copy">{message}</p> : null}
 
       {records.map((record) => (
         <article className="sync-queue-card" key={record.id}>
           <strong>{record.originalFilename}</strong>
           <span>{record.caption ?? "No caption recorded."}</span>
-          <MobileChip label={record.storageUri === null ? "Waiting to send" : "Server received"} />
+          <MobileChip
+            label={record.storageUri === null ? "File still to send" : "Server received"}
+          />
         </article>
       ))}
     </section>
@@ -861,36 +1148,60 @@ function NavButton({
 }
 
 /**
+ * What went wrong when a problem could not even be captured.
+ *
+ * Sending is no longer part of raising one: the capture is written to the queue and the network
+ * is Sync's business, so a dead connection never reaches here. What can still reach here is the
+ * device failing to store it, and that has to be said plainly — there is nothing holding the
+ * problem afterwards, and the person has to know to raise it again.
+ */
+export function describeRaiseFailure(error: unknown) {
+  const detail = error instanceof Error ? error.message : "";
+  if (detail === "") {
+    return "This device could not keep the problem. Raise it again.";
+  }
+  return `This device could not keep the problem: ${detail}. Raise it again.`;
+}
+
+/**
  * The percentage a reporter should see.
  *
  * An unsent report is the newer fact for the person holding the device, so it wins over the
  * server value — with the sync chip beside it saying the server does not have it yet.
  */
-/**
- * Why a problem could not be raised.
- *
- * Raising a problem needs a connection: unlike a progress report it is not queued, because
- * the server has no idempotency key for it and a retry could raise the same problem twice.
- * That makes it important to say the record was not kept, rather than showing a bare network
- * error that leaves someone assuming it was.
- */
-export function describeRaiseFailure(error: unknown) {
-  const detail = error instanceof Error ? error.message : "";
-  if (detail === "" || /fetch|network|load failed/i.test(detail)) {
-    return "Could not send, and this is not saved on this device. Raise it again when you have a connection.";
-  }
-  return detail;
-}
-
 export function workCardPercent(
   task: ImportReviewTaskRow,
-  unsent: QueuedProgressUpdate | undefined
+  unsent: QueuedSubmission | undefined
 ) {
-  const pending = unsent?.request.percentComplete;
+  // A Critical Update reports on a work package, not on how far one task has got.
+  const pending = unsent?.kind === "progress" ? unsent.request.percentComplete : undefined;
   if (pending !== null && pending !== undefined) {
     return `${pending}%`;
   }
   return task.percentComplete === null ? "—" : `${task.percentComplete}%`;
+}
+
+/**
+ * The one line under a queued item's subject in the sync list.
+ *
+ * The kinds report different things, so they say different things: a progress report is a state
+ * and a percentage, a Critical Update is what the crew is on, and a problem is what is wrong and
+ * whether it stops work. A shared phrasing would have to leave out whichever half did not fit.
+ */
+export function queuedItemDetail(item: QueuedSubmission) {
+  if (item.kind === "progress") {
+    const percent = item.request.percentComplete;
+    return `${executionStateLabels[item.request.executionState]}${
+      percent === null || percent === undefined ? "" : ` · ${percent}%`
+    }`;
+  }
+  if (item.kind === "problem") {
+    const detail = item.request.description?.trim();
+    // Blocking is the half a supervisor reads first, so it leads.
+    const lead = item.request.blocksExecution ? "Blocked" : "Problem";
+    return detail === undefined || detail === "" ? lead : `${lead} · ${detail}`;
+  }
+  return item.request.currentFocus?.trim() || "Critical Update";
 }
 
 function MobileChip({ label }: { label: string }) {

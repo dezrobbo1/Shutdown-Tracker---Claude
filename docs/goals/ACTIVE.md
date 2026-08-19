@@ -1,20 +1,16 @@
-# Active Goal — A Candidate Schedule Microsoft Project Can Open
+# Active Goal — A Front End That Does What It Shows
 
 ## Status
 
-Merged. Pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3) landed on
-`main` as `2e55d54`, so the outcome below is on `main` and its automated completion conditions are
-met. The manual Microsoft Project gate is **not**, and is stated as pending throughout.
+Active on `feat/offline-problem-raising`.
 
-`fix/candidate-element-placement` carries a follow-up correction to the same mechanism: an approved
-field the source did not carry was placed by an element whose schema position MPXJ's binding does
-not know, which could put it out of sequence. It changes nothing about the outcome or its criteria.
+Two goals are complete and merged, and are kept below as history: the green baseline that opened
+this repository, and the candidate schedule Microsoft Project can open. The checks the first one
+fixed are the ones every goal since has been validated by.
 
-No new goal has been chosen. `README.md`'s "Not production-complete yet" list is the menu, and the
-"Next after this goal" section below names the largest items on it.
-
-The green-baseline goal that opened this repository is complete and merged; it is kept below as
-history, because the checks it fixed are the ones this goal is validated by.
+A follow-up correction to the candidate goal, `fix/candidate-element-placement`, is merged as
+pull request [#5](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/5). It repaired
+where an approved field is written into the source document, and gated nothing in this goal.
 
 This repository is a fresh start. Its history carries the work previously developed on the
 `claude-branch` of `dezrobbo1/Shutdown-Tracker`, minus the source-material archive. No external
@@ -56,7 +52,13 @@ installed.
   levels, because advancing them would stop them validating the historical transition they exist
   for.
 
-## Outcome
+## Candidate schedule — completed
+
+Merged as pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3). The
+manual Microsoft Project gate below is unchanged and still pending; no automated result stands in
+for it.
+
+### Outcome
 
 A generated candidate schedule is a schedule: the accepted Project source with the approved
 execution inputs written into it, opening in Microsoft Project with its calendars, dependency
@@ -67,7 +69,7 @@ The artifact it replaces was a new, empty `ProjectFile` holding only the approve
 pruned to an element allowlist. It satisfied every authority rule by containing almost nothing,
 and Microsoft Project had nothing to recalculate against.
 
-## Success criteria
+### Success criteria
 
 - The candidate is derived from the accepted source file, located through the existing
   `export_batches -> project_snapshots -> import_batches -> source_files` chain, and refuses to
@@ -79,7 +81,7 @@ and Microsoft Project had nothing to recalculate against.
   creates.
 - Product documents describe the artifact the code actually produces.
 
-## Non-goals
+### Non-goals
 
 - Delta classification and the planner adoption record. The read-only source-versus-candidate
   comparison surface and the adoption decision remain future work.
@@ -87,18 +89,71 @@ and Microsoft Project had nothing to recalculate against.
   import and reporting are unaffected.
 - Any schedule calculation by Shutdown Tracker. Recalculation stays with Microsoft Project.
 
-## Completion conditions for this goal
+### Completion conditions for this goal
 
 - The conditions below, plus: the differencing check is covered by tests that exercise it
   directly, not only through a generated artifact.
 - The manual Microsoft Project gate is stated as pending, never as passed.
 
-## Next after this goal
+## Outcome
 
-The next goal should be chosen from the "Not production-complete yet" list in the root
-`README.md`. The largest open items are production authentication — authorization is enforced, but
-the actor still arrives through a gateway-trusted header rather than a validated token — evidence
-binary upload, Critical Update reporting from the field app, and offline problem raising.
+Every surface the two applications show is a surface that works. A control that is visible either
+does the thing it names, or says why it cannot — and no screen asks a person to stand in for a
+capability the product does not have.
+
+The applications are already wired to the API for import review, mapping, progress, review,
+problems, handover, the export lifecycle and Critical Watch. What is left is the set of places
+where a screen exists but the capability behind it does not, which the root `README.md` lists under
+"Not production-complete yet".
+
+## Slices
+
+Ordered, one reviewed outcome per branch. Each is finished — API, both apps, tests, docs — before
+the next starts.
+
+1. **Evidence carries its file.** *(done, `feat/evidence-binary-upload`)* Registering evidence records that a file exists;
+   nothing uploaded one, so the console asked a person to type where the file was kept. The record
+   is now registered and the binary uploaded against it, downloadable back, with the field app
+   capturing from the camera.
+2. **A project-wide evidence list.** *(done, `feat/project-evidence-list`)* Evidence was readable
+   per task only, so nobody could ask what evidence a shutdown has. The Evidence zone now opens on
+   the project and narrows by task, bounded, and says when the list was cut.
+3. **Critical Update reporting from the field app.** *(done, `feat/field-critical-updates`)* The
+   console could file one; a field user or contractor could not, which was the wrong way round.
+   Filed from Today and carried by the offline queue, which now holds more than one kind of report.
+4. **Offline problem raising.** *(done, `feat/offline-problem-raising`)* Raising a problem needed a
+   connection at the moment it was raised, which is the moment there is least likely to be one. V012
+   gives `problems` an idempotency key, so the queue can hold one on the same terms as progress, and
+   an unsent problem is listed on the screen that raised it rather than disappearing from it.
+5. **Assignment-scoped work lists.** The field app lists the snapshot's leaf tasks rather than the
+   signed-in user's work, because nothing links a Microsoft Project resource to a Shutdown Tracker
+   user. Needs a product decision on that link before it is code.
+
+## Success criteria
+
+- A capability the UI offers is reachable end to end, with the API, authorization, audit and tests
+  behind it.
+- A state the product can be in is a state the product shows. Evidence whose file never arrived
+  reads as outstanding rather than as absent.
+- No screen implies a capability that does not exist, per
+  `docs/product/ux-anti-slop-rules.md` and `docs/product/frontend-visual-review-scope.md`.
+- The information architecture is unchanged: five console zones, five field zones.
+
+## Non-goals
+
+- Production object storage. The evidence store is the provider-neutral abstraction's local
+  filesystem implementation, as the architecture already specifies.
+- Production authentication. The actor still arrives through a gateway-trusted header; that is its
+  own goal and a larger one.
+- Offline evidence capture. The progress queue holds small JSON reports; a queue of megabyte
+  photos needs its own eviction and retry rules.
+- Saved Operational Views, global operational Scope, and entity-linked Discussion.
+
+## Completion conditions for this goal
+
+- Each slice above is merged, or is explicitly recorded as not taken and why.
+- `docs/product/frontend-visual-review-scope.md` and the root `README.md` describe what the
+  applications actually do.
 
 ## Standing constraints
 
@@ -127,6 +182,9 @@ Verify GitHub Actions on the branch head. A previously green run is not evidence
 commit.
 
 ## Manual Microsoft Project gate
+
+This gate belongs to the completed candidate-schedule goal, not to the frontend goal above. It is
+recorded here because it is still outstanding, and nothing in this goal touches it either way.
 
 Unchanged and still pending. No automated result may be reported as a manual Microsoft Project
 round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML candidate

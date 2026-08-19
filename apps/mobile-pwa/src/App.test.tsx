@@ -1,25 +1,34 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
-import type { TaskProgressSubmitRequest, TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
+import type {
+  CriticalUpdateSubmitRequest,
+  ProblemCreateRequest,
+  TaskProgressSubmitRequest,
+  TaskProgressUpdateRecord
+} from "@shutdown-tracker/api-client";
 import {
   App,
+  captureFieldEvidence,
   describeRaiseFailure,
   mobileChipTone,
+  queuedItemDetail,
   toInstant,
   validateFieldProgress,
   workCardPercent
 } from "./App";
 import { buildFieldSession, describeFieldSession, fieldSessionAllows } from "./fieldSession";
 import {
-  OfflineProgressQueue,
+  OfflineSubmissionQueue,
   createMemoryQueueStore,
+  describeQueueError,
   isPermanentRejection,
   isSettled,
+  normalizeStoredSubmission,
   pendingCount,
   rejectedCount
 } from "./offlineQueue";
-import type { QueuedProgressUpdate } from "./offlineQueue";
+import type { QueuedSubmission } from "./offlineQueue";
 import { newLocalId } from "./useFieldQueue";
 
 function idFactory() {
@@ -75,9 +84,19 @@ describe("field app shell", () => {
     expect(workCardPercent(task, undefined)).toBe("10%");
     expect(
       workCardPercent(task, {
+        kind: "progress",
         request: { percentComplete: 60 }
       } as never)
     ).toBe("60%");
+
+    // A Critical Update reports on a work package. It says nothing about how far this task has
+    // got, so the card keeps showing the value that does.
+    expect(
+      workCardPercent(task, {
+        kind: "critical-update",
+        request: { criticalWorkPackageId: "package-1", currentFocus: "Blanking plates" }
+      } as never)
+    ).toBe("10%");
   });
 
   it("tells the reporter that submitting sends the report for review, not to the schedule", () => {
@@ -87,16 +106,14 @@ describe("field app shell", () => {
     expect(html).not.toContain("Review mode");
   });
 
-  it("says a problem was not kept when it could not be sent", () => {
-    // A progress report survives a dead connection; a problem does not, and the difference
-    // has to be visible or someone walks away believing it was recorded.
-    expect(describeRaiseFailure(new TypeError("Failed to fetch"))).toContain("not saved on this device");
-    expect(describeRaiseFailure(new Error("Network request failed"))).toContain("not saved on this device");
-
-    // A real answer from the server is more useful than the generic line.
-    expect(describeRaiseFailure(new Error("Your role on this project cannot raise problems."))).toBe(
-      "Your role on this project cannot raise problems."
+  it("says a problem was not kept when the device could not keep it", () => {
+    // A dead connection no longer reaches here: the capture goes to the queue and Sync owns
+    // the sending. What is left is the device failing to store it, and then nothing holds the
+    // problem — so the line has to send the person back to raise it again.
+    expect(describeRaiseFailure(new Error("QuotaExceededError"))).toBe(
+      "This device could not keep the problem: QuotaExceededError. Raise it again."
     );
+    expect(describeRaiseFailure(null)).toBe("This device could not keep the problem. Raise it again.");
   });
 
   it("names the sync states so saved and sent are not confused", () => {
@@ -132,26 +149,26 @@ describe("offline queue", () => {
   it("stores a report before anything is sent", async () => {
     const store = createMemoryQueueStore();
     const submit = vi.fn();
-    const queue = new OfflineProgressQueue({ store, submit, newId: idFactory() });
+    const queue = new OfflineSubmissionQueue({ store, submit, newId: idFactory() });
 
-    await queue.enqueue(capture, "Remove guard");
+    await queue.enqueueProgress(capture, "Remove guard");
 
     expect(submit).not.toHaveBeenCalled();
     const items = await queue.list();
     expect(items).toHaveLength(1);
     expect(items[0].syncState).toBe("PENDING");
-    expect(items[0].taskName).toBe("Remove guard");
+    expect(items[0].subject).toBe("Remove guard");
   });
 
   it("carries an idempotency key so a retry cannot double-report progress", async () => {
     const store = createMemoryQueueStore();
     const sent: TaskProgressSubmitRequest[] = [];
     let failFirst = true;
-    const queue = new OfflineProgressQueue({
+    const queue = new OfflineSubmissionQueue({
       store,
       newId: idFactory(),
-      submit: async (request) => {
-        sent.push(request);
+      submit: async (item) => {
+        sent.push(item.request as TaskProgressSubmitRequest);
         if (failFirst) {
           failFirst = false;
           throw new Error("network down");
@@ -160,7 +177,7 @@ describe("offline queue", () => {
       }
     });
 
-    await queue.enqueue(capture, "Weld repair");
+    await queue.enqueueProgress(capture, "Weld repair");
     await queue.flush();
     await queue.flush();
 
@@ -176,7 +193,7 @@ describe("offline queue", () => {
 
   it("keeps a report queued when the network fails, because the work still happened", async () => {
     const store = createMemoryQueueStore();
-    const queue = new OfflineProgressQueue({
+    const queue = new OfflineSubmissionQueue({
       store,
       newId: idFactory(),
       submit: async () => {
@@ -184,7 +201,7 @@ describe("offline queue", () => {
       }
     });
 
-    await queue.enqueue(capture, "Isolate feeder");
+    await queue.enqueueProgress(capture, "Isolate feeder");
     const items = await queue.flush();
 
     expect(items[0].syncState).toBe("PENDING");
@@ -197,9 +214,9 @@ describe("offline queue", () => {
     const submit = vi.fn(async () => {
       throw new ShutdownTrackerApiError("forbidden", 403, "");
     });
-    const queue = new OfflineProgressQueue({ store, newId: idFactory(), submit });
+    const queue = new OfflineSubmissionQueue({ store, newId: idFactory(), submit });
 
-    await queue.enqueue(capture, "Weld repair");
+    await queue.enqueueProgress(capture, "Weld repair");
     await queue.flush();
     await queue.flush();
 
@@ -212,7 +229,7 @@ describe("offline queue", () => {
   it("lets a rejected report be sent again once the cause is fixed", async () => {
     const store = createMemoryQueueStore();
     let forbidden = true;
-    const queue = new OfflineProgressQueue({
+    const queue = new OfflineSubmissionQueue({
       store,
       newId: idFactory(),
       submit: async () => {
@@ -223,7 +240,7 @@ describe("offline queue", () => {
       }
     });
 
-    const captured = await queue.enqueue(capture, "Weld repair");
+    const captured = await queue.enqueueProgress(capture, "Weld repair");
     await queue.flush();
     expect((await queue.list())[0].syncState).toBe("REJECTED");
 
@@ -237,18 +254,18 @@ describe("offline queue", () => {
   it("sends reports in the order they were captured", async () => {
     const store = createMemoryQueueStore();
     const order: (string | null | undefined)[] = [];
-    const queue = new OfflineProgressQueue({
+    const queue = new OfflineSubmissionQueue({
       store,
       newId: idFactory(),
-      submit: async (request) => {
-        order.push(request.comment);
+      submit: async (item) => {
+        order.push((item.request as TaskProgressSubmitRequest).comment);
         return serverRecord();
       }
     });
 
-    await queue.enqueue({ ...capture, comment: "first" }, "Task");
-    await queue.enqueue({ ...capture, comment: "second" }, "Task");
-    await queue.enqueue({ ...capture, comment: "third" }, "Task");
+    await queue.enqueueProgress({ ...capture, comment: "first" }, "Task");
+    await queue.enqueueProgress({ ...capture, comment: "second" }, "Task");
+    await queue.enqueueProgress({ ...capture, comment: "third" }, "Task");
     await queue.flush();
 
     expect(order).toEqual(["first", "second", "third"]);
@@ -260,9 +277,9 @@ describe("offline queue", () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
       return serverRecord();
     });
-    const queue = new OfflineProgressQueue({ store, newId: idFactory(), submit });
+    const queue = new OfflineSubmissionQueue({ store, newId: idFactory(), submit });
 
-    await queue.enqueue(capture, "Task");
+    await queue.enqueueProgress(capture, "Task");
     await Promise.all([queue.flush(), queue.flush()]);
 
     expect(submit).toHaveBeenCalledTimes(1);
@@ -271,7 +288,7 @@ describe("offline queue", () => {
   it("keeps unsent reports when clearing, and removes only settled ones", async () => {
     const store = createMemoryQueueStore();
     let sendCount = 0;
-    const queue = new OfflineProgressQueue({
+    const queue = new OfflineSubmissionQueue({
       store,
       newId: idFactory(),
       submit: async () => {
@@ -283,14 +300,14 @@ describe("offline queue", () => {
       }
     });
 
-    await queue.enqueue({ ...capture, comment: "sent" }, "Task");
-    await queue.enqueue({ ...capture, comment: "stuck" }, "Task");
+    await queue.enqueueProgress({ ...capture, comment: "sent" }, "Task");
+    await queue.enqueueProgress({ ...capture, comment: "stuck" }, "Task");
     await queue.flush();
 
     const remaining = await queue.clearSettled();
 
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].request.comment).toBe("stuck");
+    expect((remaining[0].request as TaskProgressSubmitRequest).comment).toBe("stuck");
   });
 
   it("counts what is still waiting and what needs attention", () => {
@@ -299,7 +316,7 @@ describe("offline queue", () => {
       { syncState: "SENDING" },
       { syncState: "SYNCED" },
       { syncState: "REJECTED" }
-    ] as QueuedProgressUpdate[];
+    ] as QueuedSubmission[];
 
     expect(pendingCount(items)).toBe(2);
     expect(rejectedCount(items)).toBe(1);
@@ -337,5 +354,272 @@ describe("field validation", () => {
     expect(sent).not.toBeNull();
     expect(new Date(sent as string).toISOString()).toBe(sent);
     expect(toInstant("")).toBeNull();
+  });
+});
+
+describe("field evidence capture", () => {
+  const photo = new File(["blanking plate fitted"], "blanking-plate.jpg", { type: "image/jpeg" });
+
+  /**
+   * The file is attached to a record that already exists. Registering afterwards would mean bytes
+   * stored against nothing, and there is no record to upload to before the first call returns.
+   */
+  it("registers the record before sending the photo", async () => {
+    const calls: string[] = [];
+    const client = {
+      evidence: {
+        register: async (projectId: string, request: { originalFilename: string; caption: string | null }) => {
+          calls.push(`register ${projectId} ${request.originalFilename} ${request.caption}`);
+          return { id: "evidence-1" };
+        },
+        uploadContent: async (projectId: string, evidenceId: string, file: Blob) => {
+          calls.push(`upload ${projectId} ${evidenceId} ${file.size}`);
+          return { id: evidenceId };
+        }
+      }
+    };
+
+    await captureFieldEvidence(client as never, "p1", "task-1", photo, "  Blanking plate fitted  ");
+
+    expect(calls).toEqual([
+      "register p1 blanking-plate.jpg Blanking plate fitted",
+      `upload p1 evidence-1 ${photo.size}`
+    ]);
+  });
+
+  /**
+   * A failed send must not be reported as a capture that never happened: the record exists and is
+   * waiting for its file, which is what the evidence list then shows.
+   */
+  it("surfaces a failed send rather than swallowing it", async () => {
+    const client = {
+      evidence: {
+        register: async () => ({ id: "evidence-1" }),
+        uploadContent: async () => {
+          throw new ShutdownTrackerApiError("Shutdown Tracker API request failed with 413.", 413, "");
+        }
+      }
+    };
+
+    await expect(captureFieldEvidence(client as never, "p1", "task-1", photo, "")).rejects.toBeInstanceOf(
+      ShutdownTrackerApiError
+    );
+  });
+});
+
+describe("the queue carries Critical Updates as well as progress", () => {
+  const criticalUpdate = {
+    criticalWorkPackageId: "package-1",
+    updateMode: "shift" as const,
+    currentFocus: "Blanking plates on the north face",
+    currentBlockerSummary: null,
+    nextTarget: null
+  };
+
+  /**
+   * A Critical Update is captured in the same places and under the same conditions as progress,
+   * and the server pairs the idempotency key with the project. So a retry over a bad connection
+   * returns the original report rather than filing a second one against the package.
+   */
+  it("carries an idempotency key so a retry cannot double-file a Critical Update", async () => {
+    const sent: CriticalUpdateSubmitRequest[] = [];
+    let failFirst = true;
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async (item) => {
+        sent.push(item.request as CriticalUpdateSubmitRequest);
+        if (failFirst) {
+          failFirst = false;
+          throw new Error("network down");
+        }
+        return { id: "critical-update-1" };
+      }
+    });
+
+    await queue.enqueueCriticalUpdate(criticalUpdate, "C2 Cyclone — internals");
+    await queue.flush();
+    await queue.flush();
+
+    expect(sent).toHaveLength(2);
+    expect(sent[0].idempotencyKey).toBeTruthy();
+    expect(sent[1].idempotencyKey).toBe(sent[0].idempotencyKey);
+
+    const items = await queue.list();
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("critical-update");
+    expect(items[0].subject).toBe("C2 Cyclone — internals");
+    expect(items[0].syncState).toBe("SYNCED");
+    expect(items[0].serverId).toBe("critical-update-1");
+  });
+
+  it("sends each kind to its own endpoint, in the order they were captured", async () => {
+    const order: string[] = [];
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async (item) => {
+        order.push(item.kind);
+        return { id: "server-1" };
+      }
+    });
+
+    await queue.enqueueProgress(capture, "Remove guard");
+    await queue.enqueueCriticalUpdate(criticalUpdate, "C2 Cyclone — internals");
+    await queue.enqueueProblem({
+      importedTaskId: "task-1",
+      title: "Scaffold missing",
+      description: null,
+      blocksExecution: true
+    });
+    await queue.enqueueProgress(capture, "Refit guard");
+    await queue.flush();
+
+    expect(order).toEqual(["progress", "critical-update", "problem", "progress"]);
+  });
+
+  /**
+   * The status alone does not tell the reporter what to do. A 404 on a progress report means the
+   * task left the snapshot; on a Critical Update it means the package is gone.
+   */
+  it("explains a refusal in terms of what was being reported", () => {
+    const notFound = new ShutdownTrackerApiError("failed", 404, "");
+
+    expect(describeQueueError(notFound, "progress")).toContain("schedule snapshot");
+    expect(describeQueueError(notFound, "critical-update")).toContain("critical work package");
+    expect(describeQueueError(notFound, "problem")).toContain("raised against");
+
+    const forbidden = new ShutdownTrackerApiError("failed", 403, "");
+    expect(describeQueueError(forbidden, "problem")).toContain("cannot raise problems");
+  });
+
+  /**
+   * A problem is raised where the work is, which is where there is no signal. Holding it in the
+   * queue is only safe because the server pairs the idempotency key with the project: the retry
+   * returns the problem the first attempt raised rather than raising a second one.
+   */
+  it("carries an idempotency key so a retry cannot raise the same problem twice", async () => {
+    const sent: ProblemCreateRequest[] = [];
+    let failFirst = true;
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async (item) => {
+        sent.push(item.request as ProblemCreateRequest);
+        if (failFirst) {
+          failFirst = false;
+          throw new TypeError("Failed to fetch");
+        }
+        return { id: "problem-1" };
+      }
+    });
+
+    await queue.enqueueProblem({
+      importedTaskId: "task-1",
+      title: "Scaffold missing",
+      description: "Cannot reach the valve.",
+      blocksExecution: true
+    });
+    await queue.flush();
+    await queue.flush();
+
+    expect(sent).toHaveLength(2);
+    expect(sent[0].idempotencyKey).toBeTruthy();
+    expect(sent[1].idempotencyKey).toBe(sent[0].idempotencyKey);
+
+    const items = await queue.list();
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("problem");
+    // The title is what identifies a problem in the sync list; nothing else on it would.
+    expect(items[0].subject).toBe("Scaffold missing");
+    expect(items[0].syncState).toBe("SYNCED");
+    expect(items[0].serverId).toBe("problem-1");
+  });
+
+  it("keeps a raised problem queued when the network fails, because it is still wrong", async () => {
+    const queue = new OfflineSubmissionQueue({
+      store: createMemoryQueueStore(),
+      newId: idFactory(),
+      submit: async () => {
+        throw new TypeError("Failed to fetch");
+      }
+    });
+
+    await queue.enqueueProblem({ title: "Valve seized", description: null, blocksExecution: true });
+    const items = await queue.flush();
+
+    expect(items[0].syncState).toBe("PENDING");
+    expect(items[0].lastError).toContain("Failed to fetch");
+  });
+
+  /**
+   * A field user updating the app may have unsent reports on the device, written before the queue
+   * carried a kind. Dropping them, or leaving them undispatchable, would lose work that was done
+   * and captured.
+   */
+  it("reads a report captured before the queue carried more than one kind", () => {
+    const legacy = {
+      localId: "local-1",
+      idempotencyKey: "key-1",
+      request: { importedTaskId: "task-1", percentComplete: 40 },
+      taskName: "C2 Cyclone — remove access cover",
+      capturedAt: "2026-08-18T06:00:00.000Z",
+      syncState: "PENDING",
+      attempts: 0,
+      serverId: null,
+      lastError: null
+    };
+
+    const normalized = normalizeStoredSubmission(legacy);
+
+    expect(normalized?.kind).toBe("progress");
+    expect(normalized?.subject).toBe("C2 Cyclone — remove access cover");
+    expect(normalized?.syncState).toBe("PENDING");
+  });
+
+  /**
+   * The sync list has one line per item. What that line has to say differs by kind, and the half
+   * a supervisor reads first on a problem is whether it stops work.
+   */
+  it("says what each queued kind is about in one line", () => {
+    expect(
+      queuedItemDetail({
+        kind: "problem",
+        request: { title: "Scaffold missing", description: "Cannot reach the valve.", blocksExecution: true }
+      } as never)
+    ).toBe("Blocked · Cannot reach the valve.");
+
+    expect(
+      queuedItemDetail({
+        kind: "problem",
+        request: { title: "Label unreadable", description: null, blocksExecution: false }
+      } as never)
+    ).toBe("Problem");
+
+    expect(
+      queuedItemDetail({
+        kind: "progress",
+        request: { executionState: "IN_PROGRESS", percentComplete: 40 }
+      } as never)
+    ).toBe("In progress · 40%");
+  });
+
+  it("keeps an item that already carries a kind, and drops one that is not a submission", () => {
+    const current = {
+      localId: "local-2",
+      idempotencyKey: "key-2",
+      kind: "critical-update",
+      request: { criticalWorkPackageId: "package-1" },
+      subject: "C2 Cyclone — internals",
+      capturedAt: "2026-08-18T06:00:00.000Z",
+      syncState: "PENDING",
+      attempts: 0,
+      serverId: null,
+      lastError: null
+    };
+
+    expect(normalizeStoredSubmission(current)?.kind).toBe("critical-update");
+    expect(normalizeStoredSubmission(null)).toBeNull();
+    expect(normalizeStoredSubmission({ localId: "local-3" })).toBeNull();
   });
 });

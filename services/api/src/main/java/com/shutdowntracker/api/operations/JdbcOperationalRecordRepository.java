@@ -27,7 +27,8 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
 
     private static final String EVIDENCE_COLUMNS = """
             id, project_id, imported_task_id, problem_id, action_id, task_progress_update_id,
-            original_filename, content_type, storage_uri, status, captured_by_user_id, caption
+            original_filename, content_type, storage_uri, size_bytes, content_hash, status,
+            captured_by_user_id, captured_at, caption
             """;
 
     private static final String HANDOVER_COLUMNS = """
@@ -47,11 +48,12 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 """
                 INSERT INTO problems (
                     project_id, imported_task_id, title, description, severity,
-                    blocks_execution, raised_by_user_id
+                    blocks_execution, raised_by_user_id, idempotency_key, offline_local_id
                 )
                 VALUES (
                     :projectId, :importedTaskId, :title, :description,
-                    CAST(:severity AS problem_severity), :blocksExecution, :raisedBy
+                    CAST(:severity AS problem_severity), :blocksExecution, :raisedBy,
+                    :idempotencyKey, :offlineLocalId
                 )
                 RETURNING
                 """ + PROBLEM_COLUMNS,
@@ -62,7 +64,9 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                         .addValue("description", request.description())
                         .addValue("severity", request.severity().databaseValue())
                         .addValue("blocksExecution", request.blocksExecution())
-                        .addValue("raisedBy", raisedByUserId),
+                        .addValue("raisedBy", raisedByUserId)
+                        .addValue("idempotencyKey", request.idempotencyKey())
+                        .addValue("offlineLocalId", request.offlineLocalId()),
                 this::mapProblem);
     }
 
@@ -71,6 +75,15 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
         return jdbcTemplate.query(
                 "SELECT " + PROBLEM_COLUMNS + " FROM problems WHERE id = :id AND project_id = :projectId",
                 new MapSqlParameterSource().addValue("id", problemId).addValue("projectId", projectId),
+                this::mapProblem).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ProblemRecord> findProblemByIdempotencyKey(UUID projectId, String idempotencyKey) {
+        return jdbcTemplate.query(
+                "SELECT " + PROBLEM_COLUMNS
+                        + " FROM problems WHERE project_id = :projectId AND idempotency_key = :key",
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("key", idempotencyKey),
                 this::mapProblem).stream().findFirst();
     }
 
@@ -222,6 +235,79 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
     }
 
     @Override
+    public Optional<EvidenceRecord> findEvidence(UUID projectId, UUID evidenceId) {
+        return jdbcTemplate.query(
+                "SELECT " + EVIDENCE_COLUMNS + """
+                 FROM evidence
+                 WHERE project_id = :projectId AND id = :evidenceId
+                """,
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("evidenceId", evidenceId),
+                this::mapEvidence).stream().findFirst();
+    }
+
+    /**
+     * Records where an evidence binary landed, and moves the record out of {@code pending_upload}.
+     *
+     * <p>The status is part of the WHERE clause rather than checked first and updated after. Two
+     * uploads racing on one record would both pass a prior read; only one can match here, so the
+     * loser is told the evidence already arrived instead of silently replacing it.
+     */
+    @Override
+    public Optional<EvidenceRecord> attachEvidenceContent(
+            UUID projectId,
+            UUID evidenceId,
+            String storageUri,
+            String contentType,
+            long sizeBytes,
+            String contentHash
+    ) {
+        return jdbcTemplate.query(
+                """
+                UPDATE evidence
+                   SET storage_uri = :storageUri,
+                       content_type = :contentType,
+                       size_bytes = :sizeBytes,
+                       content_hash = :contentHash,
+                       status = CAST(:status AS evidence_status)
+                 WHERE project_id = :projectId
+                   AND id = :evidenceId
+                   AND status = CAST(:pendingStatus AS evidence_status)
+                RETURNING
+                """ + EVIDENCE_COLUMNS,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("evidenceId", evidenceId)
+                        .addValue("storageUri", storageUri)
+                        .addValue("contentType", contentType)
+                        .addValue("sizeBytes", sizeBytes)
+                        .addValue("contentHash", contentHash)
+                        .addValue("status", EvidenceStatus.UPLOADED.databaseValue())
+                        .addValue("pendingStatus", EvidenceStatus.PENDING_UPLOAD.databaseValue()),
+                this::mapEvidence).stream().findFirst();
+    }
+
+    /**
+     * The project's evidence, newest first, capped.
+     *
+     * <p>A shutdown accumulates evidence for as long as it runs, and this list exists to be read on
+     * a screen. The cap is applied here rather than in the console so the answer is bounded before
+     * it crosses the wire; the caller is told how many it asked for so it can say the list was cut
+     * rather than letting it appear to end.
+     */
+    @Override
+    public List<EvidenceRecord> findEvidenceForProject(UUID projectId, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + EVIDENCE_COLUMNS + """
+                 FROM evidence
+                 WHERE project_id = :projectId
+                 ORDER BY captured_at DESC, id DESC
+                 LIMIT :limit
+                """,
+                new MapSqlParameterSource().addValue("projectId", projectId).addValue("limit", limit),
+                this::mapEvidence);
+    }
+
+    @Override
     public List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId) {
         return jdbcTemplate.query(
                 "SELECT " + EVIDENCE_COLUMNS + """
@@ -334,8 +420,11 @@ public class JdbcOperationalRecordRepository implements OperationalRecordReposit
                 rs.getString("original_filename"),
                 rs.getString("content_type"),
                 rs.getString("storage_uri"),
+                rs.getObject("size_bytes", Long.class),
+                rs.getString("content_hash"),
                 EvidenceStatus.fromDatabaseValue(rs.getString("status")),
                 rs.getObject("captured_by_user_id", UUID.class),
+                rs.getObject("captured_at", OffsetDateTime.class),
                 rs.getString("caption"));
     }
 

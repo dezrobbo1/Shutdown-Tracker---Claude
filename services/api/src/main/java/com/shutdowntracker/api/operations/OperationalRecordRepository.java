@@ -17,6 +17,9 @@ public interface OperationalRecordRepository {
 
     Optional<ProblemRecord> findProblem(UUID projectId, UUID problemId);
 
+    /** The problem an earlier capture with this key already raised, if there is one. */
+    Optional<ProblemRecord> findProblemByIdempotencyKey(UUID projectId, String idempotencyKey);
+
     ProblemRecord assignProblem(UUID problemId, UUID assigneeUserId);
 
     ProblemRecord closeProblem(UUID problemId, UUID resolvedByUserId, String resolutionNote);
@@ -32,6 +35,20 @@ public interface OperationalRecordRepository {
     List<ActionRecord> findOpenActions(UUID projectId);
 
     EvidenceRecord createEvidence(UUID projectId, UUID capturedByUserId, EvidenceCreateRequest request);
+
+    Optional<EvidenceRecord> findEvidence(UUID projectId, UUID evidenceId);
+
+    /** Empty when no record in {@code pending_upload} matched, so the caller can say which. */
+    Optional<EvidenceRecord> attachEvidenceContent(
+            UUID projectId,
+            UUID evidenceId,
+            String storageUri,
+            String contentType,
+            long sizeBytes,
+            String contentHash
+    );
+
+    List<EvidenceRecord> findEvidenceForProject(UUID projectId, int limit);
 
     List<EvidenceRecord> findEvidenceForTask(UUID projectId, UUID importedTaskId);
 

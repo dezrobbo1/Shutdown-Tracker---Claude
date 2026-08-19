@@ -4,7 +4,7 @@ This directory contains the PostgreSQL schema migrations used by Shutdown Tracke
 
 ## Current baseline
 
-The baseline is `V001` through `V011` and creates 33 application tables:
+The baseline is `V001` through `V012` and creates 33 application tables:
 
 - `V001__baseline_extensions_and_enums.sql`: enables `pgcrypto` and defines the initial enum types; creates no tables.
 - `V002__projects_snapshots_and_imports.sql`: creates `projects`, `source_files`, `import_batches`, and `project_snapshots`.
@@ -17,6 +17,7 @@ The baseline is `V001` through `V011` and creates 33 application tables:
 - `V009__task_execution_and_progress.sql`: creates `task_execution_states` and `task_progress_updates`.
 - `V010__problems_actions_evidence_handover.sql`: creates `problems`, `actions`, `evidence`, and `handover_notes`.
 - `V011__import_profiles_and_operational_categories.sql`: creates `import_profiles`, `operational_categories`, `operational_category_aliases`, and `task_category_values`.
+- `V012__problem_offline_capture.sql`: adds `idempotency_key` and `offline_local_id` to `problems`, with a partial unique index on `(project_id, idempotency_key)`, so a problem captured in the field can be retried without being raised twice. Creates no tables.
 
 Critical Watchlists and Critical Work Packages are reporting constructs. They do not calculate critical path, float, or recovery schedules.
 

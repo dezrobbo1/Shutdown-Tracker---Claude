@@ -56,21 +56,27 @@ Implemented foundations include:
 - users, project-scoped roles, and enforced authorization resolved from stored membership;
 - task execution state and the field-to-export progress review chain, with supervisor and
   planner review as separate decisions;
-- problems, actions, evidence, and handover records;
+- problems, actions, evidence, and handover records, with evidence carrying its file: the record
+  is registered, the binary is uploaded against it, and it can be downloaded back. A record whose
+  file never arrived stays visible as evidence that is still outstanding rather than being hidden.
+  Storage is the provider-neutral abstraction's local filesystem implementation; production object
+  storage is still open. Evidence is readable across the whole project as well as per task;
 - versioned Import Profiles and Operational Categories resolved from task fields, summary
   ancestry, and assigned-resource Groups, with mapping health on re-import;
 - Critical Watchlists, Critical Work Packages, and Critical Update reporting, reachable over
-  HTTP and surfaced in the console, with composing a package and reporting on one held as
-  separate capabilities so a planner may build a package without filing reports on it;
+  HTTP and surfaced in the console and the field app, with composing a package and reporting on
+  one held as separate capabilities so a planner may build a package without filing reports on it;
 - a Master Console on the baseline zones — Today, Tasks, Problems, Evidence, Exports — with
   import review, operational mapping, planner review and the export lifecycle gathered under
   Exports as addressable sections, each reading and writing through the API;
 - a Today attention surface that reports what is awaiting review, what is blocking work, and
   what is waiting to be acknowledged, and links to the zone that owns each decision;
 - a Mobile Field App on the baseline zones — My Work, Today, Problems, Evidence, Sync — with an
-  offline execution queue: progress is stored on the device before it is sent, carries a
-  device-generated idempotency key so a retry cannot double-report, shows sync state rather
-  than implying delivery, and marks an unsent report on the work card itself;
+  offline execution queue: progress, Critical Updates and raised problems are stored on the device
+  before they are sent, each carrying a device-generated idempotency key so a retry cannot
+  double-report or raise the same problem twice, showing sync state rather than implying delivery,
+  marking an unsent report on the work card itself, and listing a problem raised with no signal
+  alongside the project's open ones rather than losing it;
 - role-aware controls in both apps, checked against a capability map that a test compares
   against the server's own enum so the two cannot silently diverge;
 - TypeScript API client and shared Java import/export handoff contracts;
@@ -92,14 +98,9 @@ Not production-complete yet:
   reporting are unaffected;
 - production authentication; authorization is enforced, but the actor still arrives
   through a gateway-trusted header rather than a validated token;
-- Critical Update reporting in the field app; the console carries it, but a field user or
-  contractor cannot yet file one from a device, and the offline queue covers task progress only;
-- evidence binary upload in either app; evidence records and their per-task read exist and are
-  wired in both, but nothing uploads a file, so a record without a storage location means the
-  evidence itself is still outstanding;
-- a project-wide evidence list; evidence is readable per task only;
-- offline problem raising; raising a problem needs a connection, because problem creation has
-  no server-side idempotency key and a queued retry could raise the same problem twice;
+- offline evidence capture in the field app. A photo is sent as it is taken and needs a
+  connection, because the offline queue holds small JSON reports and a queue of megabyte photos
+  needs its own eviction and retry rules;
 - assignment-scoped work lists; the field app currently lists the snapshot's leaf tasks
   rather than only the work assigned to the signed-in user;
 - Saved Operational Views and global operational Scope;

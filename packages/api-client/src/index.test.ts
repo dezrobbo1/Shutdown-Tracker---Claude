@@ -331,6 +331,67 @@ describe("shutdown tracker api client", () => {
     ]);
   });
 
+  it("reads a project's evidence and one task's evidence from different paths", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.evidence.listForProject("p1");
+    await client.evidence.listForTask("p1", "task-1");
+
+    expect(calls.map((call) => call.input)).toEqual([
+      "https://example.test/api/projects/p1/evidence",
+      "https://example.test/api/projects/p1/tasks/task-1/evidence"
+    ]);
+  });
+
+  it("uploads an evidence file as multipart to the record it completes", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.evidence.uploadContent(
+      "p1", "e1", new Blob(["photo bytes"], { type: "image/jpeg" }), "blanking-plate.jpg");
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/evidence/e1/content");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].body).toBeInstanceOf(FormData);
+    const uploaded = (calls[0].body as FormData).get("file");
+    expect(uploaded).toBeInstanceOf(Blob);
+    expect((uploaded as File).name).toBe("blanking-plate.jpg");
+  });
+
+  it("reads evidence bytes back rather than linking to them", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      headers: { "X-Actor-User-Id": "user-1" },
+      fetchImpl: captureBinaryFetch(calls, "photo bytes")
+    });
+
+    const blob = await client.evidence.downloadContent("p1", "e1");
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/evidence/e1/content");
+    expect(calls[0].method).toBe("GET");
+    // The actor headers are the reason this is a fetch and not an href.
+    expect(calls[0].headers?.["X-Actor-User-Id"]).toBe("user-1");
+    expect(await blob.text()).toBe("photo bytes");
+  });
+
+  it("reports an evidence download failure as an api error", async () => {
+    const client = createShutdownTrackerApiClient({
+      fetchImpl: async () => new Response("Evidence has been registered but its file has not been uploaded.", {
+        status: 404
+      })
+    });
+
+    await expect(client.evidence.downloadContent("p1", "e1")).rejects.toBeInstanceOf(ShutdownTrackerApiError);
+  });
+
   it("configures operational categories and resolves a snapshot", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({
@@ -447,7 +508,21 @@ type CapturedRequest = {
   input: string;
   method: string;
   body: BodyInit | null | undefined;
+  headers?: Record<string, string>;
 };
+
+function captureBinaryFetch(calls: CapturedRequest[], payload: string) {
+  return async (input: string, init?: RequestInit) => {
+    calls.push({
+      input,
+      method: init?.method ?? "GET",
+      body: init?.body,
+      headers: init?.headers as Record<string, string> | undefined
+    });
+
+    return new Response(payload, { status: 200, headers: { "Content-Type": "image/jpeg" } });
+  };
+}
 
 function captureFetch(calls: CapturedRequest[], payload: unknown) {
   return async (input: string, init?: RequestInit) => {

@@ -1,5 +1,5 @@
-import { createMemoryQueueStore } from "./offlineQueue";
-import type { QueueStore, QueuedProgressUpdate } from "./offlineQueue";
+import { createMemoryQueueStore, normalizeStoredSubmission } from "./offlineQueue";
+import type { QueueStore } from "./offlineQueue";
 
 /**
  * IndexedDB storage for the offline queue.
@@ -41,10 +41,11 @@ export function createIndexedDbQueueStore(): QueueStore {
     readAll: async () => {
       const database = await openDatabase();
       try {
-        const stored = await request<QueuedProgressUpdate[] | undefined>(
+        const stored = await request<unknown[] | undefined>(
           database.transaction(storeName, "readonly").objectStore(storeName).get(queueKey)
         );
-        return stored ?? [];
+        // Items written before the queue carried a kind are still someone's unsent work.
+        return (stored ?? []).map(normalizeStoredSubmission).filter((item) => item !== null);
       } finally {
         database.close();
       }

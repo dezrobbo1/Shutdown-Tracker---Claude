@@ -92,3 +92,5 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-17 — Fresh repository review and green baseline](2026-08-17-fresh-repo-green-baseline.md)
 - [2026-08-17 — Candidate-schedule differencing, and what it could not see](2026-08-17-candidate-schedule-differencing.md)
 - [2026-08-18 — Where an inserted element lands, and why nothing noticed](2026-08-18-candidate-element-placement.md)
+- [2026-08-18 — A front end that does what it shows: the first three slices](2026-08-18-evidence-carries-its-file.md)
+- [2026-08-19 — Raising a problem where there is no signal](2026-08-19-offline-problem-raising.md)
