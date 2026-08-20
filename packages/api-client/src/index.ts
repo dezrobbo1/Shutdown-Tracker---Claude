@@ -933,6 +933,7 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
     method: "POST",
     path: "/api/projects/{projectId}/export-candidates/{candidateId}/approval-events"
   },
+  { label: "List export-eligible progress", method: "GET", path: "/api/projects/{projectId}/task-progress/export-queue" },
   { label: "Create export preview", method: "POST", path: "/api/projects/{projectId}/export-preview" },
   { label: "Read export preview", method: "GET", path: "/api/projects/{projectId}/export-preview/{exportBatchId}" },
   { label: "Approve export batch", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/approve" },
@@ -1237,6 +1238,17 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
       plannerQueue: (projectId: string) =>
         requestJson<TaskProgressUpdateRecord[]>(
           transport, baseUrl, defaultHeaders, taskProgressPath(projectId, "planner-queue")),
+      /**
+       * Approved updates that have not travelled yet, which is what an export preview is built
+       * from.
+       *
+       * Distinct from `plannerQueue`, which answers "what is waiting for my decision". An update
+       * leaves that queue at the moment it becomes export eligible, so reading it to find eligible
+       * work returns nothing at all.
+       */
+      exportQueue: (projectId: string) =>
+        requestJson<TaskProgressUpdateRecord[]>(
+          transport, baseUrl, defaultHeaders, taskProgressPath(projectId, "export-queue")),
       plannerReview: (projectId: string, progressUpdateId: string, request: PlannerReviewRequest) =>
         requestJson<TaskProgressUpdateRecord>(
           transport,

@@ -1,11 +1,15 @@
 import { useCallback } from "react";
-import type { ImportReviewSnapshotDetail, ImportReviewTaskRow } from "@shutdown-tracker/api-client";
+import type {
+  ImportReviewSnapshotDetail,
+  ImportReviewSnapshotSummary,
+  ImportReviewTaskRow
+} from "@shutdown-tracker/api-client";
 import type { ConsoleApiClient } from "./consoleApi";
 import { useAsyncResource } from "./useAsyncResource";
 import type { Resource } from "./useAsyncResource";
 
 /**
- * The imported tasks of the newest snapshot, indexed for lookup.
+ * The imported tasks of the newest accepted snapshot, indexed for lookup.
  *
  * Progress updates, problems, evidence, and export lines all reference a task by id. Showing
  * a raw identifier to a supervisor deciding whether to accept a report is useless — they need
@@ -32,7 +36,10 @@ export function useSnapshotTasks(
   return useAsyncResource<SnapshotTasks>(
     useCallback(async () => {
       const snapshots = await client.importReview.listSnapshots(projectId);
-      const newest = [...snapshots].sort((left, right) => right.snapshotVersion - left.snapshotVersion)[0];
+      // Accepted only. A newer snapshot that has been parsed but not accepted is a proposal, not
+      // the schedule this project is running on: export candidates are refused against it, and
+      // reporting progress against its tasks would attach work to a schedule nobody adopted.
+      const newest = newestAcceptedSnapshot(snapshots);
       if (!newest) {
         return emptySnapshotTasks;
       }
@@ -41,6 +48,21 @@ export function useSnapshotTasks(
     }, [client, projectId]),
     { enabled, idleMessage: "Configure a project and actor to load the imported schedule." }
   );
+}
+
+/**
+ * The accepted snapshot with the highest version, or nothing when none has been accepted.
+ *
+ * Exported so the rule is testable on its own: "newest" and "newest accepted" differ exactly when
+ * a re-import is sitting in review, which is the case that used to send the whole console at a
+ * schedule the server would refuse.
+ */
+export function newestAcceptedSnapshot(
+  snapshots: ImportReviewSnapshotSummary[]
+): ImportReviewSnapshotSummary | undefined {
+  return [...snapshots]
+    .filter((snapshot) => snapshot.status === "ACCEPTED")
+    .sort((left, right) => right.snapshotVersion - left.snapshotVersion)[0];
 }
 
 export function indexSnapshotTasks(detail: ImportReviewSnapshotDetail): SnapshotTasks {

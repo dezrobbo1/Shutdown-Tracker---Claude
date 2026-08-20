@@ -2,11 +2,16 @@ import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { capabilityAllows } from "@shutdown-tracker/api-client";
-import type { TaskProgressUpdateRecord } from "@shutdown-tracker/api-client";
+import type {
+  ImportReviewSnapshotSummary,
+  ProjectSnapshotStatus,
+  TaskProgressUpdateRecord
+} from "@shutdown-tracker/api-client";
 import { App } from "./App";
 import { buildConsoleSession, describeSession, resolveRole, sessionAllows } from "./session";
 import { consoleZones, parseRoute, parseZoneId, sectionById, zoneById, zoneHref } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
+import { newestAcceptedSnapshot } from "./useSnapshotTasks";
 import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
 import {
@@ -324,6 +329,36 @@ describe("controlled export", () => {
 
   it("emits nothing for an update that changes no schedule field", () => {
     expect(candidateRequestsFor(update({ percentComplete: null, actualStart: null }), "snapshot-1")).toEqual([]);
+  });
+
+  /**
+   * Physical percent complete is reviewable and readable, but it is not on the MVP export
+   * whitelist. Emitting it built previews carrying a line the server could only ever mark
+   * ineligible, which made the preview misdescribe what the chain had actually approved.
+   */
+  it("does not emit a field the export whitelist will refuse", () => {
+    const requests = candidateRequestsFor(
+      update({ percentComplete: null, actualStart: null, physicalPercentComplete: 30 }),
+      "snapshot-1"
+    );
+
+    expect(requests).toEqual([]);
+    expect(candidateRequestsFor(update({ physicalPercentComplete: 30 }), "snapshot-1").map((r) => r.fieldName))
+      .toEqual(["percent_complete", "actual_start"]);
+  });
+
+  /**
+   * "Newest" and "newest accepted" differ exactly when a re-import is sitting in review — and the
+   * export policy refuses candidates against anything but the accepted snapshot, so the console
+   * pointing at an unaccepted one sent the whole zone at a schedule the server would reject.
+   */
+  it("works from the newest accepted schedule, not merely the newest one", () => {
+    const snapshot = (snapshotVersion: number, status: ProjectSnapshotStatus) =>
+      ({ id: `s${snapshotVersion}`, snapshotVersion, status }) as ImportReviewSnapshotSummary;
+
+    expect(newestAcceptedSnapshot([snapshot(1, "ACCEPTED"), snapshot(2, "PARSED")])?.id).toBe("s1");
+    expect(newestAcceptedSnapshot([snapshot(1, "ACCEPTED"), snapshot(2, "ACCEPTED")])?.id).toBe("s2");
+    expect(newestAcceptedSnapshot([snapshot(1, "REJECTED"), snapshot(2, "PARSED")])).toBeUndefined();
   });
 
   it("enforces the export sequence so no step can be skipped", () => {

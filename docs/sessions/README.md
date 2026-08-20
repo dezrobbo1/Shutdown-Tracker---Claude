@@ -96,3 +96,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-19 — Raising a problem where there is no signal](2026-08-19-offline-problem-raising.md)
 - [2026-08-19 — Which work is yours](2026-08-19-assignment-scoped-work.md)
 - [2026-08-20 — The candidate comes back](2026-08-20-candidate-comes-back.md)
+- [2026-08-20 — The queue that could never match](2026-08-20-the-queue-that-could-never-match.md)
