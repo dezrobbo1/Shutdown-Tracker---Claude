@@ -392,6 +392,27 @@ describe("shutdown tracker api client", () => {
     await expect(client.evidence.downloadContent("p1", "e1")).rejects.toBeInstanceOf(ShutdownTrackerApiError);
   });
 
+  it("reads the three progress queues from three different endpoints", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.taskProgress.supervisorQueue("p1");
+    await client.taskProgress.plannerQueue("p1");
+    await client.taskProgress.exportQueue("p1");
+
+    // Three questions, three endpoints. "What is waiting for my decision" and "what did I already
+    // approve that has not gone yet" are disjoint by construction — an update leaves the planner
+    // queue at the moment it becomes export eligible — so one cannot be read to answer the other.
+    expect(calls.map((call) => call.input)).toEqual([
+      "https://example.test/api/projects/p1/task-progress/supervisor-queue",
+      "https://example.test/api/projects/p1/task-progress/planner-queue",
+      "https://example.test/api/projects/p1/task-progress/export-queue"
+    ]);
+  });
+
   it("returns a candidate schedule against the batch whose artifact Project opened", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

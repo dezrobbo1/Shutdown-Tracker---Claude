@@ -184,6 +184,18 @@ public class TaskProgressService {
     }
 
     /**
+     * What an export preview may be built from.
+     *
+     * <p>The planner queue answers "what is waiting for me"; this answers "what did I already
+     * approve that has not gone yet". They are different questions, and reading the first to
+     * answer the second returns nothing at all: an update leaves the planner queue at the moment
+     * it becomes eligible.
+     */
+    public List<TaskProgressUpdateRecord> exportQueue(UUID projectId) {
+        return repository.findExportQueue(projectId);
+    }
+
+    /**
      * Whether this update could become an export candidate at all.
      *
      * <p>Summary-task actuals are never exported; Microsoft Project rolls those up itself.

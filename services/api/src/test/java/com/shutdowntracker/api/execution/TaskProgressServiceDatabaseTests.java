@@ -144,6 +144,96 @@ class TaskProgressServiceDatabaseTests extends AbstractDatabaseTest {
         assertThat(reviewed.plannerReviewState()).isEqualTo(PlannerReviewState.NOT_REQUIRED);
     }
 
+    // ------------------------------------------------------------------ the export queue
+
+    /**
+     * The defect these exist for: the console used to build its candidate list from the planner
+     * queue, filtering it for updates the planner had already approved. An update leaves the
+     * planner queue at the exact moment it becomes eligible, so that filter could never match and
+     * no export preview could ever be created. Every test passed throughout, because each proved
+     * one step and the break lived between two.
+     */
+    @Test
+    void anApprovedUpdateLeavesThePlannerQueueAndArrivesInTheExportQueue() {
+        TaskProgressUpdateRecord submitted = service.submit(projectId, fieldUser, progress(leafTaskId));
+        service.supervisorReview(
+                projectId, submitted.id(), supervisor, ProgressReviewState.SUPERVISOR_ACCEPTED, null);
+
+        assertThat(service.plannerQueue(projectId)).extracting(TaskProgressUpdateRecord::id)
+                .containsExactly(submitted.id());
+        assertThat(service.exportQueue(projectId))
+                .describedAs("nothing may be exported before the planner has decided")
+                .isEmpty();
+
+        service.plannerReview(projectId, submitted.id(), planner, true, "Safe to send.");
+
+        assertThat(service.plannerQueue(projectId))
+                .describedAs("the decision has been made, so it is no longer waiting for one")
+                .isEmpty();
+        assertThat(service.exportQueue(projectId)).extracting(TaskProgressUpdateRecord::id)
+                .containsExactly(submitted.id());
+    }
+
+    @Test
+    void aRejectedUpdateNeverReachesTheExportQueue() {
+        TaskProgressUpdateRecord submitted = service.submit(projectId, fieldUser, progress(leafTaskId));
+        service.supervisorReview(
+                projectId, submitted.id(), supervisor, ProgressReviewState.SUPERVISOR_ACCEPTED, null);
+        service.plannerReview(projectId, submitted.id(), planner, false, "Value does not match the site.");
+
+        assertThat(service.exportQueue(projectId)).isEmpty();
+    }
+
+    /**
+     * The reason the queue is keyed on {@code export_state} rather than on the planner's decision.
+     *
+     * <p>Superseding leaves {@code planner_review_state} saying {@code planner_approved}, because
+     * the planner did approve that value, once. Only {@code export_state} records that it has since
+     * been replaced — so a queue reading the decision would offer a stale value for export.
+     */
+    @Test
+    void anUpdateSupersededAfterApprovalDropsOutOfTheExportQueue() {
+        TaskProgressUpdateRecord original = service.submit(projectId, fieldUser, progress(leafTaskId));
+        service.supervisorReview(
+                projectId, original.id(), supervisor, ProgressReviewState.SUPERVISOR_ACCEPTED, null);
+        service.plannerReview(projectId, original.id(), planner, true, null);
+        assertThat(service.exportQueue(projectId)).hasSize(1);
+
+        service.submit(projectId, fieldUser, new TaskProgressSubmitRequest(
+                leafTaskId, TaskExecutionState.IN_PROGRESS, new BigDecimal("60"), null, null,
+                null, "Corrected.", null, null, original.id()));
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT planner_review_state::text FROM task_progress_updates WHERE id = ?",
+                String.class, original.id()))
+                .describedAs("the planner's decision is a historical fact and is not rewritten")
+                .isEqualTo("planner_approved");
+        assertThat(service.exportQueue(projectId))
+                .describedAs("but a superseded value must never travel")
+                .isEmpty();
+    }
+
+    /**
+     * Nothing writes {@code export_batch_id} yet, so this sets it by hand. The clause exists now so
+     * the predicate is stated once, in one place, rather than being added later beside a list that
+     * has already started offering the same update twice.
+     */
+    @Test
+    void anUpdateAlreadyCarriedByABatchIsNotOfferedAgain() {
+        TaskProgressUpdateRecord submitted = service.submit(projectId, fieldUser, progress(leafTaskId));
+        service.supervisorReview(
+                projectId, submitted.id(), supervisor, ProgressReviewState.SUPERVISOR_ACCEPTED, null);
+        service.plannerReview(projectId, submitted.id(), planner, true, null);
+        assertThat(service.exportQueue(projectId)).hasSize(1);
+
+        fixtures.acceptNewestSnapshot(projectId);
+        UUID batchId = fixtures.createExportBatchShell(projectId);
+        jdbcTemplate().update(
+                "UPDATE task_progress_updates SET export_batch_id = ? WHERE id = ?", batchId, submitted.id());
+
+        assertThat(service.exportQueue(projectId)).isEmpty();
+    }
+
     @Test
     void plannerApprovalMakesTheValueExportEligible() {
         TaskProgressUpdateRecord submitted = service.submit(projectId, fieldUser, progress(leafTaskId));

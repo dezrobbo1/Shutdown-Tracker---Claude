@@ -45,8 +45,8 @@ export function ExportZone({ session, client }: ZoneProps) {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [artifactNote, setArtifactNote] = useState<string | null>(null);
 
-  const plannerQueue = useAsyncResource<TaskProgressUpdateRecord[]>(
-    useCallback(() => client.taskProgress.plannerQueue(projectId), [client, projectId]),
+  const exportQueue = useAsyncResource<TaskProgressUpdateRecord[]>(
+    useCallback(() => client.taskProgress.exportQueue(projectId), [client, projectId]),
     { enabled: session.live, idleMessage: "Configure a project and actor to load export candidates." }
   );
 
@@ -63,18 +63,36 @@ export function ExportZone({ session, client }: ZoneProps) {
   /**
    * Approved updates that could change a schedule field.
    *
-   * Only updates the planner has already approved appear here. Building a preview from
-   * anything else would put an unreviewed field change in front of a planner as if it had
-   * passed the chain.
+   * The server decides what belongs here. There was once a filter on this list, re-deriving
+   * eligibility from the planner queue — and because an update leaves that queue at the very moment
+   * it becomes eligible, the filter could never match anything and no preview could ever be built.
+   * A predicate stated in two places is a predicate that will disagree with itself; this one is
+   * stated in `findExportQueue` and nowhere else.
    */
-  const candidates = useMemo(() => {
-    if (plannerQueue.state.status !== "loaded") {
-      return [];
-    }
-    return plannerQueue.state.value.filter(
-      (update) => update.plannerReviewState === "PLANNER_APPROVED" || update.exportState === "ELIGIBLE"
-    );
-  }, [plannerQueue.state]);
+  const candidates = useMemo(
+    () => (exportQueue.state.status === "loaded" ? exportQueue.state.value : []),
+    [exportQueue.state]
+  );
+
+  /**
+   * Candidates whose snapshot is not the accepted one this console is showing.
+   *
+   * A re-import accepted after a report was approved leaves the approval attached to a schedule
+   * that is no longer current. The server refuses those, so they are named here rather than
+   * silently dropped: a planner who cannot see why a preview is short will assume work was lost.
+   */
+  const staleCandidates = useMemo(
+    () => (snapshotId === null ? [] : candidates.filter((update) => update.projectSnapshotId !== snapshotId)),
+    [candidates, snapshotId]
+  );
+
+  const currentCandidates = useMemo(
+    () =>
+      snapshotId === null
+        ? candidates
+        : candidates.filter((update) => update.projectSnapshotId === snapshotId),
+    [candidates, snapshotId]
+  );
 
   /**
    * Register each approved field change as an authoritative candidate, then preview those.
@@ -87,14 +105,24 @@ export function ExportZone({ session, client }: ZoneProps) {
     if (snapshotId === null) {
       return;
     }
-    const requests = candidates.flatMap((update) => candidateRequestsFor(update, snapshotId));
+    const requests = currentCandidates.flatMap((update) =>
+      candidateRequestsFor(update, update.projectSnapshotId)
+    );
     if (requests.length === 0) {
       return;
     }
     await write.run("Preview created. Nothing has been sent to Microsoft Project.", async () => {
       const registered = [];
       for (const request of requests) {
-        registered.push(await client.exportCandidates.create(projectId, request));
+        const candidate = await client.exportCandidates.create(projectId, request);
+        // A candidate is created approval-neutral on purpose: registering a value and approving it
+        // are two acts, and the server binds a preview to the second. Without this event the
+        // preview is refused, because nothing has said this exact captured value may travel.
+        await client.exportCandidates.createApprovalEvent(projectId, candidate.id, {
+          approvalState: "APPROVED_FOR_EXPORT",
+          reason: "Planner approved this progress update for export."
+        });
+        registered.push(candidate);
       }
       const created = await client.exportPreview.create(projectId, {
         projectSnapshotId: snapshotId,
@@ -145,7 +173,10 @@ export function ExportZone({ session, client }: ZoneProps) {
     <div className="zone-grid">
       <article className="work-panel">
         <PanelHeading eyebrow="Controlled return" title="Export candidates">
-          <StatusChip label={`${candidates.length} approved`} tone={candidates.length === 0 ? "blue" : "green"} />
+          <StatusChip
+            label={`${currentCandidates.length} approved`}
+            tone={currentCandidates.length === 0 ? "blue" : "green"}
+          />
         </PanelHeading>
         <BoundaryNote>
           Only planner-approved updates on leaf tasks become export lines. Shutdown Tracker
@@ -153,13 +184,13 @@ export function ExportZone({ session, client }: ZoneProps) {
         </BoundaryNote>
 
         <ResourceView
-          resource={plannerQueue}
+          resource={exportQueue}
           emptyWhen={() => candidates.length === 0}
           emptyMessage="No planner-approved updates are waiting to be exported."
         >
           {() => (
             <div className="preview-list">
-              {candidates.map((update) => (
+              {currentCandidates.map((update) => (
                 <div className="preview-line" key={update.id}>
                   <span>
                     {snapshotTasks === null
@@ -174,6 +205,15 @@ export function ExportZone({ session, client }: ZoneProps) {
           )}
         </ResourceView>
 
+        {staleCandidates.length === 0 ? null : (
+          <BoundaryNote>
+            {staleCandidates.length} approved{" "}
+            {staleCandidates.length === 1 ? "update was" : "updates were"} approved against an
+            earlier schedule and cannot be exported against the accepted one. Reconcile the
+            re-import, then have the field resubmit against the current schedule.
+          </BoundaryNote>
+        )}
+
         <CapabilityGate
           allowed={session.canCreateExportPreview}
           reason="Creating an export preview is a planner responsibility."
@@ -181,7 +221,7 @@ export function ExportZone({ session, client }: ZoneProps) {
           <div className="mobile-action-row">
             <button
               type="button"
-              disabled={write.busy || snapshotId === null || candidates.length === 0}
+              disabled={write.busy || snapshotId === null || currentCandidates.length === 0}
               onClick={() => void createPreview()}
             >
               Create export preview
@@ -524,8 +564,9 @@ export function canVerify(state: ExportBatchState) {
 /**
  * The export candidates an approved update implies.
  *
- * Only fields the update actually carries are emitted. Sending an absent value would blank a
- * field in the schedule that nobody meant to change.
+ * Only fields the update actually carries are emitted, and only the three the MVP export whitelist
+ * authorises. Sending an absent value would blank a field in the schedule that nobody meant to
+ * change; sending an unauthorised one produces a line the server can only mark ineligible.
  *
  * A progress update is never edited in place — a correction supersedes it — so the update's own
  * id is its source version, and the server can tell later whether the value it captured still
@@ -547,13 +588,10 @@ export function candidateRequestsFor(
   if (update.percentComplete !== null) {
     requests.push({ ...base, fieldName: "percent_complete", proposedValue: String(update.percentComplete) });
   }
-  if (update.physicalPercentComplete !== null) {
-    requests.push({
-      ...base,
-      fieldName: "physical_percent_complete",
-      proposedValue: String(update.physicalPercentComplete)
-    });
-  }
+  // Physical percent complete is deliberately absent. It is reviewable and readable, but it is not
+  // on the MVP export whitelist, so the server marks such a line permanently ineligible. Emitting
+  // it produced previews carrying a line that could never travel, which made the preview
+  // misdescribe what the chain had approved.
   if (update.actualStart !== null) {
     requests.push({ ...base, fieldName: "actual_start", proposedValue: update.actualStart });
   }

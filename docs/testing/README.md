@@ -91,6 +91,26 @@ As the corresponding features are implemented, tests should verify:
 - Microsoft Project open and verification actor/time identity remains authoritative through terminal verification;
 - no endpoint or worker operation silently updates Microsoft Project.
 
+### A fixture must be a record its own endpoint could return
+
+The console once built its export-candidate list from the planner queue and filtered it for updates
+the planner had already approved. That intersection is empty by construction — an update leaves the
+planner queue at the exact moment it becomes export eligible — so no export preview could ever be
+created, and every step from preview to candidate return was unreachable through the interface.
+
+Every test passed throughout. Each proved one step in isolation, and the break lived between two of
+them. The console test that covered this code built its own fixture by hand, in a state the endpoint
+it stood for could never have returned.
+
+Two rules follow, and both are cheap:
+
+- **A fixture standing in for an endpoint must satisfy that endpoint's own predicate.** If a queue
+  selects `export_state = 'eligible'`, a fixture for it carries that state. A record invented to
+  make the test pass proves only that the test passes.
+- **A chain needs at least one test that walks it.** Assert that the output of each step is a legal
+  input to the next, through the controllers, against a real database. A step-by-step suite cannot
+  see a defect that lives between two working steps.
+
 ## Permission and audit tests
 
 Verify project-scoped authorization, least-privilege behavior, review/export authority, evidence access, delegation boundaries, and immutable audit records for material actions.

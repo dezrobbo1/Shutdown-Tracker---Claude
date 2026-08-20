@@ -174,6 +174,33 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
                 new MapSqlParameterSource("projectId", projectId), this::map);
     }
 
+    /**
+     * Approved updates that may still travel, in submission order.
+     *
+     * <p>{@code export_state = 'eligible'} rather than {@code planner_review_state = 'planner_approved'}:
+     * {@link #markSuperseded(UUID)} moves {@code export_state} to {@code superseded} and deliberately
+     * leaves the planner's decision alone, since the planner did approve that value at the time.
+     * Only {@code export_state} distinguishes a value that may still go from one that has been
+     * replaced or blocked.
+     *
+     * <p>{@code export_batch_id IS NULL} keeps an update that a batch already carried out of the
+     * list, so the same field change cannot be previewed twice. Nothing writes that column yet, so
+     * today the clause matches every eligible row; it is written here because this is where the
+     * question belongs, and the tests exercise it against a hand-set batch id rather than assuming.
+     */
+    @Override
+    public List<TaskProgressUpdateRecord> findExportQueue(UUID projectId) {
+        return jdbcTemplate.query(
+                "SELECT " + COLUMNS + """
+                 FROM task_progress_updates
+                 WHERE project_id = :projectId
+                   AND export_state = 'eligible'
+                   AND export_batch_id IS NULL
+                 ORDER BY submitted_at
+                """,
+                new MapSqlParameterSource("projectId", projectId), this::map);
+    }
+
     @Override
     public void markSuperseded(UUID progressUpdateId) {
         jdbcTemplate.update(

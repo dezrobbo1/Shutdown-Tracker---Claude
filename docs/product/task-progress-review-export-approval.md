@@ -219,6 +219,21 @@ Required copy:
 Planner approval marks this progress as eligible for export preview. The master .mpp is not updated.
 ```
 
+### The export queue is a third queue, not a filter over the second
+
+A planner works two lists, and they are disjoint. The **planner review queue** answers *what is
+waiting for my decision*, and is keyed on `planner_review_state = 'needs_planner_review'`. The
+**export queue** answers *what did I already approve that has not travelled yet*, and is keyed on
+`export_state = 'eligible'` with no batch yet attached. An update leaves the first at the exact
+moment it enters the second, so neither list can be derived from the other.
+
+The export queue is keyed on the export state rather than on the planner's decision, and the
+difference is not cosmetic. Superseding an update sets its export state and deliberately leaves
+`planner_review_state` reading `planner_approved`, because the planner *did* approve that value,
+once — the decision is a historical fact and is not rewritten. Only the export state distinguishes a
+value that may still go from one that has been replaced or blocked. A queue reading the decision
+would offer a superseded value for export.
+
 ## Authoritative export-candidate binding
 
 Candidate creation and candidate approval are separate events. Creating a candidate captures one immutable fact against an accepted project snapshot; it does not imply planner approval or export eligibility. Every later approval, rejection, `correction_requested`, or supersession event identifies that exact candidate. Before `approved_for_export` is appended, the database locks and revalidates the accepted snapshot, task UID/ID/name/leaf state, captured baseline, canonical proposed value, source fingerprint, and candidate identity. Non-authorizing history remains appendable after drift. Current authority is the latest database-ordered event for the candidate, not the latest event for a reusable generic source identity.

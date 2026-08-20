@@ -60,6 +60,21 @@ public class TaskProgressController {
         return service.plannerQueue(projectId);
     }
 
+    /**
+     * Approved updates still waiting to travel to Microsoft Project.
+     *
+     * <p>Gated on {@code CREATE_EXPORT_PREVIEW} rather than {@code VIEW_PROJECT}: this list is the
+     * input to a preview, and is only useful to somebody about to build one. Deliberately not
+     * {@code PLANNER_REVIEW_TASK_PROGRESS} either — that capability <em>produces</em> the list, and
+     * keeping the producer and the consumer distinct keeps the review and approval steps visibly
+     * separate one level further down.
+     */
+    @GetMapping("/export-queue")
+    public List<TaskProgressUpdateRecord> exportQueue(@PathVariable UUID projectId, Actor actor) {
+        authorization.requireCapability(projectId, actor, Capability.CREATE_EXPORT_PREVIEW);
+        return service.exportQueue(projectId);
+    }
+
     @PostMapping("/{progressUpdateId}/planner-review")
     public TaskProgressUpdateRecord plannerReview(
             @PathVariable UUID projectId,

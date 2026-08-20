@@ -81,6 +81,62 @@ public final class DatabaseFixtures {
                 role);
     }
 
+    /**
+     * Accepts the newest snapshot, which an export batch requires.
+     *
+     * <p>Separate from {@link #createExportBatchShell(UUID)} rather than folded into it, because
+     * acceptance is a real reviewed decision: a fixture that quietly accepted a schedule on a
+     * caller's behalf would hide the one precondition the export policy cares most about.
+     */
+    public UUID acceptNewestSnapshot(UUID projectId) {
+        return jdbcTemplate.queryForObject(
+                """
+                UPDATE project_snapshots
+                SET status = 'accepted', accepted_at = now()
+                WHERE id = (
+                    SELECT id FROM project_snapshots
+                    WHERE project_id = ?
+                    ORDER BY snapshot_version DESC
+                    LIMIT 1
+                )
+                RETURNING id
+                """,
+                UUID.class,
+                projectId);
+    }
+
+    /**
+     * A minimal current-policy export batch, for tests that need a batch id to point at.
+     *
+     * <p>Inserted rather than driven through the export services because those tests are about
+     * something else. It still has to satisfy the V007 policy trigger, which is why it names
+     * policy version 1 and begins as an unsealed draft preview: a batch cannot be conjured into a
+     * later state, and a fixture that tried would be testing a state the application cannot reach.
+     */
+    public UUID createExportBatchShell(UUID projectId) {
+        UUID snapshotId = jdbcTemplate.queryForObject(
+                """
+                SELECT id FROM project_snapshots
+                WHERE project_id = ? AND status = 'accepted'
+                ORDER BY snapshot_version DESC
+                LIMIT 1
+                """,
+                UUID.class,
+                projectId);
+
+        return jdbcTemplate.queryForObject(
+                """
+                INSERT INTO export_batches (
+                    project_id, project_snapshot_id, status, integrity_policy_version, line_set_sealed
+                )
+                VALUES (?, ?, CAST('draft_preview' AS export_batch_state), 1, false)
+                RETURNING id
+                """,
+                UUID.class,
+                projectId,
+                snapshotId);
+    }
+
     /** Builds project -> source file -> import batch in one call. */
     public ImportChain createImportChain(String projectName) {
         UUID projectId = createProject(projectName);
