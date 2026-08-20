@@ -432,6 +432,47 @@ export type ExportPreviewDetail = {
   message: string;
 };
 
+/**
+ * Where one Microsoft Project candidate calculation has got to.
+ *
+ * `accepted` means a planner accepted the candidate. It never means the master schedule was
+ * adopted, which is a separate record and a separate decision.
+ */
+export type CandidateScheduleRunState =
+  | "RETURNED"
+  | "DELTA_READY"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "SUPERSEDED"
+  | "FAILED";
+
+/**
+ * One candidate schedule a planner brought back from Microsoft Project.
+ *
+ * Three hashes travel together on purpose: the accepted source the candidate had to be derived
+ * from, the artifact Shutdown Tracker handed Project, and the file that came back. A review that
+ * cannot show all three cannot say what it compared.
+ */
+export type CandidateScheduleRunRecord = {
+  id: string;
+  projectId: string;
+  exportBatchId: string;
+  projectSnapshotId: string;
+  acceptedSourceFileId: string;
+  acceptedSourceFileHash: string;
+  generatedArtifactHash: string | null;
+  state: CandidateScheduleRunState;
+  candidateOriginalFilename: string;
+  candidateContentHash: string;
+  candidateSizeBytes: number;
+  microsoftProjectVersion: string | null;
+  plannerNote: string | null;
+  returnedAt: string;
+  returnedByUserId: string;
+  returnedByDisplayName: string | null;
+  supersededByCandidateScheduleRunId: string | null;
+};
+
 export type ExportBatchDecisionRequest = {
   reviewedByUserId?: string | null;
   reason?: string | null;
@@ -902,7 +943,20 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
     path: "/api/projects/{projectId}/export-preview/{exportBatchId}/mark-opened-in-microsoft-project"
   },
   { label: "Verify export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/verify" },
-  { label: "Generate export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact" }
+  { label: "Generate export artifact", method: "POST", path: "/api/projects/{projectId}/export-preview/{exportBatchId}/generate-artifact" },
+  {
+    label: "Return candidate schedule",
+    method: "POST",
+    path: "/api/projects/{projectId}/export-preview/{exportBatchId}/candidate-runs"
+  },
+  {
+    label: "List candidate runs for export batch",
+    method: "GET",
+    path: "/api/projects/{projectId}/export-preview/{exportBatchId}/candidate-runs"
+  },
+  { label: "List candidate runs", method: "GET", path: "/api/projects/{projectId}/candidate-runs" },
+  { label: "Read candidate run", method: "GET", path: "/api/projects/{projectId}/candidate-runs/{runId}" },
+  { label: "Download returned candidate", method: "GET", path: "/api/projects/{projectId}/candidate-runs/{runId}/content" }
 ];
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -1110,6 +1164,58 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
           exportPreviewPath(projectId, `${exportBatchId}/generate-artifact`),
           { method: "POST", body: request ?? {} }
         )
+    },
+    candidateRuns: {
+      /**
+       * Records the schedule Microsoft Project calculated from one batch's artifact.
+       *
+       * Returning the same file twice resolves to the run the first upload created rather than
+       * recording a second calculation, so a retry after a dropped connection is safe.
+       */
+      returnCandidate: (
+        projectId: string,
+        exportBatchId: string,
+        file: Blob,
+        options: { filename?: string; microsoftProjectVersion?: string; plannerNote?: string } = {}
+      ) => {
+        const formData = new FormData();
+        if (options.filename) {
+          formData.append("file", file, options.filename);
+        } else {
+          formData.append("file", file);
+        }
+        if (options.microsoftProjectVersion) {
+          formData.append("microsoftProjectVersion", options.microsoftProjectVersion);
+        }
+        if (options.plannerNote) {
+          formData.append("plannerNote", options.plannerNote);
+        }
+        return requestJson<CandidateScheduleRunRecord>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          exportPreviewPath(projectId, `${exportBatchId}/candidate-runs`),
+          { method: "POST", formData }
+        );
+      },
+      listForExportBatch: (projectId: string, exportBatchId: string) =>
+        requestJson<CandidateScheduleRunRecord[]>(
+          transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/candidate-runs`)),
+      listForProject: (projectId: string) =>
+        requestJson<CandidateScheduleRunRecord[]>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, "candidate-runs")),
+      get: (projectId: string, runId: string) =>
+        requestJson<CandidateScheduleRunRecord>(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `candidate-runs/${runId}`)),
+      /**
+       * The returned schedule itself.
+       *
+       * Fetched rather than linked because the actor headers travel on the request, and a plain
+       * link would not carry them.
+       */
+      downloadContent: (projectId: string, runId: string) =>
+        requestBlob(
+          transport, baseUrl, defaultHeaders, projectPath(projectId, `candidate-runs/${runId}/content`))
     },
     taskProgress: {
       submit: (projectId: string, request: TaskProgressSubmitRequest) =>

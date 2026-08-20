@@ -9,7 +9,14 @@ import { consoleZones, parseRoute, parseZoneId, sectionById, zoneById, zoneHref 
 import { buildZoneSession } from "./zones/ZoneProps";
 import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
-import { canApprove, canGenerate, canMarkOpened, canVerify, candidateRequestsFor } from "./zones/ExportZone";
+import {
+  canApprove,
+  canGenerate,
+  canMarkOpened,
+  canReturnCandidate,
+  canVerify,
+  candidateRequestsFor
+} from "./zones/ExportZone";
 import { validateCategoryInput } from "./zones/MappingZone";
 import { ImportReviewZone, newestSnapshotId } from "./zones/ImportReviewZone";
 import { ExecutionZone } from "./zones/ExecutionZone";
@@ -23,7 +30,7 @@ import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone, attachEvidenceFile, fileSizeLabel } from "./zones/EvidenceZone";
 import { CriticalWatchZone, reportCountLabel, updateStatusLabel } from "./zones/CriticalWatchZone";
 import { createConsoleApiClient } from "./consoleApi";
-import { formatPercent, toneForState } from "./formatting";
+import { candidateRunStateLabels, formatPercent, toneForState } from "./formatting";
 
 describe("console shell", () => {
   it("offers every operational zone as a linkable route", () => {
@@ -331,6 +338,47 @@ describe("controlled export", () => {
 
     expect(canVerify("GENERATED")).toBe(false);
     expect(canVerify("OPENED_IN_MICROSOFT_PROJECT")).toBe(true);
+  });
+
+  /**
+   * A candidate can only be returned against a batch Microsoft Project was actually handed.
+   * Offering the control earlier would invite a planner to upload a file that came from
+   * somewhere else entirely, and the record would say it came from this batch.
+   */
+  it("accepts a returned candidate only after an artifact exists", () => {
+    expect(canReturnCandidate("DRAFT_PREVIEW")).toBe(false);
+    expect(canReturnCandidate("AWAITING_APPROVAL")).toBe(false);
+    expect(canReturnCandidate("APPROVED")).toBe(false);
+
+    expect(canReturnCandidate("GENERATED")).toBe(true);
+    expect(canReturnCandidate("OPENED_IN_MICROSOFT_PROJECT")).toBe(true);
+    // Verifying that the artifact opened and returning what Project made of it are separate
+    // acts, and a planner may do them in that order.
+    expect(canReturnCandidate("VERIFIED")).toBe(true);
+
+    expect(canReturnCandidate("REJECTED")).toBe(false);
+    expect(canReturnCandidate("FAILED")).toBe(false);
+    expect(canReturnCandidate("SUPERSEDED")).toBe(false);
+  });
+
+  it("keeps returning a candidate with the planner, and says it is not adoption", () => {
+    const asRole = (role: string) =>
+      buildZoneSession(
+        buildConsoleSession({
+          VITE_SHUTDOWN_TRACKER_PROJECT_ID: "p",
+          VITE_SHUTDOWN_TRACKER_ACTOR_ID: "u",
+          VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: role
+        })
+      );
+
+    expect(asRole("planner").canReturnCandidate).toBe(true);
+    expect(asRole("supervisor").canReturnCandidate).toBe(false);
+    // An administrator administers access; they do not run Microsoft Project against a candidate.
+    expect(asRole("admin").canReturnCandidate).toBe(false);
+
+    expect(candidateRunStateLabels.ACCEPTED).toBe("Accepted by planner");
+    expect(candidateRunStateLabels.ACCEPTED).not.toContain("adopt");
+    expect(candidateRunStateLabels.RETURNED).toContain("not yet compared");
   });
 });
 

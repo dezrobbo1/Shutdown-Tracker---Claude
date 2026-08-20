@@ -299,6 +299,26 @@ The default `ProjectExportArtifactJobClient` is intentionally disconnected and t
 
 The API does not generate MSPDI/XML itself, parse Project files, create queue jobs, store artifact bytes in PostgreSQL, automate Microsoft Project reopen, verify artifact contents automatically, mutate imported task rows, calculate schedules, or write back to Microsoft Project. Future asynchronous wrapping should follow the [Worker Handoff Queue Strategy](../../docs/architecture/worker-handoff-queue-strategy.md), keeping the export batch in existing product states while any internal job-run state is tracked separately.
 
+## Candidate Schedule Runs
+
+Generating an artifact says what Shutdown Tracker proposed. Only the schedule Microsoft Project calculated says what those inputs did to the plan, and until a planner brings it back there is nothing to compare, classify, or decide about. When persistence is enabled the API records returned candidates:
+
+- `POST /api/projects/{projectId}/export-preview/{exportBatchId}/candidate-runs` — multipart `file`, with optional `microsoftProjectVersion` and `plannerNote`
+- `GET /api/projects/{projectId}/export-preview/{exportBatchId}/candidate-runs`
+- `GET /api/projects/{projectId}/candidate-runs`
+- `GET /api/projects/{projectId}/candidate-runs/{runId}`
+- `GET /api/projects/{projectId}/candidate-runs/{runId}/content`
+
+A run is a separate entity rather than another `export_batches` state, as `docs/product/approval-export-state-model.md` requires: `verified` means a generated artifact opened in Microsoft Project as expected, not that anything was recalculated and not that anything was adopted.
+
+Returning a candidate is refused unless the batch reached `generated`, `opened_in_microsoft_project`, or `verified` — before generation there is no artifact Project could have been handed — and unless the accepted source file still carries the content hash recorded at import, which is the same requirement candidate generation makes. The upload must be an `.xml` document whose root element is `<Project>`; that is a check against the wrong file, not schedule validation, and it claims nothing about whether the file is this batch's candidate. The server hashes the bytes it stored rather than accepting a hash from the caller, and the run records three identities together: the accepted source hash, the generated artifact hash, and the returned candidate hash.
+
+Returning the same bytes against the same batch again resolves to the run the first upload created and is not audited twice. The run row is append-only: what it returned, from which source, and who returned it are immutable, and PostgreSQL permits only the candidate lifecycle transitions. A decision state is unreachable from `returned` — a planner decision is bound to one candidate hash and one semantic delta, so accepting a schedule nothing has compared is refused by the database rather than trusted to a caller.
+
+Writing the returned candidate anywhere near the accepted source is out of scope. The API does not parse it, read values out of it, compare it, classify a difference, record a planner decision, or record master adoption. Those are the remaining slices of the candidate goal.
+
+Storage is the provider-neutral abstraction's local filesystem implementation, configured by `SHUTDOWN_TRACKER_CANDIDATE_SCHEDULE_STORAGE_LOCAL_ROOT` (default `.shutdown-tracker/candidate-schedules`) and `SHUTDOWN_TRACKER_CANDIDATE_SCHEDULE_STORAGE_MAX_SIZE_BYTES` (default 200 MiB).
+
 ## Audit Event Writes
 
 When `shutdown-tracker.persistence.enabled=true`, the API writes audit rows through `JdbcAuditEventRecorder` into the existing `audit_events` table. The default profile still uses a no-op audit recorder so context-load tests and review smoke deployments can boot without PostgreSQL.

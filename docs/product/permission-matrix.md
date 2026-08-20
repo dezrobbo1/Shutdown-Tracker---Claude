@@ -132,6 +132,9 @@ Mapped categories may be inherited/resolved for filtering, scope, reporting, and
 | Approve/reject export batch | no | planner only | request only | no | no | no | no | no | no |
 | Generate MSPDI/XML export | no | planner only | no | no | no | no | no | no | no |
 | Mark export manually opened/verified in Project | no | planner only | request only | no | no | no | no | no | read-only |
+| Return the candidate Microsoft Project calculated | no | planner only | no | no | no | no | no | no | no |
+| View candidate schedule runs | read-only | yes | yes | read-only | read-only | no | no | no | read-only |
+| Download a returned candidate schedule | no | planner only | no | no | no | no | no | no | no |
 | Supersede export batch | no | planner only | request only | no | no | no | no | no | read-only |
 | View export history | read-only | yes | yes | read-only | read-only | no | no | no | read-only |
 
