@@ -1,194 +1,87 @@
-# Active Goal — A Front End That Does What It Shows
+# Active Goal — What Microsoft Project Did To The Schedule
 
 ## Status
 
-Active on `feat/assignment-scoped-work`. Every slice of this goal is now merged or in review;
-see "Completion" below.
+Active on `feat/candidate-return-path`, the first of four slices.
 
-Two goals are complete and merged, and are kept below as history: the green baseline that opened
-this repository, and the candidate schedule Microsoft Project can open. The checks the first one
-fixed are the ones every goal since has been validated by.
-
-A follow-up correction to the candidate goal, `fix/candidate-element-placement`, is merged as
-pull request [#5](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/5). It repaired
-where an approved field is written into the source document, and gated nothing in this goal.
-
-This repository is a fresh start. Its history carries the work previously developed on the
-`claude-branch` of `dezrobbo1/Shutdown-Tracker`, minus the source-material archive. No external
-gates were inherited from that repository, and nothing open there is live: the active goal it
-carried described a final review of PR #48, work already merged into this history.
-
-## Green baseline — completed
-
-### Outcome
-
-`main` is trustworthy: every committed check passes on a developer machine and in GitHub Actions,
-each check proves what it claims to prove, and the documented state of the product matches what
-the code actually does.
-
-A check that passes locally because it quietly skipped itself is worse than no check. Prefer a
-check that runs everywhere over a check that runs only where an optional tool happens to be
-installed.
-
-### Completed
-
-- `ExportIntegrityPostgresIntegrationTests` runs against the shared embedded PostgreSQL server
-  used by every other database test, instead of starting its own Docker container and skipping
-  itself when no Docker daemon is reachable. It previously reported green locally while never
-  running, and failed in CI because its fixture predates V008.
-- That fixture now seeds the `users` rows every export-lifecycle attribution column has referenced
-  since V008. Statements that attempt to overwrite an established actor name a second real user
-  rather than a random UUID; both are rejected, since the immutability rules are BEFORE-row
-  triggers and run ahead of the foreign key's AFTER-row trigger, but naming a real user keeps the
-  fixture saying what it means.
-- `scripts/db/validate-migrations.sh` and `.ps1` no longer require the migration set to be exactly
-  V001–V007. That guard rejected the repository on its first line as soon as V008 was added, so
-  the job never reached the validation it exists to run.
-- The committed PostgreSQL export-integrity suite now validates the current schema. Its
-  current-policy database applies the full migration sequence rather than stopping at V007:
-  `export-integrity-clean.sql` checks that the tables the export policy depends on are present
-  instead of asserting an exact 21-table schema that any unrelated migration would break, and
-  `export-integrity-current-policy.sql` seeds the `users` rows its lifecycle actors have needed
-  since V008. The V006-to-V007 upgrade and late-failure scenarios stay at their own migration
-  levels, because advancing them would stop them validating the historical transition they exist
-  for.
-
-## Candidate schedule — completed
-
-Merged as pull request [#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3). The
-manual Microsoft Project gate below is unchanged and still pending; no automated result stands in
-for it.
-
-### Outcome
-
-A generated candidate schedule is a schedule: the accepted Project source with the approved
-execution inputs written into it, opening in Microsoft Project with its calendars, dependency
-links, WBS ancestry, summary structure and resource assignments intact, and provably identical to
-the source everywhere Shutdown Tracker was not authorized to write.
-
-The artifact it replaces was a new, empty `ProjectFile` holding only the approved leaf tasks,
-pruned to an element allowlist. It satisfied every authority rule by containing almost nothing,
-and Microsoft Project had nothing to recalculate against.
-
-### Success criteria
-
-- The candidate is derived from the accepted source file, located through the existing
-  `export_batches -> project_snapshots -> import_batches -> source_files` chain, and refuses to
-  build if that file no longer matches the SHA-256 recorded at import.
-- Authority is proved by differencing the written candidate against the source: only approved
-  `(task UID, field)` pairs may differ, and the comparison must be able to see every difference it
-  claims to rule out, including in repeated sibling elements and element attributes.
-- An approved UID absent from the source is a hard failure rather than a task Shutdown Tracker
-  creates.
-- Product documents describe the artifact the code actually produces.
-
-### Non-goals
-
-- Delta classification and the planner adoption record. The read-only source-versus-candidate
-  comparison surface and the adoption decision remain future work.
-- Native `.mpp` candidate generation. Candidates require an MSPDI/XML source; `.mpp` upload,
-  import and reporting are unaffected.
-- Any schedule calculation by Shutdown Tracker. Recalculation stays with Microsoft Project.
-
-### Completion conditions for this goal
-
-- The conditions below, plus: the differencing check is covered by tests that exercise it
-  directly, not only through a generated artifact.
-- The manual Microsoft Project gate is stated as pending, never as passed.
+Three goals are complete and merged. They are summarised under "Completed goals" below rather
+than kept in full; the session entries in [docs/sessions](../sessions/README.md) hold what was
+decided and why.
 
 ## Outcome
 
-Every surface the two applications show is a surface that works. A control that is visible either
-does the thing it names, or says why it cannot — and no screen asks a person to stand in for a
-capability the product does not have.
+A planner can see what Microsoft Project did to the schedule, and decide about it.
 
-The applications are already wired to the API for import review, mapping, progress, review,
-problems, handover, the export lifecycle and Critical Watch. What is left is the set of places
-where a screen exists but the capability behind it does not, which the root `README.md` lists under
-"Not production-complete yet".
+Candidate generation already exists: Shutdown Tracker writes the approved execution inputs into
+the accepted source and proves it wrote nothing else. What happens next is unrecorded. Microsoft
+Project opens the candidate, recalculates it, and produces a schedule whose dates, durations,
+roll-ups, slack and criticality may all have moved — and none of that ever comes back. Nothing
+compares the recalculated candidate to the source, nothing separates the two inputs the planner
+approved from the two hundred consequences Project derived from them, and no record says whether
+a planner accepted the result or adopted it as the next master.
+
+`docs/product/project-candidate-schedule-handoff.md` has described this contract from the start,
+under "Candidate delta" and "Adoption". This goal implements it.
+
+The end state: a planner opens a candidate run, sees the source and candidate identities and
+their hashes, sees every difference between them classified as an approved input, a
+Project-calculated consequence, or something unexplained, decides whether the candidate is
+acceptable, and — separately, later, and never by implication — records that it became the master.
 
 ## Slices
 
-Ordered, one reviewed outcome per branch. Each is finished — API, both apps, tests, docs — before
+Ordered, one reviewed outcome per branch. Each is finished — API, console, tests, docs — before
 the next starts.
 
-1. **Evidence carries its file.** *(done, `feat/evidence-binary-upload`)* Registering evidence records that a file exists;
-   nothing uploaded one, so the console asked a person to type where the file was kept. The record
-   is now registered and the binary uploaded against it, downloadable back, with the field app
-   capturing from the camera.
-2. **A project-wide evidence list.** *(done, `feat/project-evidence-list`)* Evidence was readable
-   per task only, so nobody could ask what evidence a shutdown has. The Evidence zone now opens on
-   the project and narrows by task, bounded, and says when the list was cut.
-3. **Critical Update reporting from the field app.** *(done, `feat/field-critical-updates`)* The
-   console could file one; a field user or contractor could not, which was the wrong way round.
-   Filed from Today and carried by the offline queue, which now holds more than one kind of report.
-4. **Offline problem raising.** *(done, `feat/offline-problem-raising`)* Raising a problem needed a
-   connection at the moment it was raised, which is the moment there is least likely to be one. V012
-   gives `problems` an idempotency key, so the queue can hold one on the same terms as progress, and
-   an unsent problem is listed on the screen that raised it rather than disappearing from it.
-5. **Assignment-scoped work lists.** *(done, `feat/assignment-scoped-work`)* The field app listed
-   the snapshot's leaf tasks rather than the signed-in user's work, because nothing linked a
-   Microsoft Project resource to a Shutdown Tracker user. The product decision came first and is
-   recorded in `docs/product/field-identity-and-assigned-work.md`: the link is explicit rather than
-   inferred, survives re-import, and grants relevance only. V013 gives it a table, the field app
-   shows the reader their own work, and Exports > People is where a planner curates it.
-
-## Completion
-
-All five slices are done. The goal's own conditions are met:
-
-- Every capability the two applications offer is reachable end to end, with API, authorization,
-  audit and tests behind it.
-- The states the product can be in are states it shows. Evidence whose file never arrived reads as
-  outstanding; a work list that is empty says which of its four causes it is.
-- The information architecture is unchanged: five console zones, five field zones. Slices 1–4 added
-  no navigation. Slice 5 added one section inside Exports, beside Mapping, which is what the
-  architecture reserves sections for.
-- `docs/product/frontend-visual-review-scope.md` and the root `README.md` describe what the
-  applications actually do.
-
-Nothing in this goal was recorded as not taken.
-
-## Next after this goal
-
-`README.md`'s "Not production-complete yet" list is the menu. The two largest items left on the
-candidate-schedule side are the source-versus-candidate delta and the planner adoption record:
-candidate generation exists, but nothing computes the semantic difference between source and
-candidate, classifies each difference as an approved input or a Project-calculated consequence, or
-records a separate master-adoption decision. Production authentication is the largest item overall
-and is its own goal.
+1. **The candidate comes back.** *(active, `feat/candidate-return-path`)* There is no way to
+   return the schedule Microsoft Project calculated, so there is nothing to compare against
+   anything. A planner uploads the recalculated candidate against the export batch whose artifact
+   Project opened. It becomes a candidate schedule run with its own file identity and SHA-256,
+   bound to the accepted source it must have been derived from.
+2. **The delta, and what each difference is.** Compare the accepted source against the returned
+   candidate and classify every difference as `approved_input`,
+   `project_calculated_consequence`, or `unexpected_difference`. The comparison belongs to the
+   project worker, which is where Project processing lives.
+3. **The planner decision.** Accept or reject a candidate, bound to one candidate hash and one
+   delta, audited, and surfaced read-only in the console's Exports zone.
+4. **The adoption record.** A separate fact with its own actor, timestamp and lineage. Accepting a
+   candidate never records adoption, and nothing may infer one from the other.
 
 ## Success criteria
 
-- A capability the UI offers is reachable end to end, with the API, authorization, audit and tests
-  behind it.
-- A state the product can be in is a state the product shows. Evidence whose file never arrived
-  reads as outstanding rather than as absent.
-- No screen implies a capability that does not exist, per
-  `docs/product/ux-anti-slop-rules.md` and `docs/product/frontend-visual-review-scope.md`.
-- The information architecture is unchanged: five console zones, five field zones.
+- A returned candidate is a separate immutable artifact. The accepted source and the generated
+  candidate are unchanged by its arrival, and its own identity cannot be edited afterwards.
+- A candidate run is bound to the exact accepted source file hash recorded at import, so a
+  candidate can never be reviewed against a schedule other than the one it was derived from.
+- Every source-versus-candidate difference is classified, and an unexplained difference is
+  reported as unexplained rather than absorbed into either explained category.
+- A Project-calculated consequence is labelled as one. Its presence never widens what Shutdown
+  Tracker may write directly.
+- Candidate acceptance and master adoption are two records, two decisions, and two audit events.
+- The console shows the states this creates, including a candidate that was rejected and a
+  difference nothing can explain.
 
 ## Non-goals
 
-- Production object storage. The evidence store is the provider-neutral abstraction's local
-  filesystem implementation, as the architecture already specifies.
-- Production authentication. The actor still arrives through a gateway-trusted header; that is its
-  own goal and a larger one.
-- Offline evidence capture. The progress queue holds small JSON reports; a queue of megabyte
-  photos needs its own eviction and retry rules.
-- Saved Operational Views, global operational Scope, and entity-linked Discussion.
-
-## Completion conditions for this goal
-
-- Each slice above is merged, or is explicitly recorded as not taken and why.
-- `docs/product/frontend-visual-review-scope.md` and the root `README.md` describe what the
-  applications actually do.
+- Any schedule calculation by Shutdown Tracker. The delta reports what Project did; it does not
+  derive dates, durations, roll-ups, slack or criticality, and it never fills a value in.
+- An editable Gantt, dependency editor, or replacement scheduling UI. The candidate comparison is
+  read-only, as `AGENTS.md` requires.
+- Writing back to the accepted master. Adoption is recorded, never performed.
+- The planner-controlled Microsoft Project companion. Returning the candidate stays a manual
+  planner action; the automated mechanism needs its own implementation ADR.
+- Native `.mpp` candidates, unchanged from the completed candidate goal.
+- Production authentication and production object storage, both their own goals.
 
 ## Standing constraints
 
 The product boundaries in `AGENTS.md` apply unchanged: Microsoft Project remains the schedule
 authority, no CPM or schedule calculation, no native `.mpp` writing, no silent write-back, and
 append-only audit with explicit approval and supersession semantics.
+
+`docs/product/approval-export-state-model.md` states the shape this work must take: candidate work
+introduces a separate candidate-schedule run entity rather than overloading the export batch's
+`verified` state, which means only that a generated artifact opened as expected.
 
 ## Required validation
 
@@ -210,26 +103,76 @@ when it is missing. Report any check that could not be run rather than implying 
 Verify GitHub Actions on the branch head. A previously green run is not evidence for a later
 commit.
 
-## Manual Microsoft Project gate
-
-This gate belongs to the completed candidate-schedule goal, not to the frontend goal above. It is
-recorded here because it is still outstanding, and nothing in this goal touches it either way.
-
-Unchanged and still pending. No automated result may be reported as a manual Microsoft Project
-round-trip. The remaining human gate is for a planner to generate a synthetic MSPDI/XML candidate
-schedule and confirm that it opens in Microsoft Project as a complete schedule, preserves task UID
-and ID identity along with the source's summary structure, WBS ancestry, calendars and dependency
-links, differs from the accepted source only in the approved leaf-task values for the three
-authorized fields, excludes summary-task actuals authored by Shutdown Tracker, leaves the accepted
-source file unchanged, and performs no master-file update through Shutdown Tracker.
-
-Microsoft Project recalculating dependent values in the candidate is expected and is not a failure.
-
 ## Completion conditions
 
+- Each slice above is merged, or is explicitly recorded as not taken and why.
 - `mvn test`, `npm test`, and `npm run build` pass with no skipped test standing in for a check
   that was claimed.
 - Migration validation passes, or its blocker is reported precisely.
 - GitHub Actions is green on the final head.
-- Documentation matches the implementation.
+- `docs/product/project-candidate-schedule-handoff.md`, `docs/product/approval-export-state-model.md`
+  and the root `README.md` describe what the code does, including what remains unimplemented.
 - The handoff states what changed, what was verified, and what remains pending.
+
+## Manual Microsoft Project gate
+
+Inherited from the completed candidate-schedule goal, unchanged and still pending. No automated
+result may be reported as a manual Microsoft Project round-trip.
+
+The remaining human gate is for a planner to generate a synthetic MSPDI/XML candidate schedule and
+confirm that it opens in Microsoft Project as a complete schedule, preserves task UID and ID
+identity along with the source's summary structure, WBS ancestry, calendars and dependency links,
+differs from the accepted source only in the approved leaf-task values for the three authorized
+fields, excludes summary-task actuals authored by Shutdown Tracker, leaves the accepted source file
+unchanged, and performs no master-file update through Shutdown Tracker.
+
+Microsoft Project recalculating dependent values in the candidate is expected and is not a failure.
+
+This goal adds a second human gate, for slice 2 onward: the candidate a planner returns must be
+one Microsoft Project actually saved, so the delta is proved against a real recalculation rather
+than only against synthetic fixtures.
+
+## Completed goals
+
+### Green baseline — merged
+
+`main` became trustworthy: every committed check passes locally and in GitHub Actions, and each
+check proves what it claims to prove. `ExportIntegrityPostgresIntegrationTests` had been reporting
+green locally while silently skipping itself for want of Docker, the migration validation script
+rejected the repository as soon as V008 existed, and the committed PostgreSQL export-integrity
+suite validated a schema the application no longer ran. The checks this goal fixed are the ones
+every goal since has been validated by. See
+[docs/sessions/2026-08-17-fresh-repo-green-baseline.md](../sessions/2026-08-17-fresh-repo-green-baseline.md).
+
+### Candidate schedule — merged
+
+A generated candidate became a schedule rather than an extract: the accepted Project source with
+the approved execution inputs written into it, opening in Microsoft Project with calendars,
+dependency links, WBS ancestry, summary structure and resource assignments intact. Authority is
+proved by differencing the written candidate against the source and requiring that only approved
+`(task UID, field)` pairs differ, which is stronger than the element allowlist it replaced: an
+allowlist proves nothing about what it removed. Merged as pull request
+[#3](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/3), with a follow-up correction to
+element placement in [#5](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/5). The
+manual Microsoft Project gate above belongs to this goal and is still pending. See
+[docs/sessions/2026-08-17-candidate-schedule-differencing.md](../sessions/2026-08-17-candidate-schedule-differencing.md)
+and [docs/sessions/2026-08-18-candidate-element-placement.md](../sessions/2026-08-18-candidate-element-placement.md).
+
+### A front end that does what it shows — merged
+
+Every surface the two applications show became a surface that works. Five slices, each its own
+branch: evidence carrying its file, a project-wide evidence list, Critical Update reporting from
+the field app, offline problem raising, and assignment-scoped work lists. The information
+architecture was unchanged — five console zones, five field zones — and nothing in the goal was
+recorded as not taken. See the session entries from 2026-08-18 and 2026-08-19.
+
+One item was left open by the last slice and remains open: `critical_updates.idempotency_key` has
+a plain index where `problems` and `task_progress_updates` each have a partial unique one, so two
+genuinely concurrent retries of a queued Critical Update could still produce two rows. It is narrow
+and belongs to its own change.
+
+## Next after this goal
+
+Production authentication is the largest item left on `README.md`'s "Not production-complete yet"
+list. The actor still arrives through a gateway-trusted header rather than a validated token;
+authorization itself is enforced from stored membership and is not what is missing.

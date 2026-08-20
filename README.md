@@ -27,7 +27,7 @@ Microsoft Project is expected to recalculate a disposable candidate after approv
 
 Critical Work Packages and Critical Watchlists are configurable execution-reporting constructs, not calculated critical-path features.
 
-See [Project Candidate Schedule Handoff](docs/product/project-candidate-schedule-handoff.md) for the durable handoff contract. Candidate generation is implemented: the artifact is the accepted source schedule with the approved execution inputs applied to it, and Shutdown Tracker proves it changed nothing else by differencing the candidate against the source. Delta classification and the planner adoption record remain open; see "Not production-complete yet" below.
+See [Project Candidate Schedule Handoff](docs/product/project-candidate-schedule-handoff.md) for the durable handoff contract. Candidate generation is implemented: the artifact is the accepted source schedule with the approved execution inputs applied to it, and Shutdown Tracker proves it changed nothing else by differencing the candidate against the source. The schedule Microsoft Project calculates from it is recorded when a planner returns it. Delta classification, the planner candidate decision and the adoption record remain open; see "Not production-complete yet" below.
 
 ## Applications
 
@@ -50,6 +50,10 @@ Implemented foundations include:
   approved task/field pairs differ, which proves the rest of the schedule is untouched rather than
   merely absent;
 - import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
+- candidate schedule runs: the schedule Microsoft Project calculated is brought back by a planner and
+  recorded against the export batch whose artifact it opened, with its own SHA-256 beside the
+  accepted source hash and the generated artifact hash. The record is immutable, and it claims
+  nothing further — the database refuses a planner decision on a candidate nothing has compared;
 - append-only audit foundations, with import, snapshot-acceptance and lineage decisions
   attributed to the acting user rather than recorded as system events;
 - approval-record capture that gates export eligibility, and terminal failure recording for import and export batches;
@@ -94,11 +98,11 @@ Implemented foundations include:
 
 Not production-complete yet:
 
-- the source-versus-candidate delta and the planner candidate decision. Candidate *generation* now
-  exists — the artifact is the accepted source schedule with the approved inputs applied, so
-  Microsoft Project has a real schedule to recalculate — but nothing yet computes the semantic
+- the source-versus-candidate delta and the planner candidate decision. Candidate *generation*
+  exists, and the recalculated candidate now comes back — but nothing yet computes the semantic
   delta between source and candidate, classifies each difference as an approved input or a
-  Project-calculated consequence, or records a separate master-adoption decision;
+  Project-calculated consequence, records a planner decision on one, or records a separate
+  master-adoption decision;
 - candidate generation from a native `.mpp` source. It requires an MSPDI/XML-sourced snapshot,
   because Microsoft Project can only be handed MSPDI/XML back and converting formats in both
   directions can silently drop links, calendars or constraints. `.mpp` upload, import and

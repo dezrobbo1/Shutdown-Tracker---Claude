@@ -392,6 +392,75 @@ describe("shutdown tracker api client", () => {
     await expect(client.evidence.downloadContent("p1", "e1")).rejects.toBeInstanceOf(ShutdownTrackerApiError);
   });
 
+  it("returns a candidate schedule against the batch whose artifact Project opened", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, {})
+    });
+
+    await client.candidateRuns.returnCandidate(
+      "p1",
+      "batch-1",
+      new Blob(["<Project/>"], { type: "application/xml" }),
+      {
+        filename: "kiln-shutdown-candidate.xml",
+        microsoftProjectVersion: "Project 2021 16.0.14332",
+        plannerNote: "Recalculated after applying approved progress"
+      }
+    );
+
+    expect(calls[0].input).toBe("https://example.test/api/projects/p1/export-preview/batch-1/candidate-runs");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].body).toBeInstanceOf(FormData);
+    const form = calls[0].body as FormData;
+    expect((form.get("file") as File).name).toBe("kiln-shutdown-candidate.xml");
+    expect(form.get("microsoftProjectVersion")).toBe("Project 2021 16.0.14332");
+    expect(form.get("plannerNote")).toBe("Recalculated after applying approved progress");
+  });
+
+  it("omits the version and note when a planner did not record them", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({ fetchImpl: captureFetch(calls, {}) });
+
+    await client.candidateRuns.returnCandidate("p1", "batch-1", new Blob(["<Project/>"]));
+
+    const form = calls[0].body as FormData;
+    expect(form.get("microsoftProjectVersion")).toBeNull();
+    expect(form.get("plannerNote")).toBeNull();
+  });
+
+  it("reads candidate runs by batch and by project, and the returned file by fetch", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.candidateRuns.listForExportBatch("p1", "batch-1");
+    await client.candidateRuns.listForProject("p1");
+    await client.candidateRuns.get("p1", "run-1");
+
+    expect(calls.map((call) => call.input)).toEqual([
+      "https://example.test/api/projects/p1/export-preview/batch-1/candidate-runs",
+      "https://example.test/api/projects/p1/candidate-runs",
+      "https://example.test/api/projects/p1/candidate-runs/run-1"
+    ]);
+
+    const binaryCalls: CapturedRequest[] = [];
+    const downloadClient = createShutdownTrackerApiClient({
+      baseUrl: "https://example.test",
+      headers: { "X-Actor-User-Id": "planner-1" },
+      fetchImpl: captureBinaryFetch(binaryCalls, "<Project/>")
+    });
+
+    const blob = await downloadClient.candidateRuns.downloadContent("p1", "run-1");
+
+    expect(binaryCalls[0].input).toBe("https://example.test/api/projects/p1/candidate-runs/run-1/content");
+    expect(binaryCalls[0].headers?.["X-Actor-User-Id"]).toBe("planner-1");
+    expect(await blob.text()).toBe("<Project/>");
+  });
+
   it("configures operational categories and resolves a snapshot", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

@@ -50,6 +50,8 @@ Suggested target states:
 
 These target states describe the product lifecycle. They do not imply that every current branch already implements them.
 
+As implemented, `candidate_schedule_runs` carries `returned -> delta_ready -> accepted | rejected`, plus `failed` and `superseded`. Two states from the target lifecycle are deliberately absent: `not_prepared` is the absence of a run rather than a state of one, and `calculation_pending` belongs to the planner-controlled Microsoft Project companion, which does not exist in this repository. Only `returned` is written by application code today; the transitions out of it are enforced by PostgreSQL because the invariants are permanent, and a decision cannot be reached from `returned` without a delta in between.
+
 ### Master adoption state
 
 `not_adopted -> adopted_manually -> superseded_by_later_master`
@@ -96,6 +98,8 @@ The export-integrity implementation in this repository enforces the state machin
 These states remain useful for authority and artifact provenance. Candidate-schedule work should either extend them carefully or introduce a separate candidate-schedule run entity rather than overloading `verified` to mean "planner accepted the recalculated schedule."
 
 `verified` currently means the planner confirmed the generated MSPDI/XML artifact opened and behaved as expected. It does not mean a candidate schedule was recalculated, and it does not mean the master was adopted.
+
+That separation is now implemented rather than only stated: a recalculated candidate is a `candidate_schedule_runs` row bound to the batch, not a batch state, and an export batch may hold more than one run when Microsoft Project calculated more than once.
 
 ## Authority rules
 

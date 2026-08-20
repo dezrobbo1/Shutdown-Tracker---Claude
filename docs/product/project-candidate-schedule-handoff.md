@@ -212,6 +212,8 @@ The minimal MSPDI/XML patch generator has been replaced by full-source candidate
 
 The security controls around authoritative candidates, exact approvals, stale-data rejection, immutable audit and batch provenance were **preserved unchanged** through that replacement, and one was added: the candidate is refused unless the accepted source file still matches the SHA-256 recorded at import, so a candidate can never be derived from a schedule other than the reviewed one.
 
-Implemented: candidate generation, source-hash verification, and the only-approved-inputs-differ check.
+The candidate a planner returns is now recorded. Microsoft Project recalculates the generated artifact on the planner's machine, and the schedule it produces is uploaded back against the export batch whose artifact it opened. That run is a separate entity from the export batch, carries its own SHA-256, and is bound to the accepted source file hash recorded at import, so a candidate can only ever be reviewed against the schedule it was derived from. Returning it compares nothing: the record is the first of the three claims this document insists are kept apart, and its audit row says explicitly that no delta was computed, no planner decision was made, and no master was adopted.
+
+Implemented: candidate generation, source-hash verification, the only-approved-inputs-differ check, and the returned-candidate record.
 
 Not yet implemented: the semantic source-versus-candidate delta and its classification, the planner candidate decision, and the separate master-adoption record.

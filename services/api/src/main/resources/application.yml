@@ -5,8 +5,12 @@ spring:
     enabled: false
   servlet:
     multipart:
-      max-file-size: 60MB
-      max-request-size: 60MB
+      # Sized for the largest upload any endpoint accepts, which is a returned candidate schedule:
+      # a Project plan saved as MSPDI/XML is several times the size of the .mpp it came from. Each
+      # store still enforces its own smaller limit — evidence stays at 50MB — so this is the ceiling
+      # the container refuses at, not the limit any one endpoint allows.
+      max-file-size: 210MB
+      max-request-size: 210MB
 
 server:
   port: 8080
@@ -43,6 +47,9 @@ shutdown-tracker:
     max-size-bytes: ${SHUTDOWN_TRACKER_EVIDENCE_STORAGE_MAX_SIZE_BYTES:52428800}
   export-artifact-storage:
     local-root: ${SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT:.shutdown-tracker/export-artifacts}
+  candidate-schedule-storage:
+    local-root: ${SHUTDOWN_TRACKER_CANDIDATE_SCHEDULE_STORAGE_LOCAL_ROOT:.shutdown-tracker/candidate-schedules}
+    max-size-bytes: ${SHUTDOWN_TRACKER_CANDIDATE_SCHEDULE_STORAGE_MAX_SIZE_BYTES:209715200}
   review-project-bootstrap:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
     project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}

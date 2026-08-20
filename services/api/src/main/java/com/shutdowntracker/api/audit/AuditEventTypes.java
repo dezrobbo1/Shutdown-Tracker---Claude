@@ -30,6 +30,7 @@ public final class AuditEventTypes {
     public static final String EXPORT_FILE_OPENED_IN_MICROSOFT_PROJECT =
             "export_file_opened_in_microsoft_project";
     public static final String EXPORT_FILE_VERIFIED = "export_file_verified";
+    public static final String CANDIDATE_SCHEDULE_RETURNED = "candidate_schedule_returned";
 
     private AuditEventTypes() {
     }

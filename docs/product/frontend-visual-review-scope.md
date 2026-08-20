@@ -295,4 +295,12 @@ The console gained one section for it — Exports > People — because saying wh
 person is the same kind of act as Operational Mapping. The five console zones and five field zones
 are unchanged.
 
+The Exports zone now also shows what Microsoft Project calculated: a panel beside the export batch
+lists the candidate schedules a planner has returned, and lets a planner return one. It is a panel
+inside the existing zone rather than navigation, because it belongs to the batch it is about. What
+it shows is deliberately thin — filename, who returned it and when, the source and candidate
+hashes, and a state that reads "Returned — not yet compared". Nothing on the screen compares the
+schedules or offers a decision, because nothing behind it does either, and a review surface that
+implied otherwise would be the exact failure `ux-anti-slop-rules.md` exists to prevent.
+
 This cleanup is not a redesign. It is a guardrail pass to keep the visual review shell from becoming an AI-generated dashboard wall.

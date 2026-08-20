@@ -36,7 +36,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "V010__problems_actions_evidence_handover.sql",
                         "V011__import_profiles_and_operational_categories.sql",
                         "V012__problem_offline_capture.sql",
-                        "V013__project_resource_links.sql");
+                        "V013__project_resource_links.sql",
+                        "V014__candidate_schedule_runs.sql");
     }
 
     @Test
@@ -58,7 +59,8 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
                         "task_lineage_links",
                         "critical_watchlists",
                         "users",
-                        "project_memberships");
+                        "project_memberships",
+                        "candidate_schedule_runs");
     }
 
     @Test

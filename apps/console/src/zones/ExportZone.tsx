@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type {
+  CandidateScheduleRunRecord,
   ExportBatchState,
   ExportCandidateCreateRequest,
   ExportPreviewDetail,
@@ -15,7 +16,13 @@ import {
   WriteFeedback,
   useWriteAction
 } from "../components";
-import { exportBatchStateLabels, formatDateTime, formatPercent, shortId } from "../formatting";
+import {
+  candidateRunStateLabels,
+  exportBatchStateLabels,
+  formatDateTime,
+  formatPercent,
+  shortId
+} from "../formatting";
 import { useAsyncResource } from "../useAsyncResource";
 import { taskLabel, useSnapshotTasks } from "../useSnapshotTasks";
 import type { SnapshotTasks } from "../useSnapshotTasks";
@@ -268,8 +275,167 @@ export function ExportZone({ session, client }: ZoneProps) {
         </ResourceView>
         <WriteFeedback state={write.state} />
       </article>
+
+      <CandidateRunsPanel session={session} client={client} batchId={batchId} batchState={batchState} />
     </div>
   );
+}
+
+/**
+ * What Microsoft Project made of the artifact, once a planner brings it back.
+ *
+ * The panel is the honest half of the handoff. Generating an artifact says what Shutdown Tracker
+ * proposed; only the schedule Project calculated says what those inputs did to the plan. Until a
+ * planner returns it, this says so rather than showing an empty list as though nothing happened.
+ *
+ * Nothing here reads the schedule. A returned candidate is recorded, hashed and listed; comparing
+ * it against the source, classifying each difference, and deciding about it are separate steps
+ * that do not exist yet, and the panel says which ones.
+ */
+function CandidateRunsPanel({
+  session,
+  client,
+  batchId,
+  batchState
+}: ZoneProps & { batchId: string | null; batchState: ExportBatchState | null }) {
+  const projectId = session.projectId;
+  const [file, setFile] = useState<File | null>(null);
+  const [projectVersion, setProjectVersion] = useState("");
+  const [note, setNote] = useState("");
+  const write = useWriteAction();
+
+  const runs = useAsyncResource<CandidateScheduleRunRecord[]>(
+    useCallback(
+      () => (batchId === null ? Promise.resolve([]) : client.candidateRuns.listForExportBatch(projectId, batchId)),
+      [client, projectId, batchId]
+    ),
+    {
+      enabled: session.live && batchId !== null,
+      idleMessage: "Select an export batch to see what Microsoft Project calculated from it."
+    }
+  );
+
+  const returnable = batchState !== null && canReturnCandidate(batchState);
+
+  const returnCandidate = async () => {
+    if (batchId === null || file === null) {
+      return;
+    }
+    await write.run("Candidate recorded. Nothing has been compared or adopted.", async () => {
+      await client.candidateRuns.returnCandidate(projectId, batchId, file, {
+        filename: file.name,
+        microsoftProjectVersion: projectVersion.trim() || undefined,
+        plannerNote: note.trim() || undefined
+      });
+      setFile(null);
+      setProjectVersion("");
+      setNote("");
+      await runs.reload();
+    });
+  };
+
+  return (
+    <article className="work-panel">
+      <PanelHeading eyebrow="Candidate schedules" title="What Microsoft Project calculated" />
+      <BoundaryNote>
+        Microsoft Project recalculates the candidate; Shutdown Tracker records what came back.
+        Returning a candidate compares nothing and adopts nothing — the master schedule is
+        unchanged either way.
+      </BoundaryNote>
+
+      <ResourceView
+        resource={runs}
+        emptyWhen={(value) => value.length === 0}
+        emptyMessage={
+          returnable
+            ? "Nothing has come back from Microsoft Project for this batch yet."
+            : "This batch has not generated an artifact, so Microsoft Project has had nothing to calculate."
+        }
+      >
+        {(value) => (
+          <div className="preview-list">
+            {value.map((run) => (
+              <div className="preview-line" key={run.id}>
+                <span>
+                  {run.candidateOriginalFilename}
+                  <br />
+                  <em>
+                    {formatDateTime(run.returnedAt)} · {run.returnedByDisplayName ?? shortId(run.returnedByUserId)}
+                    {run.microsoftProjectVersion === null ? null : ` · ${run.microsoftProjectVersion}`}
+                  </em>
+                </span>
+                <strong>
+                  {/* Both hashes, because the review question is what changed between them. */}
+                  source {run.acceptedSourceFileHash.slice(0, 12)}… → candidate{" "}
+                  {run.candidateContentHash.slice(0, 12)}…
+                </strong>
+                <StatusChip label={candidateRunStateLabels[run.state]} tone={run.state === "RETURNED" ? "blue" : undefined} />
+              </div>
+            ))}
+          </div>
+        )}
+      </ResourceView>
+
+      <CapabilityGate
+        allowed={session.canReturnCandidate}
+        reason="Returning the schedule Microsoft Project calculated is planner-owned."
+      >
+        <div className="progress-form">
+          <label className="wide-field">
+            <span>Candidate saved from Microsoft Project</span>
+            <input
+              type="file"
+              accept=".xml"
+              aria-label="Returned candidate schedule"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="wide-field">
+            <span>Microsoft Project version</span>
+            <input
+              type="text"
+              value={projectVersion}
+              onChange={(event) => setProjectVersion(event.target.value)}
+              placeholder="Which Project calculated it, for the record"
+            />
+          </label>
+          <label className="wide-field">
+            <span>Note</span>
+            <textarea
+              rows={2}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Anything a reviewer should know about this calculation"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={write.busy || !returnable || file === null}
+            onClick={() => void returnCandidate()}
+          >
+            Record returned candidate
+          </button>
+          {returnable ? null : (
+            <p className="capability-reason">
+              Generate the artifact and open it in Microsoft Project first. A candidate can only be
+              returned against a batch Project was actually handed.
+            </p>
+          )}
+        </div>
+      </CapabilityGate>
+      <WriteFeedback state={write.state} />
+    </article>
+  );
+}
+
+/**
+ * The batch states Microsoft Project can have been handed an artifact in.
+ *
+ * `VERIFIED` is included because confirming that an artifact opened correctly and returning what
+ * Project made of it are two separate acts, and a planner may well do them in that order.
+ */
+export function canReturnCandidate(state: ExportBatchState) {
+  return state === "GENERATED" || state === "OPENED_IN_MICROSOFT_PROJECT" || state === "VERIFIED";
 }
 
 /**

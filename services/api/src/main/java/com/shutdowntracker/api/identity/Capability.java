@@ -38,6 +38,12 @@ public enum Capability {
     APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),
     GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER),
     RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER),
+    // Bringing back the schedule Microsoft Project calculated, and reading one back. Planner-only,
+    // like every other capability in the export handoff: the planner is who runs Project against
+    // the candidate and who reviews what it produced. Reading the returned file is gated on the
+    // same capability rather than on VIEW_PROJECT, because a full recalculated schedule is not the
+    // same kind of thing as a task list, and only somebody reviewing a candidate needs the bytes.
+    RETURN_CANDIDATE_SCHEDULE(ProjectRole.PLANNER),
 
     // Execution. Field users and contractors submit for their own assigned work. The grant
     // stays by role even though project_resource_links now models who holds which resource,

@@ -4,7 +4,7 @@ This directory contains the PostgreSQL schema migrations used by Shutdown Tracke
 
 ## Current baseline
 
-The baseline is `V001` through `V013` and creates 34 application tables:
+The baseline is `V001` through `V014` and creates 35 application tables:
 
 - `V001__baseline_extensions_and_enums.sql`: enables `pgcrypto` and defines the initial enum types; creates no tables.
 - `V002__projects_snapshots_and_imports.sql`: creates `projects`, `source_files`, `import_batches`, and `project_snapshots`.
@@ -19,6 +19,7 @@ The baseline is `V001` through `V013` and creates 34 application tables:
 - `V011__import_profiles_and_operational_categories.sql`: creates `import_profiles`, `operational_categories`, `operational_category_aliases`, and `task_category_values`.
 - `V012__problem_offline_capture.sql`: adds `idempotency_key` and `offline_local_id` to `problems`, with a partial unique index on `(project_id, idempotency_key)`, so a problem captured in the field can be retried without being raised twice. Creates no tables.
 - `V013__project_resource_links.sql`: creates `project_resource_links`, saying which Microsoft Project resource is which Shutdown Tracker user so the field app can show somebody their own work. Keyed on the resource's Project UID within the project rather than on an `imported_resources` row, so the link survives re-import; one active link per resource, enforced by a partial unique index; revoking is a state change on the row, never a delete. Grants relevance only — no authorization check reads it.
+- `V014__candidate_schedule_runs.sql`: creates `candidate_schedule_runs`, where the schedule Microsoft Project calculated is recorded when a planner returns it. A separate entity rather than another `export_batches` state, because `verified` means a generated artifact opened as expected and not that anything was recalculated. Each run is bound to the export batch whose artifact Project opened and to the accepted source file hash recorded at import, so a candidate can only be reviewed against the schedule it was derived from. What a run returned, and against which source, is immutable; state moves only along the candidate lifecycle, and a decision is unreachable until a delta exists.
 
 Critical Watchlists and Critical Work Packages are reporting constructs. They do not calculate critical path, float, or recovery schedules.
 

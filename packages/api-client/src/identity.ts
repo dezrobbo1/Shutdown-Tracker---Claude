@@ -52,6 +52,7 @@ export type Capability =
   | "APPROVE_EXPORT_BATCH"
   | "GENERATE_EXPORT_ARTIFACT"
   | "RECORD_EXPORT_VERIFICATION"
+  | "RETURN_CANDIDATE_SCHEDULE"
   | "SUBMIT_TASK_PROGRESS"
   | "REVIEW_TASK_PROGRESS"
   | "PLANNER_REVIEW_TASK_PROGRESS"
@@ -86,6 +87,7 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   APPROVE_EXPORT_BATCH: ["planner"],
   GENERATE_EXPORT_ARTIFACT: ["planner"],
   RECORD_EXPORT_VERIFICATION: ["planner"],
+  RETURN_CANDIDATE_SCHEDULE: ["planner"],
   SUBMIT_TASK_PROGRESS: ["field_user", "contractor", "supervisor", "coordinator"],
   REVIEW_TASK_PROGRESS: ["supervisor", "coordinator", "shutdown_control"],
   PLANNER_REVIEW_TASK_PROGRESS: ["planner"],

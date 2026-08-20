@@ -29,6 +29,7 @@ export type ZoneSession = ConsoleSession & {
   canApproveExport: boolean;
   canGenerateArtifact: boolean;
   canRecordVerification: boolean;
+  canReturnCandidate: boolean;
 };
 
 export type ZoneProps = {
@@ -60,6 +61,9 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
     canCreateExportPreview: sessionAllows(session, "CREATE_EXPORT_PREVIEW"),
     canApproveExport: sessionAllows(session, "APPROVE_EXPORT_BATCH"),
     canGenerateArtifact: sessionAllows(session, "GENERATE_EXPORT_ARTIFACT"),
-    canRecordVerification: sessionAllows(session, "RECORD_EXPORT_VERIFICATION")
+    canRecordVerification: sessionAllows(session, "RECORD_EXPORT_VERIFICATION"),
+    // Bringing back what Microsoft Project calculated, and reading it back. Planner-owned
+    // like the rest of the handoff: the planner is who ran Project against the candidate.
+    canReturnCandidate: sessionAllows(session, "RETURN_CANDIDATE_SCHEDULE")
   };
 }

@@ -1,4 +1,5 @@
 import type {
+  CandidateScheduleRunState,
   ExportBatchState,
   PlannerReviewState,
   ProgressExportState,
@@ -68,6 +69,22 @@ export const exportBatchStateLabels: Record<ExportBatchState, string> = {
   GENERATED: "Artifact generated",
   OPENED_IN_MICROSOFT_PROJECT: "Opened in Microsoft Project",
   VERIFIED: "Verified",
+  SUPERSEDED: "Superseded",
+  FAILED: "Failed"
+};
+
+/**
+ * What a candidate schedule run's state means to a planner.
+ *
+ * "Accepted" is deliberately not "adopted": accepting a candidate is a review decision, and
+ * making it the master schedule is a separate act that Shutdown Tracker records rather than
+ * performs.
+ */
+export const candidateRunStateLabels: Record<CandidateScheduleRunState, string> = {
+  RETURNED: "Returned — not yet compared",
+  DELTA_READY: "Compared against source",
+  ACCEPTED: "Accepted by planner",
+  REJECTED: "Rejected",
   SUPERSEDED: "Superseded",
   FAILED: "Failed"
 };
