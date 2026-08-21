@@ -12,6 +12,7 @@ import type {
   TaskExecutionState
 } from "@shutdown-tracker/api-client";
 import { projectRoleLabels } from "@shutdown-tracker/api-client";
+import type { StatusClass } from "@shutdown-tracker/design-tokens";
 import {
   createFieldApiClient,
   describeFieldSession,
@@ -1360,22 +1361,33 @@ export function queuedItemDetail(item: QueuedSubmission) {
 }
 
 function MobileChip({ label }: { label: string }) {
-  return <span className={`mobile-chip ${mobileChipTone(label)}`}>{label}</span>;
+  return <span className={`status-chip mobile-chip ${mobileChipTone(label)}`}>{label}</span>;
 }
 
-export function mobileChipTone(label: string) {
+/**
+ * The operational state class for a label.
+ *
+ * Named for what the state means, not for the colour it happens to be. A class called `red` cannot
+ * be re-themed and tells a reader nothing about why it is red; the six classes here are the ones
+ * `docs/product/design-language-and-status-semantics.md` defines, and the console maps to the same
+ * set so a state reads the same in both applications.
+ */
+export function mobileChipTone(label: string): StatusClass {
   const value = label.toLowerCase();
 
   if (value.includes("blocked") || value.includes("could not") || value.includes("failed")) {
-    return "red";
+    return "critical";
   }
-  if (value.includes("waiting") || value.includes("sending")) {
-    return "amber";
+  if (value.includes("waiting") || value.includes("sending") || value.includes("queued")) {
+    return "warning";
   }
   if (value.includes("server received") || value.includes("no blocker")) {
-    return "green";
+    return "success";
   }
-  return "blue";
+  if (value.includes("not started") || value.includes("superseded")) {
+    return "neutral";
+  }
+  return "info";
 }
 
 export function screenTitle(screen: Screen, task: ImportReviewTaskRow | null) {

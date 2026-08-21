@@ -1,6 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
+import { isStatusClass } from "@shutdown-tracker/design-tokens";
 import type {
   CriticalUpdateSubmitRequest,
   ProblemCreateRequest,
@@ -120,10 +121,19 @@ describe("field app shell", () => {
   });
 
   it("names the sync states so saved and sent are not confused", () => {
-    expect(mobileChipTone("Server received")).toBe("green");
-    expect(mobileChipTone("Waiting to send")).toBe("amber");
-    expect(mobileChipTone("Could not be sent")).toBe("red");
-    expect(mobileChipTone("Blocked")).toBe("red");
+    expect(mobileChipTone("Server received")).toBe("success");
+    expect(mobileChipTone("Waiting to send")).toBe("warning");
+    expect(mobileChipTone("Could not be sent")).toBe("critical");
+    expect(mobileChipTone("Blocked")).toBe("critical");
+  });
+
+  it("classes a state the same way the console does", () => {
+    // The design language requires that the same state look and read the same in both
+    // applications. Both map onto the same six classes from the shared token layer, so a
+    // supervisor moving between the phone and the console is not learning two vocabularies.
+    for (const label of ["Server received", "Waiting to send", "Blocked"]) {
+      expect(isStatusClass(mobileChipTone(label))).toBe(true);
+    }
   });
 });
 

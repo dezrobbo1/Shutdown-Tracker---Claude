@@ -1,3 +1,4 @@
+import type { StatusClass } from "@shutdown-tracker/design-tokens";
 import type {
   CandidateScheduleRunState,
   ExportBatchState,
@@ -89,16 +90,36 @@ export const candidateRunStateLabels: Record<CandidateScheduleRunState, string> 
   FAILED: "Failed"
 };
 
-/** Maps a state to the visual tone the stylesheet already defines. */
-export function toneForState(state: string): "green" | "amber" | "red" | "blue" {
+/**
+ * The operational state class for a state name.
+ *
+ * Named for what the state means, not for the colour it happens to be. The six classes come from
+ * `docs/product/design-language-and-status-semantics.md`, and the field app maps to the same set so
+ * a state reads the same in both applications.
+ *
+ * `RESTRICTED` is the one that had no representation before: a summary task that can never be
+ * export eligible is not a failure and should not be read as one, which is exactly the confusion a
+ * red stamp on a permitted state would cause.
+ */
+export function toneForState(state: string): StatusClass {
   const normalised = state.toUpperCase();
 
   if (
     normalised.includes("REJECT") ||
     normalised.includes("BLOCKED") ||
-    normalised.includes("FAILED")
+    normalised.includes("FAILED") ||
+    normalised.includes("CONFLICT")
   ) {
-    return "red";
+    return "critical";
+  }
+  if (
+    normalised.includes("NOT_ELIGIBLE") ||
+    normalised.includes("NOT ELIGIBLE") ||
+    normalised.includes("NOT_REQUIRED") ||
+    normalised.includes("NOT REQUIRED") ||
+    normalised.includes("RESTRICTED")
+  ) {
+    return "restricted";
   }
   if (
     normalised.includes("AWAIT") ||
@@ -106,19 +127,30 @@ export function toneForState(state: string): "green" | "amber" | "red" | "blue" 
     normalised.includes("NEEDS") ||
     normalised.includes("CORRECTION") ||
     normalised.includes("PAUSED") ||
+    normalised.includes("PENDING") ||
+    normalised.includes("QUEUED") ||
     normalised.includes("PARSED")
   ) {
-    return "amber";
+    return "warning";
   }
   if (
     normalised.includes("ACCEPTED") ||
     normalised.includes("APPROVED") ||
     normalised.includes("VERIFIED") ||
-    normalised.includes("COMPLETED")
+    normalised.includes("COMPLETED") ||
+    normalised.includes("UPLOADED")
   ) {
-    return "green";
+    return "success";
   }
-  return "blue";
+  if (
+    normalised.includes("NOT_STARTED") ||
+    normalised.includes("NOT STARTED") ||
+    normalised.includes("SUPERSEDED") ||
+    normalised.includes("DRAFT")
+  ) {
+    return "neutral";
+  }
+  return "info";
 }
 
 /**
