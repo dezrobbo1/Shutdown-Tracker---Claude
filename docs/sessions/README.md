@@ -105,3 +105,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-21 — The first walk](2026-08-21-the-first-walk.md)
 - [2026-08-21 — The design that was there all along](2026-08-21-the-design-that-was-there-all-along.md)
 - [2026-08-21 — A surface that looks operational](2026-08-21-a-surface-that-looks-operational.md)
+- [2026-08-21 — Something that knows what ran](2026-08-21-something-that-knows-what-ran.md)

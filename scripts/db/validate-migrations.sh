@@ -34,41 +34,17 @@ case "$(uname -s 2>/dev/null || true)" in
     ;;
 esac
 
-EXPECTED_TABLES="
-projects
-source_files
-import_batches
-project_snapshots
-imported_tasks
-imported_resources
-imported_assignments
-imported_extended_attributes
-task_lineage_links
-audit_events
-approval_records
-export_batches
-export_batch_lines
-export_candidate_records
-critical_watchlists
-critical_work_packages
-critical_work_package_sources
-reporting_policy_versions
-reporting_periods
-critical_updates
-critical_update_lines
-users
-project_memberships
-task_execution_states
-task_progress_updates
-problems
-actions
-evidence
-handover_notes
-import_profiles
-operational_categories
-operational_category_aliases
-task_category_values
-"
+# The tables the migrations create, derived from the migrations rather than transcribed.
+#
+# This was a hand-written list of names, and it named 33 tables when the migrations created 35 --
+# missing project_resource_links and candidate_schedule_runs. Because the check below asks
+# "does each name I know about exist", a list that has not heard of a table cannot notice its
+# absence: it passed against a database missing the two most recent migrations. Keeping such a
+# list current is the same discipline that failed in the first place, so it is computed instead.
+EXPECTED_TABLES=$(
+  grep -hoiE 'CREATE TABLE (IF NOT EXISTS )?[a-z_.]+' "$MIGRATIONS_DIR"/V*.sql \
+    | sed -E 's/.*[[:space:]]//; s/^public\.//' | sort -u
+)
 
 compose() {
   docker compose -f "$COMPOSE_FILE" "$@"
@@ -124,8 +100,19 @@ for table in $EXPECTED_TABLES; do
     echo "Expected table missing: $table" >&2
     exit 1
   fi
-  echo "Verified table: $table"
 done
+echo "Verified $(echo "$EXPECTED_TABLES" | wc -l | tr -d ' ') tables named by the migrations."
+
+# The other direction, which a per-name check cannot see: a table the database has and no
+# migration creates means the two have diverged, whichever way round.
+ACTUAL_TABLES=$(compose exec -T postgres psql -U "$DB_USER" -d "$DB_NAME" -tAc \
+  "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1;" | tr -d '\r')
+UNEXPECTED=$(printf '%s\n' "$ACTUAL_TABLES" | grep -vxF "$EXPECTED_TABLES" || true)
+if [ -n "$UNEXPECTED" ]; then
+  echo "Tables present that no migration creates:" >&2
+  printf '  %s\n' $UNEXPECTED >&2
+  exit 1
+fi
 
 echo "Running populated-upgrade and PostgreSQL export-integrity validation..."
 compose exec -T postgres sh -c 'tr -d "\015" < "$1" | sh' _ /validation/validation/run-export-integrity-suite.sh

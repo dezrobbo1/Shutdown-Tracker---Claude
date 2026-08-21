@@ -39,6 +39,27 @@ Preview materialization, batch approval, artifact generation, and generated-meta
 
 Proposed-value normalization is deterministic across the database, API, shared contract, and worker. Whole-number percent equivalents such as `75`, `75.0`, and `075` canonicalize to `75`. Proposed actual dates require ISO-8601 minute- or second-precision values with an explicit offset and canonicalize to whole seconds while retaining the reviewed Microsoft Project local wall-clock component. Omitted seconds become `:00`. A fractional component is accepted only when it contains one through six digits and every digit is zero; that zero-valued fraction canonicalizes away. Non-zero fractions, fractions outside the one-to-six-digit input range, offset-free values, and invalid values are rejected. The worker uses the normalized local component without converting it to UTC. Imported actual baselines use a separate canonicalizer that retains available microsecond precision for exact drift comparison and never enters the worker request as a proposed value.
 
+## Bringing an existing database forward
+
+A database that is not rebuilt from scratch is brought forward with `scripts/db/apply-migrations.sh`,
+which applies only what is missing and records each file with its SHA-256 in `schema_migration_log`.
+That table is deployment bookkeeping rather than application schema, which is why no migration
+creates it: migrations define schema only, and a ledger that needed a migration to exist could not
+record the migration that created it.
+
+`scripts/db/check-schema-drift.sh` is the assertion that it worked. It is read-only and checks two
+things, because either alone can be fooled: every migration file recorded as applied, and every
+table the migrations create actually present. The second does not trust the ledger.
+
+Both derive what they expect from `infra/migrations` rather than from a transcribed list. On
+2026-08-21 the review deployment was found holding V001–V011 and V013, with V012 and V014 silently
+absent — and the check that should have caught it named 33 tables when the migrations created 35, so
+it could not notice the absence of tables it had never heard of.
+
+Re-running an applied migration is still an error. `apply-migrations.sh` refuses a file whose
+contents have changed since it was applied: a migration is never rewritten, the next `V###` is added
+instead.
+
 ## Runtime use
 
 The API and project worker `local` profiles enable Flyway with:
@@ -49,7 +70,7 @@ filesystem:infra/migrations
 
 Start those services from the repository root so the relative location resolves correctly. The local datasource defaults match [`../docker/docker-compose.postgres.yml`](../docker/docker-compose.postgres.yml).
 
-The validation scripts do not run Flyway or create Flyway schema-history records. They apply each SQL file directly with containerized `psql` in its own PostgreSQL transaction against a clean database, fail on SQL errors, roll back the complete failing file, and verify all 21 expected tables. The same commands then run a populated V006 upgrade, policy-1 candidate/approval assertions, synchronized PostgreSQL concurrency checks, and an intentionally failed V007 transaction check. The CI wrapper removes its validation container and volume on every exit.
+The validation scripts do not run Flyway or create Flyway schema-history records. They apply each SQL file directly with containerized `psql` in its own PostgreSQL transaction against a clean database, fail on SQL errors, roll back the complete failing file, and verify every table the migrations create, derived from the migration files rather than from a list kept by hand. The same commands then run a populated V006 upgrade, policy-1 candidate/approval assertions, synchronized PostgreSQL concurrency checks, and an intentionally failed V007 transaction check. The CI wrapper removes its validation container and volume on every exit.
 
 ## Validate locally
 
