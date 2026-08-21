@@ -20,40 +20,17 @@ if ($Migrations[6].Name -ne "V007__enforce_export_candidate_integrity.sql") {
     throw "Expected V007__enforce_export_candidate_integrity.sql as the seventh migration."
 }
 
+# The tables the migrations create, derived from the migrations rather than transcribed.
+#
+# This was a hand-written list, and it named 33 tables when the migrations created 35 -- missing
+# project_resource_links and candidate_schedule_runs. A per-name check cannot notice a table it has
+# never heard of, so the list passed against a database missing the two most recent migrations.
 $ExpectedTables = @(
-    "projects",
-    "source_files",
-    "import_batches",
-    "project_snapshots",
-    "imported_tasks",
-    "imported_resources",
-    "imported_assignments",
-    "imported_extended_attributes",
-    "task_lineage_links",
-    "audit_events",
-    "approval_records",
-    "export_batches",
-    "export_batch_lines",
-    "export_candidate_records",
-    "critical_watchlists",
-    "critical_work_packages",
-    "critical_work_package_sources",
-    "reporting_policy_versions",
-    "reporting_periods",
-    "critical_updates",
-    "critical_update_lines",
-    "users",
-    "project_memberships",
-    "task_execution_states",
-    "task_progress_updates",
-    "problems",
-    "actions",
-    "evidence",
-    "handover_notes",
-    "import_profiles",
-    "operational_categories",
-    "operational_category_aliases",
-    "task_category_values"
+    Get-ChildItem -Path $MigrationsDir -Filter "V*.sql" |
+        Select-String -Pattern "CREATE TABLE (IF NOT EXISTS )?([a-z_.]+)" -AllMatches |
+        ForEach-Object { $_.Matches } |
+        ForEach-Object { $_.Groups[2].Value -replace "^public\.", "" } |
+        Sort-Object -Unique
 )
 
 $DockerCandidates = @(@(
