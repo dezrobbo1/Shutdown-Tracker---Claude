@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.identity;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.support.AbstractDatabaseTest;
@@ -22,7 +23,7 @@ class ProjectAuthorizationServiceTests extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() {
-        repository = new JdbcUserRepository(new NamedParameterJdbcTemplate(dataSource()));
+        repository = new JdbcUserRepository(new NamedParameterJdbcTemplate(dataSource()), new ObjectMapper());
         service = new ProjectAuthorizationService(repository);
         fixtures = new DatabaseFixtures(jdbcTemplate());
         projectId = fixtures.createProject("Kiln Shutdown");

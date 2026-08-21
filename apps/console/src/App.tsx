@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { projectRoleLabels, projectRoles } from "@shutdown-tracker/api-client";
-import type { ProjectRole } from "@shutdown-tracker/api-client";
+import { projectRoleLabels } from "@shutdown-tracker/api-client";
+import type { ReviewIdentity } from "@shutdown-tracker/api-client";
 import { consoleBaseUrl, createConsoleApiClient, initialConsoleSession } from "./consoleApi";
-import { describeSession, writeStoredRole } from "./session";
+import { describeSession, writeStoredIdentity } from "./session";
 import type { ConsoleSession } from "./session";
 import { consoleZones, sectionById, useZoneRoute, zoneById, zoneHref } from "./router";
 import type { ConsoleRoute } from "./router";
@@ -41,12 +41,46 @@ export function App() {
   const zone = zoneById(route.zoneId);
   const section = sectionById(route.zoneId, route.sectionId);
 
-  const changeRole = (role: ProjectRole) => {
-    if (session.actor === null) {
-      return;
-    }
-    writeStoredRole(typeof window === "undefined" ? undefined : window.localStorage, role);
-    setSession({ ...session, actor: { ...session.actor, role } });
+  // Empty in any real deployment: the endpoint is registered only alongside the review seeder,
+  // so a 404 here is the expected answer rather than a failure worth reporting.
+  const [identities, setIdentities] = useState<ReviewIdentity[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    client.reviewIdentities
+      .list()
+      .then((available) => {
+        if (!cancelled) {
+          setIdentities(available);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIdentities([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately once, on the initial client. Refetching per identity change would reload the
+    // same list from the same unauthenticated endpoint on every switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Id, name, role and project move together. Changing the role alone is what made the previous
+  // selector misleading: the server resolves the role from the membership and ignores the header,
+  // so a role without its person changed what the interface offered and nothing the server did.
+  const changeIdentity = (identity: ReviewIdentity) => {
+    writeStoredIdentity(typeof window === "undefined" ? undefined : window.localStorage, {
+      userId: identity.id,
+      role: identity.role,
+      displayName: identity.displayName,
+      projectId: identity.projectId
+    });
+    setSession({
+      ...session,
+      projectId: identity.projectId,
+      actor: { userId: identity.id, role: identity.role, displayName: identity.displayName }
+    });
   };
 
   return (
@@ -80,22 +114,32 @@ export function App() {
         <div className="session-panel">
           <p className="eyebrow">Acting as</p>
           <select
-            value={session.actor?.role ?? ""}
-            onChange={(event) => changeRole(event.target.value as ProjectRole)}
-            disabled={session.actor === null}
-            aria-label="Acting role"
+            value={session.actor?.userId ?? ""}
+            onChange={(event) => {
+              const chosen = identities.find((identity) => identity.id === event.target.value);
+              if (chosen) {
+                changeIdentity(chosen);
+              }
+            }}
+            disabled={identities.length === 0}
+            aria-label="Acting identity"
           >
-            {session.actor === null ? <option value="">No actor configured</option> : null}
-            {projectRoles.map((role) => (
-              <option value={role} key={role}>
-                {projectRoleLabels[role]}
+            {identities.length === 0 ? (
+              <option value={session.actor?.userId ?? ""}>
+                {session.actor === null ? "No actor configured" : session.actor.displayName}
+              </option>
+            ) : null}
+            {identities.map((identity) => (
+              <option value={identity.id} key={identity.id}>
+                {identity.displayName} · {projectRoleLabels[identity.role]}
               </option>
             ))}
           </select>
           <p className="session-note">{describeSession(session)}</p>
           <p className="session-note">
-            The server checks your real membership on this project. Selecting a role here only
-            changes what this interface offers.
+            {identities.length === 0
+              ? "Only the identity this build was configured with is available. Seeded review identities are not enabled on this server."
+              : "Switching identity changes who this console acts as, including the user id sent to the server. The server still resolves that person's real membership on this project."}
           </p>
         </div>
       </aside>

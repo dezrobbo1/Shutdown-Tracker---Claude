@@ -99,10 +99,13 @@ describe("console shell", () => {
     expect(html).toContain("Not configured");
   });
 
-  it("states that the server, not the role selector, decides what is permitted", () => {
+  it("offers only the configured identity when seeded review identities are unavailable", () => {
     const html = renderToString(<App />);
 
-    expect(html).toContain("The server checks your real membership on this project.");
+    // The old fallback was the nine-role selector, which changed what the interface offered and
+    // never what the server answered. Falling back to it would restore exactly that.
+    expect(html).toContain("Seeded review identities are not enabled on this server.");
+    expect(html).not.toContain("Acting role");
   });
 });
 
@@ -137,6 +140,51 @@ describe("session", () => {
     expect(sessionAllows(session, "VIEW_PROJECT")).toBe(false);
     expect(sessionAllows(session, "APPROVE_EXPORT_BATCH")).toBe(false);
     expect(describeSession(session)).toContain("No actor configured");
+  });
+
+  it("takes the whole identity from storage rather than mixing it with the build-time actor", () => {
+    const session = buildConsoleSession(env, {
+      userId: "user-2",
+      role: "supervisor",
+      displayName: "Rae Supervisor",
+      projectId: "project-2"
+    });
+
+    // All four together. Taking the id from one source and the role from another is how a session
+    // ends up claiming a role its membership does not have.
+    expect(session.actor?.userId).toBe("user-2");
+    expect(session.actor?.role).toBe("supervisor");
+    expect(session.actor?.displayName).toBe("Rae Supervisor");
+    expect(session.projectId).toBe("project-2");
+  });
+
+  it("falls back to the build-time actor when the stored identity is unusable", () => {
+    const withoutUser = buildConsoleSession(env, {
+      userId: "",
+      role: "supervisor",
+      displayName: "Rae Supervisor"
+    });
+    const withUnknownRole = buildConsoleSession(env, {
+      userId: "user-2",
+      role: "wizard",
+      displayName: "Rae Supervisor"
+    });
+
+    // Discarded whole, not partially applied: a half-valid identity produces a confusing refusal
+    // at the first write rather than an obvious problem now.
+    expect(withoutUser.actor?.userId).toBe("user-1");
+    expect(withUnknownRole.actor?.userId).toBe("user-1");
+    expect(withUnknownRole.actor?.role).toBe("planner");
+  });
+
+  it("keeps the build-time project when the stored identity does not name one", () => {
+    const session = buildConsoleSession(env, {
+      userId: "user-2",
+      role: "supervisor",
+      displayName: "Rae Supervisor"
+    });
+
+    expect(session.projectId).toBe("project-1");
   });
 });
 

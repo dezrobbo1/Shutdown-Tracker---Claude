@@ -1,7 +1,10 @@
 package com.shutdowntracker.api.identity;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -14,16 +17,19 @@ import org.springframework.stereotype.Repository;
 public class JdbcUserRepository implements UserRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
-    public JdbcUserRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+    public JdbcUserRepository(NamedParameterJdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     public UserRecord create(UserCreateRequest request) {
         String sql = """
-                INSERT INTO users (email, display_name, status, external_subject)
-                VALUES (:email, :displayName, CAST(:status AS user_status), :externalSubject)
+                INSERT INTO users (email, display_name, status, external_subject, metadata)
+                VALUES (:email, :displayName, CAST(:status AS user_status), :externalSubject,
+                        CAST(:metadata AS jsonb))
                 RETURNING id, email, display_name, status, external_subject
                 """;
 
@@ -31,7 +37,8 @@ public class JdbcUserRepository implements UserRepository {
                 .addValue("email", request.email())
                 .addValue("displayName", request.displayName())
                 .addValue("status", request.status().databaseValue())
-                .addValue("externalSubject", request.externalSubject());
+                .addValue("externalSubject", request.externalSubject())
+                .addValue("metadata", toJson(request.metadata()));
 
         return jdbcTemplate.queryForObject(sql, parameters, this::mapUser);
     }
@@ -67,11 +74,13 @@ public class JdbcUserRepository implements UserRepository {
             UUID projectId,
             UUID userId,
             ProjectRole role,
-            UUID grantedByUserId
+            UUID grantedByUserId,
+            Map<String, Object> metadata
     ) {
         String sql = """
-                INSERT INTO project_memberships (project_id, user_id, role, granted_by_user_id)
-                VALUES (:projectId, :userId, CAST(:role AS project_role), :grantedByUserId)
+                INSERT INTO project_memberships (project_id, user_id, role, granted_by_user_id, metadata)
+                VALUES (:projectId, :userId, CAST(:role AS project_role), :grantedByUserId,
+                        CAST(:metadata AS jsonb))
                 RETURNING id, project_id, user_id, role, active
                 """;
 
@@ -79,7 +88,8 @@ public class JdbcUserRepository implements UserRepository {
                 .addValue("projectId", projectId)
                 .addValue("userId", userId)
                 .addValue("role", role.databaseValue())
-                .addValue("grantedByUserId", grantedByUserId);
+                .addValue("grantedByUserId", grantedByUserId)
+                .addValue("metadata", toJson(metadata));
 
         return jdbcTemplate.queryForObject(sql, parameters, this::mapMembership);
     }
@@ -107,6 +117,14 @@ public class JdbcUserRepository implements UserRepository {
                 rs.getString("display_name"),
                 UserStatus.fromDatabaseValue(rs.getString("status")),
                 rs.getString("external_subject"));
+    }
+
+    private String toJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? Map.of() : value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize identity metadata.", exception);
+        }
     }
 
     private ProjectMembershipRecord mapMembership(ResultSet rs, int rowNum) throws SQLException {

@@ -24,6 +24,26 @@ describe("shutdown tracker api client", () => {
     ]);
   });
 
+  it("asks for seeded review identities without a project or an actor in the path", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://api.example.test/",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.reviewIdentities.list();
+
+    // No project segment, deliberately: this answers which people exist before one has been
+    // chosen, so it cannot be scoped by a choice that has not been made yet.
+    expect(calls).toEqual([
+      {
+        input: "https://api.example.test/api/review-identities",
+        method: "GET",
+        body: undefined
+      }
+    ]);
+  });
+
   it("adds lineage query parameters", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

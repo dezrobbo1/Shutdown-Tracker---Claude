@@ -908,6 +908,20 @@ export type CriticalWorkPackageSourceRequest = {
   includeDescendants: boolean;
 };
 
+/**
+ * A seeded review identity, as `GET /api/review-identities` returns it.
+ *
+ * `projectId` matters: a seeded identity only holds a membership on the synthetic review project,
+ * so an application pointed at a different project will have every write refused with "no active
+ * membership on this project". Carrying the project lets the picker say so instead.
+ */
+export type ReviewIdentity = {
+  id: string;
+  displayName: string;
+  role: ProjectRole;
+  projectId: string;
+};
+
 export type ReviewApiSurface = {
   label: string;
   method: "GET" | "POST";
@@ -915,6 +929,7 @@ export type ReviewApiSurface = {
 };
 
 export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
+  { label: "List seeded review identities", method: "GET", path: "/api/review-identities" },
   { label: "Upload source file", method: "POST", path: "/api/projects/{projectId}/source-files" },
   {
     label: "Request import batch parse summary",
@@ -991,6 +1006,11 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
   const defaultHeaders = options.headers ?? {};
 
   return {
+    reviewIdentities: {
+      // Not project-scoped, and takes no actor: it answers which people exist before one has been
+      // chosen. Absent in any real deployment, where the route is a plain 404.
+      list: () => requestJson<ReviewIdentity[]>(transport, baseUrl, defaultHeaders, "/api/review-identities")
+    },
     sourceFiles: {
       upload: (projectId: string, file: Blob, filename?: string) => {
         const formData = new FormData();

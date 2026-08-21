@@ -17,7 +17,8 @@ import {
   queuedItemDetail,
   toInstant,
   validateFieldProgress,
-  workCardPercent
+  workCardPercent,
+  canSwitchIdentity
 } from "./App";
 import { buildFieldSession, describeFieldSession, fieldSessionAllows } from "./fieldSession";
 import {
@@ -144,6 +145,64 @@ describe("field session", () => {
 
     expect(session.live).toBe(false);
     expect(describeFieldSession(session)).toBe("No actor configured");
+  });
+
+  it("acts as the identity chosen on this device rather than the one baked into the build", () => {
+    const env = {
+      VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1",
+      VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1",
+      VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "planner"
+    };
+
+    const session = buildFieldSession(env, {
+      userId: "user-2",
+      role: "field_user",
+      displayName: "Rae Field",
+      projectId: "project-2"
+    });
+
+    expect(session.actor?.userId).toBe("user-2");
+    expect(session.actor?.role).toBe("field_user");
+    expect(session.projectId).toBe("project-2");
+    expect(fieldSessionAllows(session, "SUBMIT_TASK_PROGRESS")).toBe(true);
+  });
+
+  it("discards an unusable stored identity rather than half-applying it", () => {
+    const env = { VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1", VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1" };
+
+    const session = buildFieldSession(env, { userId: "user-2", role: "wizard", displayName: "Rae" });
+
+    expect(session.actor?.userId).toBe("user-1");
+    expect(session.actor?.role).toBe("field_user");
+  });
+});
+
+describe("switching identity on the device", () => {
+  const queued = (syncState: string): QueuedSubmission =>
+    normalizeStoredSubmission({
+      localId: "local-1",
+      idempotencyKey: "key-1",
+      kind: "progress",
+      request: { importedTaskId: "task-1", percentComplete: 40 },
+      subject: "C2 Cyclone — remove access cover",
+      capturedAt: "2026-08-18T06:00:00.000Z",
+      syncState,
+      attempts: 0,
+      serverId: null,
+      lastError: null
+    }) as QueuedSubmission;
+
+  it("is refused while a report captured by this person is still waiting", () => {
+    // The queue is memoised on the API client, so switching now would send this report under
+    // somebody else's actor header — a misattribution, and for a role that may not submit, a
+    // refusal whose message says nothing about the real cause.
+    expect(canSwitchIdentity([queued("PENDING")])).toBe(false);
+  });
+
+  it("is allowed once nothing is left to send", () => {
+    expect(canSwitchIdentity([])).toBe(true);
+    expect(canSwitchIdentity([queued("SYNCED")])).toBe(true);
+    expect(canSwitchIdentity([queued("REJECTED")])).toBe(true);
   });
 });
 
