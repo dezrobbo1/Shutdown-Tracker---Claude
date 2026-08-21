@@ -1,0 +1,120 @@
+/*
+ * Shutdown Tracker design tokens.
+ *
+ * One declaration of the operational palette, shape and status semantics, imported by both
+ * applications. It exists because `docs/product/design-language-and-status-semantics.md` requires
+ * that "the same state must look and read the same across console and mobile", and two stylesheets
+ * cannot guarantee that by agreeing with each other by hand.
+ *
+ * Values come from the Design C prototypes in `docs/design/prototypes/design-c/`, which are adopted
+ * as visual and density guidance only. Their zone names are not the product's information
+ * architecture and nothing here implies them.
+ */
+
+:root {
+  /* Shell and working surface. Restrained charcoal and steel against a warm neutral canvas,
+     rather than a white page: an operational surface, not a document. */
+  --dc-ink: #1f2a30;
+  --dc-ink-2: #2a363d;
+  --dc-canvas: #f3f4f1;
+  --dc-panel: #fafaf8;
+  --dc-panel-head: #f2f4f2;
+  --dc-line: #c9cfcc;
+  --dc-line-strong: #aeb7b3;
+  --dc-text: #1d262a;
+  --dc-muted: #707a7e;
+  --dc-on-ink: #dce6e8;
+  --dc-on-ink-quiet: #c3d0d4;
+
+  --dc-accent: #c97a2b;
+  --dc-accent-soft: #f6eadb;
+
+  /* The six operational state classes, and only six. A new colour per state is how a product
+     ends up with badge soup where everything has equal visual weight. */
+  --dc-neutral: #707a7e;
+  --dc-neutral-soft: #eef0ee;
+  --dc-info: #3a7088;
+  --dc-info-soft: #e8eff2;
+  --dc-warning: #9a6a14;
+  --dc-warning-soft: #fbf2dc;
+  --dc-critical: #b83c32;
+  --dc-critical-soft: #f7e9e6;
+  --dc-success: #4c765e;
+  --dc-success-soft: #e9f0eb;
+  --dc-restricted: #70647f;
+  --dc-restricted-soft: #efedf2;
+
+  /* Shape. Flat operational surfaces: containment comes from rules, not elevation or roundness. */
+  --dc-radius: 2px;
+  --dc-shadow: none;
+
+  --dc-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+    sans-serif;
+  --dc-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --dc-focus: var(--dc-accent);
+}
+
+/*
+ * Focus.
+ *
+ * The accessibility principle in the design language requires focus rules, and neither stylesheet
+ * had a single one. A keyboard user could tab through the whole export chain without ever seeing
+ * where they were. `:focus-visible` rather than `:focus` so a pointer click does not draw a ring.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Operational state.
+ *
+ * A small rectangular stamp, not a pill: the border carries the colour and the fill stays out of
+ * the way, so a dense table of them reads as data rather than as decoration. Six classes, named
+ * for what they mean rather than for what colour they happen to be — a status called `red` cannot
+ * be re-themed and tells a reader nothing.
+ *
+ * Colour is never the only signal: every stamp carries its own text.
+ */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 0;
+  padding: 2px 5px;
+  font-family: var(--dc-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--dc-neutral);
+}
+
+.status-chip.neutral {
+  color: var(--dc-neutral);
+}
+
+.status-chip.info {
+  color: var(--dc-info);
+}
+
+.status-chip.warning {
+  color: var(--dc-warning);
+}
+
+.status-chip.critical {
+  color: var(--dc-critical);
+}
+
+.status-chip.success {
+  color: var(--dc-success);
+}
+
+/* Read-only or policy-blocked, such as a summary task that can never be export eligible. It is
+   deliberately not Critical: nothing has gone wrong, the rule simply does not permit it. */
+.status-chip.restricted {
+  color: var(--dc-restricted);
+}

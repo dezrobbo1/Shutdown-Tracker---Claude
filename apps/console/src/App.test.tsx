@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { capabilityAllows } from "@shutdown-tracker/api-client";
+import { statusClasses } from "@shutdown-tracker/design-tokens";
 import type {
   ImportReviewSnapshotSummary,
   ProjectSnapshotStatus,
@@ -536,10 +537,31 @@ describe("display", () => {
     expect(formatPercent(null)).toBe("—");
   });
 
-  it("tones a waiting state differently from a settled one", () => {
-    expect(toneForState("Awaiting supervisor review")).toBe("amber");
-    expect(toneForState("Planner approved")).toBe("green");
-    expect(toneForState("Export blocked")).toBe("red");
+  it("classes a waiting state differently from a settled one", () => {
+    expect(toneForState("Awaiting supervisor review")).toBe("warning");
+    expect(toneForState("Planner approved")).toBe("success");
+    expect(toneForState("Export blocked")).toBe("critical");
+  });
+
+  it("does not read a permitted state as a failure", () => {
+    // A summary task that can never be export eligible is not a fault, and a red stamp on it
+    // reads as one. Restricted is the class that says "the rule does not permit this".
+    expect(toneForState("NOT_ELIGIBLE")).toBe("restricted");
+    expect(toneForState("NOT_REQUIRED")).toBe("restricted");
+    expect(toneForState("Export blocked")).toBe("critical");
+  });
+
+  it("uses every class it declares", () => {
+    const used = new Set([
+      toneForState("Not started"),
+      toneForState("In progress"),
+      toneForState("Needs planner review"),
+      toneForState("Rejected"),
+      toneForState("Verified"),
+      toneForState("NOT_ELIGIBLE")
+    ]);
+
+    expect([...used].sort()).toEqual([...statusClasses].sort());
   });
 });
 
@@ -730,5 +752,63 @@ describe("design tokens", () => {
 
     expect(header).not.toContain("clamp(2rem");
     expect(header.slice(0, 80)).toContain("1.35rem");
+  });
+
+  for (const [name, css] of stylesheets) {
+    it(`maps the ${name} onto the shared token layer rather than redeclaring a palette`, () => {
+      // Two stylesheets agreeing by hand is how the same state ends up looking different in the
+      // two apps. The design language requires they match, so they read from one file.
+      expect(css).toContain('@import "@shutdown-tracker/design-tokens/tokens.css";');
+    });
+  }
+});
+
+describe("the operational surface", () => {
+  const tokens = readFileSync(
+    new URL("../../../packages/design-tokens/tokens.css", import.meta.url),
+    "utf8"
+  );
+  const stylesheets = [
+    readFileSync(new URL("./styles.css", import.meta.url), "utf8"),
+    readFileSync(new URL("../../mobile-pwa/src/styles.css", import.meta.url), "utf8")
+  ];
+
+  it("declares a CSS class for every status class, and no others", () => {
+    const declared = [...tokens.matchAll(/\.status-chip\.([a-z]+)\s*\{/g)].map((match) => match[1]);
+
+    // The same argument as the capability map against the server's enum: two declarations of one
+    // truth drift the moment somebody adds to one of them.
+    expect(declared.sort()).toEqual([...statusClasses].sort());
+  });
+
+  it("gives state a square stamp rather than a pill", () => {
+    // "Small rectangular state stamps rather than pill-heavy UI" is the adopted visual direction.
+    // Both apps previously used a 999px chip, which is the thing that reads as badge soup.
+    expect(tokens).toContain("border-radius: 0;");
+    for (const css of stylesheets) {
+      expect(css).not.toContain("999px");
+    }
+  });
+
+  it("keeps surfaces flat", () => {
+    expect(tokens).toContain("--dc-radius: 2px;");
+    expect(tokens).toContain("--dc-shadow: none;");
+  });
+
+  it("gives keyboard users somewhere visible to be", () => {
+    // Neither stylesheet had a single focus rule, so a keyboard user could tab the whole export
+    // chain without seeing where they were. This is an accessibility rule in the design language,
+    // not a preference.
+    expect(tokens).toContain(":focus-visible");
+    expect(tokens).toContain("outline:");
+  });
+
+  it("styles the console's actions rather than leaving them browser defaults", () => {
+    const consoleStyles = stylesheets[0];
+    const actions = consoleStyles.slice(consoleStyles.indexOf(".mobile-action-row button,"));
+
+    expect(actions).toContain("border:");
+    // A control the server would refuse must not look live before it is pressed.
+    expect(consoleStyles).toContain(".mobile-action-row button:disabled");
   });
 });

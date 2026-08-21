@@ -1,0 +1,16 @@
+{
+  "name": "@shutdown-tracker/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The one place the operational palette, shape and status semantics are declared.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./tokens.css"
+  },
+  "files": [
+    "tokens.css",
+    "src"
+  ],
+  "type": "module",
+  "types": "./src/index.ts"
+}

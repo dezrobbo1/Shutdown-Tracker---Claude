@@ -19,19 +19,29 @@ Both applications now implement those zones. Where Design C describes a surface 
 
 What Design C usefully contributes is its visual direction: flat operational surfaces, restraint in radius and shadow, limited card containment, hierarchy through typography and rules, and semantic colour reserved for operational state.
 
-**That direction has not been applied yet, and this document previously said it had.** Both stylesheets do declare their palette and radii as tokens in `:root`, which is what makes the direction applicable by changing a palette rather than editing literals throughout — but tokenising is not applying, and the tokens presently hold values the prototypes do not. Measured against the restored files:
+**That direction is now applied.** Both stylesheets read their palette, shape and status semantics
+from `@shutdown-tracker/design-tokens`, which takes its values from the files in this directory.
+Two stylesheets agreeing by hand is how the same state ends up looking different in the two
+applications, so they read from one file instead.
 
 | | Prototype | Built |
 | --- | --- | --- |
-| `--radius` | `2px` | `8px` |
-| small radius | `2px` | `6px` |
-| status chip | rectangular stamp | `--radius-chip: 999px`, a pill |
-| `--shadow` | `none` | box shadows present |
-| accent | `#c97a2b` | `#1d473d` / `#2d876d` |
-| canvas | `#f3f4f1` | `#ffffff` |
-| operational state colours | six | four |
+| `--radius` | `2px` | `2px` |
+| status chip | rectangular stamp | rectangular stamp, `border-radius: 0` |
+| shadow | `none` | `none` |
+| accent | `#c97a2b` | `#c97a2b` |
+| canvas | `#f3f4f1` | `#f3f4f1` |
+| operational state colours | six | six |
 
-The gap is recorded as Phase 3 of [the active goal](../../../goals/ACTIVE.md) rather than repaired here.
+Two things the prototypes do not settle, and which the product decided for itself:
+
+- **The zone names remain the product's, not Design C's.** Nothing in this change touches
+  navigation.
+- **The status classes are named for meaning, not colour.** The prototype's stamp variants are
+  `red`, `amber`, `green`, `blue`, `review`; the product's are Neutral, Info, Warning, Critical,
+  Success and Restricted, from
+  [Design Language and Status Semantics](../../../product/design-language-and-status-semantics.md).
+  A class called `red` cannot be re-themed and tells a reader nothing about why it is red.
 
 The prototype files are present in this directory:
 

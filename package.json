@@ -6,7 +6,8 @@
   "workspaces": [
     "apps/console",
     "apps/mobile-pwa",
-    "packages/api-client"
+    "packages/api-client",
+    "packages/design-tokens"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
