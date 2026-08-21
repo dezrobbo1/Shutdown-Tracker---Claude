@@ -148,6 +148,14 @@ The GitHub Actions workflow under [`.github/workflows/ci.yml`](../../.github/wor
 
 CI results and source code are the authority for the exact current test inventory.
 
+## Walking the product
+
+[Product Walkthrough](product-walkthrough.md) is the ordered procedure for taking the chain from a field update to a returned candidate schedule by hand, as three different people, and the place findings from a walk are recorded.
+
+It exists because a test proves the chain to CI and not to a person. The four defects that prompted the current goal — two unset storage roots, no import path through the interface, no artifact download, and a fixture carrying no resources or assignments — were all found by looking, and none of them would have failed a test. A step that needs a terminal is itself a finding.
+
+Walking does not discharge the manual Microsoft Project gate, and returning the artifact unchanged is not the same as returning one Microsoft Project recalculated.
+
 ## Manual/E2E expansion
 
 As workflows become production-capable, add end-to-end coverage for representative import, execution, problem/action, evidence, handover, review, export, verification, and offline-sync paths. Keep schedule calculation, automatic Project movement, and uncontrolled write-back out of those workflows.
