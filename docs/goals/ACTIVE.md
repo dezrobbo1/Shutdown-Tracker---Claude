@@ -2,7 +2,16 @@
 
 ## Status
 
-Active on `feat/export-eligible-queue`, the first slice of three phases.
+Slice 1 of Phase 1 is **merged** as pull request
+[#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12). Slices 2–9 are not started.
+
+**The next work taken is not slice 2.** It is Phase 0 below — making the deployment walkable — and
+the reason is this goal's own completion condition that *the journey has been walked by a person
+end to end*. A test proves the chain to CI; it does not prove it to a person, and hand-walking has
+already found four defects no test would have: two unset storage roots, no way to import a
+schedule through the interface, no way to download the generated artifact, and a fixture with no
+resources or assignments in it. Slice 2 remains wanted and unchanged as the safety net before
+Phase 2 changes roles underneath it.
 
 The candidate-schedule goal is **paused, not abandoned**. Its first slice — the candidate coming
 back — is merged as pull request [#11](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/11).
@@ -27,21 +36,47 @@ steps.
 
 Ordered. Each slice is one reviewed outcome on one branch, finished before the next starts.
 
+### Phase 0 — A deployment somebody can walk on
+
+Interposed. None of it changes what the product does; all of it is what stands between the product
+and a person using it. Taken in this order, because each makes the next possible.
+
+- **The schema and the host.** The live database is missing V012 and V014 — V012 was skipped and
+  V013 applied on top of the gap, so offline problem raising would fail on a row it cannot write.
+  Two storage roots are unset and resolve under a root-owned working directory, so the first
+  evidence or candidate upload fails at request time while the health check still reports UP.
+  Deployment configuration only; no code.
+- **Identities to walk it as.** This *is* slice 4 below, taken early, because nothing downstream of
+  supervisor review can be reached by one person holding one membership.
+- **Import and download through the interface.** A planner can currently get a schedule in only by
+  `curl` and get the generated artifact out only from the server filesystem. Both are product gaps,
+  not testing conveniences.
+- **A fixture worth walking.** The only fixture declares no resources, no assignments and no custom
+  fields, which leaves Operational Mapping, Exports › People and the field app's My Work inert.
+- **The walkthrough itself**, so the walk is repeatable and its findings traceable rather than
+  remembered.
+- **A migration drift guard.** Migrations are applied by hand against a database with no history
+  table, and the check that should have caught the missing ones carries a hand-maintained table list
+  that is itself two tables out of date. This is why the first item exists, and it will recur every
+  time a migration lands.
+
 ### Phase 1 — A working flow path
 
-1. **The export queue.** *(active, `feat/export-eligible-queue`)* The console built its candidate
-   list from the planner queue and filtered it for updates the planner had already approved — an
-   empty intersection, because an update leaves that queue at the moment it becomes eligible. Adds
-   the queue that answers the question actually being asked, and repairs three defects stacked
-   behind it: the missing candidate approval event, the unaccepted-snapshot selection, and a field
-   the export whitelist always refuses.
+1. **The export queue.** *(merged,
+   [#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12))* The console built its
+   candidate list from the planner queue and filtered it for updates the planner had already
+   approved — an empty intersection, because an update leaves that queue at the moment it becomes
+   eligible. Adds the queue that answers the question actually being asked, and repairs three
+   defects stacked behind it: the missing candidate approval event, the unaccepted-snapshot
+   selection, and a field the export whitelist always refuses.
 2. **The journey test.** One test that walks every step through the controllers against a real
    database, asserting the output of each step is a legal input to the next. This is the artefact
    that fails when a link between two working steps is severed, and it is the safety net Phase 2
    changes roles underneath.
 3. **The batch says what it carried.** `export_state` and `export_batch_id` advance through the
    batch lifecycle, so the audit can answer which batch carried which field update.
-4. **Identities to walk it as.** The guarded review bootstrap seeds one user per journey role.
+4. **Identities to walk it as.** *(taken early, in Phase 0)* The guarded review bootstrap seeds
+   one user per journey role.
    Today a membership can only be created by raw SQL, so nobody can walk the chain at all.
 5. **The field evidence gate.** `CAPTURE_EVIDENCE` is never checked in the field app; the control
    is offered and the server refuses it.
