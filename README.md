@@ -49,7 +49,10 @@ Implemented foundations include:
   Authority is enforced by differencing the candidate against the source and requiring that only
   approved task/field pairs differ, which proves the rest of the schedule is untouched rather than
   merely absent;
-- import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata foundations;
+- import review, task-lineage review, export-preview, approval, artifact handoff, and verification-metadata
+  foundations. A planner brings a schedule in and takes the generated candidate out through the console:
+  the file is uploaded and its parse summary requested from Import review, and the artifact is downloaded
+  from Exports. Neither was reachable without a shell on the server before;
 - candidate schedule runs: the schedule Microsoft Project calculated is brought back by a planner and
   recorded against the export batch whose artifact it opened, with its own SHA-256 beside the
   accepted source hash and the generated artifact hash. The record is immutable, and it claims

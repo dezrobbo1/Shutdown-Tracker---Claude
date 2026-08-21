@@ -22,8 +22,12 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
 import java.math.BigDecimal;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +93,61 @@ class ExportArtifactHandoffServiceTests {
         assertThat(response.exportPreview().batch().exportFileHash()).isEqualTo(client.response.exportFileHash());
         assertThat(response.message()).contains("No Microsoft Project write-back");
         assertThat(repository.integrityLockCount).isEqualTo(2);
+    }
+
+    @Test
+    void servesTheArtifactAfterGenerationWithTheNameTheWorkerWrote() throws Exception {
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
+        CapturingExportArtifactStorage storage = new CapturingExportArtifactStorage();
+        ExportArtifactHandoffService service =
+                service(repository, new CapturingProjectExportArtifactJobClient(), storage);
+        service.generateArtifact(
+                repository.projectId, repository.exportBatchId,
+                new ExportArtifactGenerationRequest(UUID.randomUUID(), null, Map.of()));
+        storage.storedBytes = "<Project/>".getBytes(StandardCharsets.UTF_8);
+
+        ExportArtifactHandoffService.ExportArtifactContent content =
+                service.artifactContent(repository.projectId, repository.exportBatchId);
+
+        assertThat(content.filename())
+                .describedAs("the name comes from the URI generation recorded, not from a guess")
+                .isEqualTo(repository.exportBatchId + ".mspdi.xml");
+        try (InputStream bytes = content.content()) {
+            assertThat(new String(bytes.readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("<Project/>");
+        }
+    }
+
+    @Test
+    void refusesToServeAnArtifactForABatchThatNeverGeneratedOne() {
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
+        ExportArtifactHandoffService service = service(
+                repository, new CapturingProjectExportArtifactJobClient(), new CapturingExportArtifactStorage());
+
+        assertThatThrownBy(() -> service.artifactContent(repository.projectId, repository.exportBatchId))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).contains("has not generated an artifact");
+                });
+    }
+
+    @Test
+    void reportsAnUnreadableArtifactAgainstTheRowThatStillSaysItWasGenerated() {
+        FakeExportPreviewRepository repository = new FakeExportPreviewRepository();
+        CapturingExportArtifactStorage storage = new CapturingExportArtifactStorage();
+        ExportArtifactHandoffService service =
+                service(repository, new CapturingProjectExportArtifactJobClient(), storage);
+        service.generateArtifact(
+                repository.projectId, repository.exportBatchId,
+                new ExportArtifactGenerationRequest(UUID.randomUUID(), null, Map.of()));
+        storage.readFailure = new IOException("Export artifact storage location does not hold a file.");
+
+        // Conflict, not a server fault: generation really happened and the row is not lying. It is
+        // the store that has since lost the bytes, and the message should say which is which.
+        assertThatThrownBy(() -> service.artifactContent(repository.projectId, repository.exportBatchId))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).contains("could not be read");
+                });
     }
 
     @Test
@@ -269,6 +328,19 @@ class ExportArtifactHandoffServiceTests {
     private static class CapturingExportArtifactStorage implements ExportArtifactStorage {
 
         private ExportArtifactStorageLocation location;
+        private byte[] storedBytes;
+        private IOException readFailure;
+
+        @Override
+        public InputStream read(String storageUri) throws IOException {
+            if (readFailure != null) {
+                throw readFailure;
+            }
+            if (storedBytes == null) {
+                throw new IOException("Export artifact storage location does not hold a file.");
+            }
+            return new ByteArrayInputStream(storedBytes);
+        }
 
         @Override
         public ExportArtifactStorageLocation prepareExportArtifact(UUID projectId, UUID exportBatchId) {

@@ -1,6 +1,8 @@
 package com.shutdowntracker.api.exportpreview.storage;
 
+import com.shutdowntracker.api.storage.LocalFileStore;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -12,9 +14,15 @@ public class LocalExportArtifactStorage implements ExportArtifactStorage {
     private static final String STORAGE_KIND = "local_filesystem";
 
     private final ExportArtifactStorageProperties properties;
+    private final LocalFileStore fileStore;
 
     public LocalExportArtifactStorage(ExportArtifactStorageProperties properties) {
         this.properties = properties;
+        this.fileStore = new LocalFileStore(
+                properties.localRoot(),
+                "Export artifact storage",
+                "generated export artifact",
+                "artifact.xml");
     }
 
     @Override
@@ -49,5 +57,21 @@ public class LocalExportArtifactStorage implements ExportArtifactStorage {
                 outputPath.toUri().toString(),
                 STORAGE_KIND
         );
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Only the read path goes through {@link LocalFileStore}. Generation does not: this service
+     * returns a path and the <em>project worker</em> writes the bytes to it, under
+     * {@code <root>/<projectId>/<batchId>.mspdi.xml} rather than the {@code <root>/<uuid>/<name>}
+     * layout {@code store} produces. That difference does not matter here, because reading only
+     * requires the file to sit inside the root and to be a regular file — both layouts do. Routing
+     * generation through {@code store} as well would take those bytes away from the worker that
+     * owns them.
+     */
+    @Override
+    public InputStream read(String storageUri) throws IOException {
+        return fileStore.read(storageUri);
     }
 }

@@ -13,6 +13,7 @@ import { formatDateTime } from "../formatting";
 import { useAsyncResource } from "../useAsyncResource";
 import { leafTasks, taskLabel, useSnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
+import { saveBlob } from "../download";
 
 /**
  * Evidence recorded against a task.
@@ -258,23 +259,6 @@ type EvidenceClient = {
   };
 };
 
-/**
- * Saves a downloaded evidence blob.
- *
- * `download` is what keeps this safe: a blob URL opened in a tab runs in this application's
- * origin, and evidence is a file somebody else chose. Saving it never renders it.
- */
-function saveBlob(blob: Blob, filename: string) {
-  if (typeof URL.createObjectURL !== "function") {
-    return;
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 export function fileSizeLabel(sizeBytes: number | null) {
   if (sizeBytes === null) {
