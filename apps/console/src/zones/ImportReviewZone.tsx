@@ -1,5 +1,10 @@
-import { useCallback, useState } from "react";
-import type { ImportReviewSnapshotDetail, ImportReviewSnapshotSummary } from "@shutdown-tracker/api-client";
+import { useCallback, useRef, useState } from "react";
+import type {
+  ImportBatchRecord,
+  ImportReviewSnapshotDetail,
+  ImportReviewSnapshotSummary,
+  SourceFileUploadResponse
+} from "@shutdown-tracker/api-client";
 import {
   BoundaryNote,
   CapabilityGate,
@@ -13,6 +18,27 @@ import {
 import { formatDateTime, formatPercent, snapshotStatusLabels } from "../formatting";
 import { useAsyncResource } from "../useAsyncResource";
 import type { ZoneProps } from "./ZoneProps";
+
+/**
+ * What an upload actually said.
+ *
+ * The endpoint answers 200 whether or not it accepted the file: `accepted: false` with a
+ * `rejectionReason` is how "that is not a Project file" arrives. Reading only the HTTP status
+ * would report a rejection as a success.
+ */
+export function describeUploadOutcome(response: SourceFileUploadResponse) {
+  if (!response.accepted || response.importBatch === null) {
+    return {
+      accepted: false,
+      message: response.rejectionReason ?? response.message
+    };
+  }
+  return {
+    accepted: true,
+    message: `${response.originalFilename ?? "File"} accepted · ${response.detectedExtension} · ` +
+      `${response.sizeBytes} bytes. Parse it to read what it contains.`
+  };
+}
 
 /**
  * Import review.
@@ -47,7 +73,57 @@ export function ImportReviewZone({ session, client }: ZoneProps) {
   );
 
   const accept = useWriteAction();
+  const upload = useWriteAction();
+  const parse = useWriteAction();
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  // The batch the upload created, held only for as long as this page is open. See the note in the
+  // panel: there is no endpoint that lists pending batches, so it cannot be recovered after a reload.
+  const [pendingBatch, setPendingBatch] = useState<ImportBatchRecord | null>(null);
+  const [intakeNote, setIntakeNote] = useState<string | null>(null);
   const canDecide = session.canAcceptSnapshot;
+
+  const uploadSourceFile = async (file: File) => {
+    setIntakeNote(null);
+    await upload.run("Schedule uploaded.", async () => {
+      const response = await client.sourceFiles.upload(projectId, file, file.name);
+      // A rejected upload is a 200 with accepted:false, so branching on a thrown error would
+      // treat "this is not a Project file" as a success and leave the planner with no batch and
+      // no explanation.
+      if (!describeUploadOutcome(response).accepted) {
+        setPendingBatch(null);
+        setIntakeNote(describeUploadOutcome(response).message);
+        throw new Error(describeUploadOutcome(response).message);
+      }
+      setPendingBatch(response.importBatch);
+      setIntakeNote(describeUploadOutcome(response).message);
+    });
+  };
+
+  const requestParse = async () => {
+    if (pendingBatch === null) {
+      return;
+    }
+    const batchId = pendingBatch.id;
+    const ok = await parse.run("Parse summary requested.", async () => {
+      const response = await client.importBatches.requestParseSummary(projectId, batchId);
+      const summary = response.parseSummary;
+      setIntakeNote(
+        `${summary.taskCount} tasks · ${summary.resourceCount} resources · ` +
+          `${summary.assignmentCount} assignments · ${summary.warningCount} warnings · ` +
+          `${summary.errorCount} errors`
+      );
+    });
+    if (ok) {
+      setPendingBatch(null);
+      await snapshots.reload();
+      // Point the review panel at what was just imported rather than leaving the planner to find it.
+      const reloaded = await client.importReview.listSnapshots(projectId);
+      const newest = newestSnapshotId(reloaded);
+      if (newest !== null) {
+        setSelectedId(newest);
+      }
+    }
+  };
 
   const decide = async (decision: "accept" | "reject") => {
     if (activeSnapshotId === null) {
@@ -67,6 +143,54 @@ export function ImportReviewZone({ session, client }: ZoneProps) {
 
   return (
     <div className="zone-grid">
+      <article className="work-panel">
+        <PanelHeading eyebrow="Schedule intake" title="Bring a schedule in" />
+        <BoundaryNote>
+          Parsing runs in the project worker. If it is not connected the request is refused and the
+          batch is recorded as failed; upload the file again to retry.
+        </BoundaryNote>
+        <BoundaryNote>
+          Request the summary in this session. Nothing lists pending import batches, so reloading
+          between these two steps means uploading the file again.
+        </BoundaryNote>
+        <CapabilityGate
+          allowed={session.canUploadSourceFile}
+          reason="Importing a schedule is a planner responsibility."
+        >
+          <div className="mobile-action-row">
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".mpp,.xml"
+              aria-label="Microsoft Project file"
+              disabled={upload.busy || !session.live}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void uploadSourceFile(file);
+                }
+                event.target.value = "";
+              }}
+            />
+          </div>
+        </CapabilityGate>
+        <WriteFeedback state={upload.state} />
+        {pendingBatch ? (
+          <CapabilityGate
+            allowed={session.canRequestParse}
+            reason="Asking the worker to parse a schedule is a planner responsibility."
+          >
+            <div className="mobile-action-row">
+              <button type="button" disabled={parse.busy} onClick={() => void requestParse()}>
+                Parse this file
+              </button>
+            </div>
+          </CapabilityGate>
+        ) : null}
+        <WriteFeedback state={parse.state} />
+        {intakeNote ? <p className="write-feedback done">{intakeNote}</p> : null}
+      </article>
+
       <article className="work-panel">
         <PanelHeading eyebrow="Schedule intake" title="Imported snapshots" />
         <BoundaryNote>

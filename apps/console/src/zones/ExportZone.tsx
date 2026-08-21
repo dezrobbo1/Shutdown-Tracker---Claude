@@ -27,6 +27,7 @@ import { useAsyncResource } from "../useAsyncResource";
 import { taskLabel, useSnapshotTasks } from "../useSnapshotTasks";
 import type { SnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
+import { saveBlob } from "../download";
 
 /**
  * The controlled return to Microsoft Project.
@@ -44,6 +45,7 @@ export function ExportZone({ session, client }: ZoneProps) {
 
   const [batchId, setBatchId] = useState<string | null>(null);
   const [artifactNote, setArtifactNote] = useState<string | null>(null);
+  const [artifactFilename, setArtifactFilename] = useState<string | null>(null);
 
   const exportQueue = useAsyncResource<TaskProgressUpdateRecord[]>(
     useCallback(() => client.taskProgress.exportQueue(projectId), [client, projectId]),
@@ -155,6 +157,7 @@ export function ExportZone({ session, client }: ZoneProps) {
       const response = await client.exportPreview.generateArtifact(projectId, batchId);
       preview.replace(response.exportPreview);
       const summary = response.workerResponse.artifactSummary;
+      setArtifactFilename(summary.outputFilename);
       // Both counts, because the candidate is the whole schedule: "2 tasks" alone would read
       // as a two-task file rather than two updated tasks in a six-task schedule.
       setArtifactNote(
@@ -163,6 +166,18 @@ export function ExportZone({ session, client }: ZoneProps) {
           `${summary.exportedFieldCount} fields · ` +
           `sha256 ${response.workerResponse.exportFileHash.slice(0, 16)}…`
       );
+    });
+  };
+
+  const downloadArtifact = async () => {
+    if (batchId === null) {
+      return;
+    }
+    await write.run("Candidate schedule downloaded.", async () => {
+      const blob = await client.exportPreview.downloadArtifact(projectId, batchId);
+      // Named from this session's generation when there was one, and from the batch otherwise —
+      // the panel is reachable on a batch generated before this page was opened.
+      saveBlob(blob, artifactFilename ?? `${batchId}.mspdi.xml`);
     });
   };
 
@@ -304,10 +319,21 @@ export function ExportZone({ session, client }: ZoneProps) {
 
                 {artifactNote ? <p className="write-feedback done">{artifactNote}</p> : null}
                 {value.batch.exportFileUri ? (
-                  <BoundaryNote>
-                    Artifact at <code>{value.batch.exportFileUri}</code>. Open it in Microsoft Project
-                    yourself; saving the master plan stays your decision.
-                  </BoundaryNote>
+                  <>
+                    <CapabilityGate
+                      allowed={session.canGenerateArtifact}
+                      reason="Downloading the generated candidate is planner-owned, like generating it."
+                    >
+                      <div className="mobile-action-row">
+                        <button type="button" disabled={write.busy} onClick={() => void downloadArtifact()}>
+                          Download candidate schedule (MSPDI/XML)
+                        </button>
+                      </div>
+                    </CapabilityGate>
+                    <BoundaryNote>
+                      Open it in Microsoft Project yourself; saving the master plan stays your decision.
+                    </BoundaryNote>
+                  </>
                 ) : null}
               </>
             )

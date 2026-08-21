@@ -13,6 +13,10 @@ import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGeneratio
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +45,15 @@ public class ExportArtifactHandoffService {
      * {@code .mpp} remains supported for import and reporting.
      */
     private static final String MSPDI_SOURCE_KIND = "mspdi_xml";
+
+    /**
+     * The artifact this batch generated, and an open stream over its bytes.
+     *
+     * <p>Reading it back is not a second kind of act from generating it: it is the same fact,
+     * fetched instead of made. So it lives beside generation and is authorised the same way.
+     */
+    public record ExportArtifactContent(UUID exportBatchId, String filename, InputStream content) {
+    }
 
     private final ExportPreviewService exportPreviewService;
     private final ProjectExportArtifactJobClient exportArtifactJobClient;
@@ -280,6 +293,58 @@ public class ExportArtifactHandoffService {
             if (value == null || value.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, message);
             }
+        }
+    }
+
+    /**
+     * Opens the generated artifact for a batch. The caller closes the stream.
+     *
+     * <p>A missing file is a 409 rather than a 500, for the same reason the returned-candidate
+     * endpoint gives: the row saying an artifact was generated stays true even when the store has
+     * since lost the bytes. Reporting that as a server fault would say the wrong thing about which
+     * of the two is wrong.
+     */
+    public ExportArtifactContent artifactContent(UUID projectId, UUID exportBatchId) {
+        ExportPreviewDetail detail = exportPreviewService.getPreview(projectId, exportBatchId);
+        String storageUri = detail.batch().exportFileUri();
+
+        if (storageUri == null || storageUri.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This export batch has not generated an artifact, so there is nothing to download.");
+        }
+
+        String filename = filenameOf(storageUri, exportBatchId);
+
+        try {
+            return new ExportArtifactContent(
+                    exportBatchId, filename, exportArtifactStorage.read(storageUri));
+        } catch (IOException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The artifact generated as '" + filename + "' is recorded but its file could not be read.",
+                    exception);
+        }
+    }
+
+    /**
+     * The stored filename, taken from the last segment of the URI the generation recorded.
+     *
+     * <p>Falls back to the batch id rather than failing: the name is what a planner's browser will
+     * save the file as, and a download that arrives with an awkward name is better than a download
+     * refused because the name was.
+     */
+    private static String filenameOf(String storageUri, UUID exportBatchId) {
+        String fallback = exportBatchId + ".mspdi.xml";
+        try {
+            String path = new URI(storageUri).getPath();
+            if (path == null) {
+                return fallback;
+            }
+            String candidate = path.substring(path.lastIndexOf('/') + 1);
+            return candidate.isBlank() ? fallback : candidate;
+        } catch (URISyntaxException exception) {
+            return fallback;
         }
     }
 }

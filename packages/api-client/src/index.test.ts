@@ -44,6 +44,26 @@ describe("shutdown tracker api client", () => {
     ]);
   });
 
+  it("downloads a generated export artifact from the batch's own path", async () => {
+    const calls: CapturedRequest[] = [];
+    const client = createShutdownTrackerApiClient({
+      baseUrl: "https://api.example.test/",
+      fetchImpl: captureFetch(calls, [])
+    });
+
+    await client.exportPreview.downloadArtifact("project-1", "batch-1");
+
+    // Fetched, not linked: the actor headers travel on the request and an <a href> cannot carry
+    // them. `/artifact` rather than `/content`, because a batch's content is arguably its lines.
+    expect(calls).toEqual([
+      {
+        input: "https://api.example.test/api/projects/project-1/export-preview/batch-1/artifact",
+        method: "GET",
+        body: undefined
+      }
+    ]);
+  });
+
   it("adds lineage query parameters", async () => {
     const calls: CapturedRequest[] = [];
     const client = createShutdownTrackerApiClient({

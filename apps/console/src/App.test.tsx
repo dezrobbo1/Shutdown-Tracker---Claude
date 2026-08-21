@@ -12,6 +12,7 @@ import { buildConsoleSession, describeSession, resolveRole, sessionAllows } from
 import { consoleZones, parseRoute, parseZoneId, sectionById, zoneById, zoneHref } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
 import { newestAcceptedSnapshot } from "./useSnapshotTasks";
+import { describeUploadOutcome } from "./zones/ImportReviewZone";
 import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
 import {
@@ -185,6 +186,49 @@ describe("session", () => {
     });
 
     expect(session.projectId).toBe("project-1");
+  });
+});
+
+describe("schedule intake", () => {
+  const base = {
+    originalFilename: "shutdown.mspdi.xml",
+    sizeBytes: 4096,
+    detectedExtension: ".xml",
+    message: "Stored.",
+    sourceFile: null,
+    importBatch: null
+  };
+
+  it("reads a rejection out of a successful response", () => {
+    // The endpoint answers 200 whether or not it accepted the file. Branching on a thrown error
+    // would report "that is not a Project file" as a successful import.
+    const outcome = describeUploadOutcome({
+      ...base,
+      accepted: false,
+      rejectionReason: "Only .mpp, .xml and .mspdi.xml files are accepted."
+    } as never);
+
+    expect(outcome.accepted).toBe(false);
+    expect(outcome.message).toContain("Only .mpp");
+  });
+
+  it("treats an accepted upload with no batch as unusable rather than ready to parse", () => {
+    const outcome = describeUploadOutcome({ ...base, accepted: true, rejectionReason: null } as never);
+
+    // Parsing needs a batch id, and there is no endpoint that lists pending batches to recover one.
+    expect(outcome.accepted).toBe(false);
+  });
+
+  it("names the file and its size once there is a batch to parse", () => {
+    const outcome = describeUploadOutcome({
+      ...base,
+      accepted: true,
+      rejectionReason: null,
+      importBatch: { id: "batch-1" }
+    } as never);
+
+    expect(outcome.accepted).toBe(true);
+    expect(outcome.message).toContain("shutdown.mspdi.xml");
   });
 });
 

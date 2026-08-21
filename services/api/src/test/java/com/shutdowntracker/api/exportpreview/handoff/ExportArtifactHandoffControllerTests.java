@@ -7,7 +7,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +22,8 @@ import com.shutdowntracker.api.exportpreview.ExportPreviewDetail;
 import com.shutdowntracker.api.exportpreview.ExportPreviewLineRecord;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationResponse;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSummary;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -228,5 +233,69 @@ class ExportArtifactHandoffControllerTests {
                 workerResponse,
                 "Worker-generated MSPDI/XML artifact metadata recorded. No Microsoft Project write-back was run."
         );
+    }
+
+    @Test
+    void servesTheGeneratedArtifactAsADownload() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        when(service.artifactContent(projectId, exportBatchId)).thenReturn(
+                new ExportArtifactHandoffService.ExportArtifactContent(
+                        exportBatchId,
+                        "batch.mspdi.xml",
+                        new ByteArrayInputStream("<Project/>".getBytes(StandardCharsets.UTF_8))));
+
+        mockMvc.perform(get("/api/projects/{projectId}/export-preview/{exportBatchId}/artifact",
+                        projectId, exportBatchId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"batch.mspdi.xml\""))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+                .andExpect(content().string("<Project/>"));
+    }
+
+    @Test
+    void refusesTheDownloadWhenTheActorLacksTheGenerateCapability() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Role viewer may not generate_export_artifact."))
+                .when(authorization)
+                .requireCapability(eq(projectId), any(), eq(Capability.GENERATE_EXPORT_ARTIFACT));
+
+        mockMvc.perform(get("/api/projects/{projectId}/export-preview/{exportBatchId}/artifact",
+                        projectId, exportBatchId))
+                .andExpect(status().isForbidden());
+
+        // The whole schedule with the approved inputs written into it is not a task list. Whoever
+        // may cause one to exist is who may read it back, and the check happens before the store
+        // is touched at all.
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void reportsABatchThatNeverGeneratedAnArtifactAsAConflict() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        when(service.artifactContent(projectId, exportBatchId)).thenThrow(new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "This export batch has not generated an artifact, so there is nothing to download."));
+
+        mockMvc.perform(get("/api/projects/{projectId}/export-preview/{exportBatchId}/artifact",
+                        projectId, exportBatchId))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void reportsAnUnreadableFileAsAConflictRatherThanAServerFault() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID exportBatchId = UUID.randomUUID();
+        when(service.artifactContent(projectId, exportBatchId)).thenThrow(new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "The artifact generated as 'batch.mspdi.xml' is recorded but its file could not be read."));
+
+        // The row saying an artifact was generated stays true even when the store has lost the
+        // bytes. A 500 would say the wrong thing about which of the two is wrong.
+        mockMvc.perform(get("/api/projects/{projectId}/export-preview/{exportBatchId}/artifact",
+                        projectId, exportBatchId))
+                .andExpect(status().isConflict());
     }
 }

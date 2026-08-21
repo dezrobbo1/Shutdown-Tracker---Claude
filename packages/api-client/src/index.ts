@@ -942,6 +942,11 @@ export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "Reject import snapshot", method: "POST", path: "/api/projects/{projectId}/import-review/snapshots/{snapshotId}/reject" },
   { label: "List lineage links", method: "GET", path: "/api/projects/{projectId}/import-review/lineage-links" },
   { label: "Create lineage link", method: "POST", path: "/api/projects/{projectId}/import-review/lineage-links" },
+  {
+    label: "Download export artifact",
+    method: "GET",
+    path: "/api/projects/{projectId}/export-preview/{exportBatchId}/artifact"
+  },
   { label: "Create export candidate", method: "POST", path: "/api/projects/{projectId}/export-candidates" },
   {
     label: "Record export candidate approval event",
@@ -1151,6 +1156,16 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
       },
       get: (projectId: string, exportBatchId: string) =>
         requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, exportBatchId)),
+      // Fetched rather than linked, because the actor headers travel on the request and a plain
+      // <a href> cannot carry them. `/artifact` rather than `/content`: an export batch's content
+      // is arguably its lines, and this is the file.
+      downloadArtifact: (projectId: string, exportBatchId: string) =>
+        requestBlob(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          exportPreviewPath(projectId, `${exportBatchId}/artifact`)
+        ),
       approve: (projectId: string, exportBatchId: string, request?: ExportBatchDecisionRequest) =>
         requestJson<ExportPreviewDetail>(transport, baseUrl, defaultHeaders, exportPreviewPath(projectId, `${exportBatchId}/approve`), {
           method: "POST",

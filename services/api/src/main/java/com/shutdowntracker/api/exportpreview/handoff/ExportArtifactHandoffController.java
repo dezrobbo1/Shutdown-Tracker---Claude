@@ -5,7 +5,12 @@ import com.shutdowntracker.api.identity.Capability;
 import com.shutdowntracker.api.identity.ProjectAuthorizationService;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,6 +53,38 @@ public class ExportArtifactHandoffController {
     ) {
         authorization.requireCapability(projectId, actor, Capability.GENERATE_EXPORT_ARTIFACT);
         return service.generateArtifact(projectId, exportBatchId, generatedBy(request, actor));
+    }
+
+    /**
+     * The generated artifact itself.
+     *
+     * <p>Gated on {@code GENERATE_EXPORT_ARTIFACT} rather than {@code VIEW_PROJECT}, on the same
+     * argument the returned-candidate endpoint already makes: this is a complete Microsoft Project
+     * schedule with the approved inputs written into it, not a task list. Whoever may cause one to
+     * exist is who may read it back — handing the whole plan as a file to anyone with read access
+     * on the project is a different thing from letting them see the project.
+     *
+     * <p>No {@code Content-Length}: {@code export_batches} records no size for the artifact, and
+     * adding a column for a header is not worth a migration.
+     */
+    @GetMapping("/{exportBatchId}/artifact")
+    public ResponseEntity<InputStreamResource> artifact(
+            @PathVariable UUID projectId,
+            @PathVariable UUID exportBatchId,
+            Actor actor
+    ) {
+        authorization.requireCapability(projectId, actor, Capability.GENERATE_EXPORT_ARTIFACT);
+
+        ExportArtifactHandoffService.ExportArtifactContent content =
+                service.artifactContent(projectId, exportBatchId);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(content.filename())
+                        .build()
+                        .toString())
+                .contentType(MediaType.APPLICATION_XML)
+                .body(new InputStreamResource(content.content()));
     }
 
     private static ExportArtifactGenerationRequest generatedBy(

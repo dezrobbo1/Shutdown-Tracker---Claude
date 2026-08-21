@@ -27,6 +27,8 @@ export type ZoneSession = ConsoleSession & {
   canManageResourceLink: boolean;
   canCreateExportPreview: boolean;
   canApproveExport: boolean;
+  canUploadSourceFile: boolean;
+  canRequestParse: boolean;
   canGenerateArtifact: boolean;
   canRecordVerification: boolean;
   canReturnCandidate: boolean;
@@ -60,6 +62,8 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
     canManageResourceLink: sessionAllows(session, "MANAGE_RESOURCE_LINK"),
     canCreateExportPreview: sessionAllows(session, "CREATE_EXPORT_PREVIEW"),
     canApproveExport: sessionAllows(session, "APPROVE_EXPORT_BATCH"),
+    canUploadSourceFile: sessionAllows(session, "UPLOAD_SOURCE_FILE"),
+    canRequestParse: sessionAllows(session, "REQUEST_PROJECT_PARSE"),
     canGenerateArtifact: sessionAllows(session, "GENERATE_EXPORT_ARTIFACT"),
     canRecordVerification: sessionAllows(session, "RECORD_EXPORT_VERIFICATION"),
     // Bringing back what Microsoft Project calculated, and reading it back. Planner-owned

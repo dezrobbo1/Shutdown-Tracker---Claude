@@ -59,11 +59,11 @@ Every future visual surface must be labelled with one of these statuses in the b
 | Console shell | Five baseline zones, hash-routed, with addressable sections inside a zone |
 | Mobile shell | Five baseline zones; progress capture opens from a task rather than being a tab |
 | Console API client | Reads and writes through the shared client, carrying the actor headers |
-| Import review | Read and accept/reject, wired |
+| Import review | Upload a Project file, request its parse summary, then read and accept/reject — all wired. Uploading and parsing were previously possible only by `curl`, which no document recorded. Two things the panel states rather than hides: parsing needs the project worker connected, and is refused with the batch marked failed when it is not; and **nothing lists pending import batches**, so a reload between upload and parse means uploading again. |
 | Operational mapping | Import profiles, categories, snapshot resolution, execution readiness, wired |
 | Task progress | Submit, supervisor queue and review, planner queue and review, wired |
 | Problems, actions, handover | Wired; reads are open/unacknowledged queues only |
-| Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired |
+| Export lifecycle | Candidate registration, preview, approve/reject, generate, open, verify, wired. The generated artifact is now downloadable through the interface, gated on `GENERATE_EXPORT_ARTIFACT`; it was previously shown as `exportFileUri`, a server filesystem path a browser cannot reach. |
 | Evidence | Register, upload the file, download it, and read it back per task or across the project, wired in both apps. The project list is bounded and says when it was cut. Storage is the local filesystem implementation; production object storage is still open. Capture needs a connection in the field app and says so |
 | Critical Watch | Watchlists, work packages and Critical Update reporting are reachable over HTTP and surfaced in the console. The field app files Critical Updates from Today, through the offline queue; composing a package stays a planning act and is console-only |
 | Mobile offline queue | Durable IndexedDB queue for progress, Critical Updates and raised problems, with idempotency keys and visible sync state. Evidence binaries are not queued |
