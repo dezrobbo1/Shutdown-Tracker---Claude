@@ -17,16 +17,37 @@ Field App:       My Work | Today | Problems | Evidence | Sync
 
 Both applications now implement those zones. Where Design C describes a surface that does not map to one, it belongs inside a zone as a section rather than as new top-level navigation.
 
-What Design C usefully contributes, and what has been acted on, is its visual direction: flat operational surfaces, restraint in radius and shadow, limited card containment, hierarchy through typography and rules, and semantic colour reserved for operational state. Both stylesheets now declare their palette and radii as tokens in `:root`, so that direction can be applied by changing a palette rather than editing literals throughout.
+What Design C usefully contributes is its visual direction: flat operational surfaces, restraint in radius and shadow, limited card containment, hierarchy through typography and rules, and semantic colour reserved for operational state.
 
-The prototype files named below (`shutdown-tracker-console-v4.html`, `shutdown-tracker-mobile-v4.html`) are **not present in this repository** and do not appear in any branch or in its history. Treat the descriptions here as the only record of Design C until they are recovered.
+**That direction has not been applied yet, and this document previously said it had.** Both stylesheets do declare their palette and radii as tokens in `:root`, which is what makes the direction applicable by changing a palette rather than editing literals throughout — but tokenising is not applying, and the tokens presently hold values the prototypes do not. Measured against the restored files:
+
+| | Prototype | Built |
+| --- | --- | --- |
+| `--radius` | `2px` | `8px` |
+| small radius | `2px` | `6px` |
+| status chip | rectangular stamp | `--radius-chip: 999px`, a pill |
+| `--shadow` | `none` | box shadows present |
+| accent | `#c97a2b` | `#1d473d` / `#2d876d` |
+| canvas | `#f3f4f1` | `#ffffff` |
+| operational state colours | six | four |
+
+The gap is recorded as Phase 3 of [the active goal](../../../goals/ACTIVE.md) rather than repaired here.
+
+The prototype files are present in this directory:
+
+- [`shutdown_tracker_design_c_v4_console.html`](shutdown_tracker_design_c_v4_console.html)
+- [`shutdown_tracker_design_c_v4_mobile.html`](shutdown_tracker_design_c_v4_mobile.html)
+
+**Correction.** This README previously stated that they were "not present in this repository and do not appear in any branch or in its history". That was wrong. They were added in `792be38` and are reachable through the `legacy` remote. The search that produced the claim used the names this document gave them — `shutdown-tracker-console-v4.html` — and the files on disk are `shutdown_tracker_design_c_v4_console.html`. A document naming an artifact differently from the artifact is enough to lose it.
+
+Two identifiers were neutralised on restore, because this repository must not carry vendor, contractor or project identifiers and there is no way to confirm from here that these were invented: a supplier name in a problem row became `Crane crew`, and the project code became `SYN-001`. Nothing else was changed, and neither affects what these files are for.
 
 ## Application surfaces
 
 Design C deliberately treats the product as two separate application surfaces that share the same backend/domain and selected design-system primitives:
 
-- `shutdown-tracker-console-v4.html` — Master Console for control-room, supervisor, planner, review, operational mapping, export, and Microsoft Project verification workflows.
-- `shutdown-tracker-mobile-v4.html` — Mobile Field App / PWA for field execution, problem reporting, evidence capture, and explicit offline/sync workflows.
+- `shutdown_tracker_design_c_v4_console.html` — Master Console for control-room, supervisor, planner, review, operational mapping, export, and Microsoft Project verification workflows.
+- `shutdown_tracker_design_c_v4_mobile.html` — Mobile Field App / PWA for field execution, problem reporting, evidence capture, and explicit offline/sync workflows.
 
 The Mobile Field App is **not** a responsive collapse of the Master Console. The two applications have different jobs, navigation, information density, and interaction models.
 

@@ -1,0 +1,626 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Shutdown Tracker — Design C v4 Console</title>
+<style>
+  :root{
+    --ink:#1f2a30;
+    --ink-2:#2a363d;
+    --canvas:#f3f4f1;
+    --panel:#fafaf8;
+    --line:#c9cfcc;
+    --line-dark:#aeb7b3;
+    --text:#1d262a;
+    --muted:#707a7e;
+    --accent:#c97a2b;
+    --accent-soft:#f6eadb;
+    --danger:#b83c32;
+    --danger-soft:#f7e9e6;
+    --warn:#9a6a14;
+    --warn-soft:#fbf2dc;
+    --ok:#4c765e;
+    --ok-soft:#e9f0eb;
+    --info:#3a7088;
+    --info-soft:#e8eff2;
+    --review:#70647f;
+    --review-soft:#efedf2;
+    --shadow:none;
+    --radius:2px;
+    --radius-sm:2px;
+    --sans:Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    --mono:"SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--canvas);color:var(--text);font-family:var(--sans)}
+  button,input,select{font:inherit}
+  button{cursor:pointer}
+  .app{min-height:100vh;display:grid;grid-template-columns:230px 1fr}
+  .sidebar{
+    background:var(--ink); color:#dce6e8; min-height:100vh; padding:18px 14px; position:sticky; top:0;
+    display:flex;flex-direction:column;border-right:1px solid #0a1c24;
+  }
+  .brand{display:flex;gap:10px;align-items:center;padding:2px 6px 18px;border-bottom:1px solid rgba(255,255,255,.11)}
+  .brand-mark{width:34px;height:34px;border-radius:2px;background:var(--accent);display:grid;place-items:center;color:white;font-weight:800}
+  .brand strong{display:block;font-size:14px;letter-spacing:.01em}
+  .brand span{display:block;font-size:11px;color:#9fb0b6;margin-top:2px}
+  nav{padding-top:14px;display:grid;gap:4px}
+  .nav-item{
+    color:#c3d0d4;text-decoration:none;padding:11px 10px;border-radius:2px;display:flex;align-items:center;justify-content:space-between;
+    font-size:13px;font-weight:650;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.06)}
+  .nav-item.active{background:#303c42;color:#fff;box-shadow:inset 3px 0 var(--accent)}
+  .nav-count{font:600 11px var(--mono);background:rgba(255,255,255,.09);padding:2px 6px;border-radius:2px}
+  .side-meta{margin-top:auto;padding:14px 8px 4px;color:#91a5aa;font-size:11px;line-height:1.5;border-top:1px solid rgba(255,255,255,.11)}
+  .side-meta .good{color:#8fd0b3}
+
+  .main{min-width:0}
+  .topbar{
+    height:66px;background:#fbfbf8;border-bottom:1px solid var(--line);display:grid;
+    grid-template-columns:minmax(230px,1fr) 170px 170px 280px 1fr;align-items:stretch;
+    position:sticky;top:0;z-index:10;
+  }
+  .topcell{padding:10px 14px;border-right:1px solid var(--line);display:flex;align-items:center}
+  .topcell .k{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:#8a9496}
+  .topcell .v{font-size:13px;font-weight:750;margin-top:3px}
+  .project .v{font-size:14px}
+  .top-actions{display:flex;gap:7px;align-items:center;justify-content:flex-end;padding:10px}
+  .pill{border:0;border-left:1px solid var(--line);background:transparent;border-radius:0;padding:4px 8px;font:700 10px var(--mono);color:#516064}
+  .pill.good{background:transparent;border-color:var(--line);color:var(--ok)}
+  .pill.warn{background:transparent;border-color:var(--line);color:var(--warn)}
+  .pill.review{background:transparent;border-color:var(--line);color:var(--review)}
+
+  .content{padding:20px 22px 32px}
+  .eyebrow{font:750 10px var(--sans);letter-spacing:.075em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+  .page-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:16px}
+  h1{font-size:27px;line-height:1.08;margin:0;font-weight:760;letter-spacing:-.018em}
+  .sub{font-size:13px;color:var(--muted);margin-top:6px}
+  .btn{border:1px solid var(--line-dark);background:#fff;color:var(--ink);border-radius:2px;padding:9px 11px;font-weight:700;font-size:12px}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn.accent{background:var(--accent);color:white;border-color:var(--accent)}
+  .btn.ghost{background:transparent}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+
+  .grid{display:grid;grid-template-columns:1.02fr 1.52fr .92fr;gap:10px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:none}
+  .panel-h{
+    display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);
+    background:#f2f4f2;
+  }
+  .panel-h strong{font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+  .panel-h span{font:600 10px var(--mono);color:#7d898b}
+  .ledger{display:grid}
+  .ledger-item{display:grid;grid-template-columns:28px 1fr auto;gap:8px;padding:10px 11px;border-bottom:1px solid var(--line)}
+  .ledger-item:last-child{border-bottom:0}
+  .rank{font:700 11px var(--mono);color:var(--accent)}
+  .li-title{font-size:12px;font-weight:780}
+  .li-meta{font-size:10.5px;color:var(--muted);margin-top:3px}
+  .age{font:700 10px var(--mono);border:1px solid var(--line);padding:3px 5px;border-radius:1px;height:max-content}
+  .age.red{color:var(--danger);border-color:#dbb4ad;background:#fff8f6}
+  .age.amber{color:var(--warn);border-color:#e5d3a7;background:#fffbf0}
+
+  .workstreams{padding:9px}
+  .swim{display:grid;grid-template-columns:120px repeat(3,minmax(130px,1fr));border:1px solid var(--line);border-bottom:0}
+  .swim:last-child{border-bottom:1px solid var(--line)}
+  .swim > div{padding:9px 10px;border-right:1px solid var(--line);min-height:62px}
+  .swim > div:last-child{border-right:0}
+  .area{font:700 10px var(--mono);text-transform:uppercase;color:#667276;background:#f3f4f2}
+  .workcard{font-size:11px}
+  .workcard strong{display:block;font-size:11px;margin-bottom:4px}
+  .state-line{font:700 9.5px var(--mono);text-transform:uppercase}
+  .state-line.red{color:var(--danger)} .state-line.blue{color:var(--info)} .state-line.green{color:var(--ok)} .state-line.amber{color:var(--warn)}
+
+  .docket{padding:8px}
+  .docket-item{padding:9px;border-bottom:1px solid var(--line)}
+  .docket-item:last-child{border-bottom:0}
+  .docket-title{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:760}
+  .docket-meta{font-size:10px;color:var(--muted);margin-top:4px}
+  .tiny-badge{font:700 9px var(--mono);border:1px solid var(--line);padding:2px 4px;border-radius:3px}
+  .critical-card{margin-top:10px;border-top:3px solid var(--accent);padding:10px;background:#fffdf9}
+  .critical-card .k{font:700 9px var(--mono);color:var(--accent);text-transform:uppercase}
+  .critical-card strong{display:block;margin:5px 0 4px;font-size:12px}
+
+  .statusbar{display:flex;gap:16px;align-items:center;padding:8px 10px;margin-top:12px;border:1px solid var(--line);background:#f7f8f6;border-radius:2px;font:600 10px var(--mono);color:#5d6b6e}
+  .statusbar span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#9aa5a2;margin-right:6px}
+  .statusbar .ok:before{background:var(--ok)}
+  .statusbar .warn:before{background:var(--warn)}
+  .statusbar .danger:before{background:var(--danger)}
+  .statusbar .right{margin-left:auto;color:var(--danger);font-weight:800}
+
+  .section{margin-top:18px}
+  .section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .section-title h2{font-size:17px;margin:0}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:1050px;font-size:11.5px}
+  thead th{position:sticky;top:0;background:#edf0ee;text-align:left;padding:9px 9px;border-bottom:1px solid var(--line);font:700 9.5px var(--mono);text-transform:uppercase;color:#5e6c6f}
+  tbody td{padding:9px;border-bottom:1px solid #d8ddda;vertical-align:middle}
+  tbody tr:hover{background:#fbfcfb}
+  .taskname{font-weight:760}
+  .taskmeta{font-size:9.5px;color:#808b8e;margin-top:2px}
+  .badge{display:inline-flex;align-items:center;border:1px solid currentColor;border-radius:0;padding:2px 4px;font:800 8.5px var(--mono);text-transform:uppercase;background:transparent;letter-spacing:.015em}
+  .badge.red{background:transparent;color:var(--danger)}
+  .badge.blue{background:transparent;color:var(--info)}
+  .badge.green{background:transparent;color:var(--ok)}
+  .badge.amber{background:transparent;color:var(--warn)}
+  .badge.review{background:transparent;color:var(--review)}
+  .linkish{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+  .strong{font-weight:800}
+
+  .bridge{
+    display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-top:16px
+  }
+  .warning-banner{
+    padding:13px 14px;border:1px solid #e2b4aa;background:#fff3ef;border-left:4px solid var(--danger);border-radius:2px;
+    font-size:12px
+  }
+  .warning-banner strong{display:block;color:var(--danger);font-size:12px;margin-bottom:3px}
+  .mapping-list{display:grid;gap:7px;padding:10px}
+  .mapping-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;padding:9px;border:1px solid var(--line);border-radius:2px;background:#fff}
+  .mapping-row small{color:var(--muted)}
+  .prov{font:600 9.5px var(--mono);color:#5d6b6e}
+
+  .mobile-shell{display:none}
+
+  @media (max-width: 980px){
+    .app{display:block}
+    .sidebar,.topbar,.desktop-only{display:none}
+    .main{min-width:0}
+    .content{padding:0}
+    .mobile-shell{display:block;min-height:100vh;background:#f2f2ee;padding-bottom:78px}
+    .m-head{background:var(--ink);color:#fff;padding:12px 16px 11px;position:sticky;top:0;z-index:10;border-bottom:2px solid var(--accent)}
+    .m-head-top{display:flex;justify-content:space-between;align-items:center}
+    .m-k{font:700 10px var(--mono);letter-spacing:.06em;color:#a8bcc2;text-transform:uppercase}
+    .m-title{font-size:20px;font-weight:760;margin-top:2px}
+    .m-online{font:800 10px var(--mono);border:0;background:transparent;color:#a9d6c0;padding:0}
+    .m-body{padding:14px 16px}
+    .m-date{font:700 11px var(--mono);color:#798486;text-transform:uppercase;letter-spacing:.05em}
+    .m-main-title{display:none}
+    .sync-banner{border:0;border-top:1px solid var(--line-dark);border-bottom:1px solid var(--line-dark);background:transparent;border-radius:0;padding:10px 0;margin-bottom:16px}
+    .sync-banner strong{display:block;color:var(--warn);font:800 11.5px var(--sans);text-transform:none;letter-spacing:0}
+    .sync-banner span{display:block;font-size:11.5px;color:var(--muted);margin-top:4px}
+    .m-card{background:transparent;border:0;border-bottom:1px solid var(--line-dark);border-radius:0;margin-bottom:13px;overflow:visible}
+    .m-card.critical{border-top:4px solid var(--danger)}
+    .m-card-in{padding:14px 0 16px}
+    .m-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}
+    .m-card h3{font-size:28px;line-height:1.06;margin:0 0 6px;font-weight:760;letter-spacing:-.025em}
+    .m-card .context{font-size:15px;color:#7a8587;margin-bottom:18px}
+    .m-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;border-top:1px solid var(--line);padding-top:12px}
+    .m-metric small{font:700 9px var(--mono);text-transform:uppercase;color:#849092}
+    .m-metric strong{display:block;font-size:17px;margin-top:4px}
+    .blocker{margin-top:14px;background:transparent;border-left:5px solid var(--danger);padding:8px 11px;color:var(--danger);font-size:13px;font-weight:760}
+    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:14px;border-top:1px solid var(--line-dark);border-left:1px solid var(--line-dark)}
+    .m-action{min-height:54px;border:0;border-right:1px solid var(--line-dark);border-bottom:1px solid var(--line-dark);background:#fff;border-radius:0;font-weight:800;color:var(--ink)}
+    .m-action.danger{background:var(--danger);color:white;border-color:var(--danger)}
+    .m-action.primary{background:var(--ink);color:white;border-color:var(--ink)}
+    .m-next{font:700 11px var(--mono);text-transform:uppercase;color:#687477;margin:16px 0 8px}
+    .compact-row{padding:11px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .compact-row:last-child{border-bottom:0}
+    .compact-row strong{font-size:14px}
+    .compact-row span{font-size:11px;color:var(--muted)}
+    .m-nav{position:fixed;bottom:0;left:0;right:0;height:66px;background:#fbfbf8;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);z-index:20}
+    .m-nav button{border:0;background:transparent;color:#697578;font-size:11px;font-weight:700}
+    .m-nav button.active{color:var(--accent);box-shadow:inset 0 3px var(--accent)}
+    .m-nav .ico{display:block;font-size:18px;line-height:1;margin-bottom:4px}
+  }
+</style>
+<style>
+.nav-item,.btn,.m-action,tbody tr{transition:background .12s ease,color .12s ease,border-color .12s ease}
+.btn:hover{background:#f0f1ee}.btn.primary:hover{background:#26353c}
+tbody tr:hover{background:#f3f4f1}
+.panel-h span{font-family:var(--sans);font-size:9.5px;color:#7a8588}
+.topcell .k{font-family:var(--sans);font-size:8.5px;font-weight:700;letter-spacing:.065em}
+.statusbar{font-family:var(--sans);font-size:9.5px;font-weight:700}
+thead th{font-family:var(--sans);font-size:8.5px;font-weight:750;letter-spacing:.045em}
+@media(max-width:980px){
+ .m-card h3{font-size:27px;letter-spacing:-.018em}
+ .m-action{min-height:50px}
+ .m-next{font-family:var(--sans);font-size:10px;font-weight:800;letter-spacing:.055em}
+}
+</style>
+<style>
+.view{display:none}
+.view.active{display:block}
+.nav-item{cursor:pointer}
+.split{display:grid;grid-template-columns:1.15fr .85fr;gap:10px}
+.stack{display:grid;gap:10px}
+.list-panel{border:1px solid var(--line-dark);background:var(--panel)}
+.list-head{padding:9px 10px;background:#e9ece9;border-bottom:1px solid var(--line-dark);font:750 9px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#596568}
+.rowline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px;border-bottom:1px solid var(--line);align-items:start}
+.rowline:last-child{border-bottom:0}
+.rowline b{font-size:11px}
+.rowline small{display:block;color:var(--muted);font-size:9.5px;margin-top:3px;line-height:1.35}
+.rowmeta{font:750 8.5px var(--mono);white-space:nowrap;color:#647074}
+.kpi-line{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line-dark);background:var(--panel);margin-bottom:10px}
+.kpi-cell{padding:10px;border-right:1px solid var(--line);min-height:58px}
+.kpi-cell:last-child{border-right:0}
+.kpi-cell .n{font-size:20px;font-weight:800}
+.kpi-cell .l{font:750 8.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:2px}
+.detail-sheet{border:1px solid var(--line-dark);background:var(--panel)}
+.detail-head{padding:11px 12px;border-bottom:1px solid var(--line-dark);background:#f0f2ef}
+.detail-head h3{margin:0;font-size:15px}
+.detail-body{padding:11px 12px}
+.detail-grid{display:grid;grid-template-columns:130px 1fr;row-gap:8px;font-size:10.5px}
+.detail-grid .label{color:var(--muted);font-weight:700}
+.problem-sev{border-left:5px solid var(--danger)}
+.problem-warn{border-left:5px solid var(--warn)}
+.evidence-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.evidence-card{border:1px solid var(--line-dark);background:var(--panel)}
+.evidence-thumb{height:90px;background:linear-gradient(135deg,#d9dedb,#bfc7c3);display:grid;place-items:center;color:#687477;font:750 9px var(--mono)}
+.evidence-body{padding:9px}
+.evidence-body b{font-size:10.5px}
+.evidence-body small{display:block;color:var(--muted);margin-top:3px;font-size:9.5px}
+.tabs-inline{display:flex;border-bottom:1px solid var(--line-dark);margin-bottom:10px}
+.tabs-inline button{border:0;border-right:1px solid var(--line);background:transparent;padding:8px 10px;font-size:9px;font-weight:750;color:#697477}
+.tabs-inline button.active{background:#e9ece9;color:var(--ink);box-shadow:inset 0 -2px var(--accent)}
+.notice-flat{padding:9px 10px;border-left:4px solid var(--warn);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#f7f2e6;font-size:10px;margin-bottom:10px}
+@media(max-width:980px){
+ .view{display:none!important}
+ .view.active{display:block!important}
+}
+</style>
+<style>
+/* Console application only: mobile field app is a separate application. */
+html, body { min-width: 1120px; }
+@media (max-width: 980px) {
+  .app {
+    display: grid !important;
+    grid-template-columns: 230px 1fr !important;
+    min-width: 1120px !important;
+  }
+  .sidebar { display: flex !important; }
+  .topbar { display: grid !important; }
+  .desktop-only { display: block !important; }
+  .content { padding: 20px 22px 32px !important; }
+}
+</style></head>
+<body>
+<div class="app">
+<aside class="sidebar">
+<div class="brand">
+<div class="brand-mark">ST</div>
+<div><strong>Shutdown Tracker</strong><span>Live execution control</span></div>
+</div>
+<nav>
+<a class="nav-item active" data-view="control"><span>Control</span><span class="nav-count">12</span></a>
+<a class="nav-item" data-view="work"><span>Work</span><span class="nav-count">158</span></a>
+<a class="nav-item" data-view="resolve"><span>Resolve</span><span class="nav-count">7</span></a>
+<a class="nav-item" data-view="evidence"><span>Evidence</span><span class="nav-count">18</span></a>
+<a class="nav-item" data-view="bridge"><span>Project bridge</span><span class="nav-count">3</span></a>
+</nav>
+<div class="side-meta">
+<div class="good">● Operational data current</div>
+<div>Revision 12 · imported 05:48</div>
+</div>
+</aside>
+<main class="main">
+<header class="topbar">
+<div class="topcell project"><div><div class="k">Current project</div><div class="v">Calciner Major Overhaul <span style="font:600 10px var(--mono);color:#8a9496">SYN-001</span></div></div></div>
+<div class="topcell"><div><div class="k">Status date</div><div class="v">15 Aug 2026</div></div></div>
+<div class="topcell"><div><div class="k">Shift</div><div class="v">Day</div></div></div>
+<div class="topcell"><div style="width:100%"><div class="k">Operational scope</div><div class="v" style="display:flex;justify-content:space-between">Whole shutdown <span>⌄</span></div></div></div>
+<div class="top-actions">
+<span class="pill good">Field sync 2m</span>
+<span class="pill review">9 review</span>
+<span class="pill">Batch 014</span>
+</div>
+</header>
+<section class="content desktop-only"><div class="view active" id="view-control">
+<div class="eyebrow">Control / Day shift</div>
+<div class="page-head">
+<div>
+<h1>Shift board</h1>
+<div class="sub">Operational decisions and execution position. Updated 14:02.</div>
+</div>
+<div class="toolbar">
+<button class="btn">Refresh</button>
+<button class="btn primary">Log update →</button>
+</div>
+</div>
+<div class="grid">
+<section class="panel">
+<div class="panel-h"><strong>A · Urgency ledger</strong><span>ordered by consequence + staleness</span></div>
+<div class="ledger">
+<div class="ledger-item">
+<div class="rank">01</div>
+<div><div class="li-title">Scaffold access unavailable</div><div class="li-meta">C2 Cyclone · Rig and lower Brokk · owner CVM SCAF</div></div>
+<span class="age red">42m</span>
+</div>
+<div class="ledger-item">
+<div class="rank">02</div>
+<div><div class="li-title">Field report overdue</div><div class="li-meta">Furnace Bottom Vessel Opening · W4M1</div></div>
+<span class="age amber">4h18m</span>
+</div>
+<div class="ledger-item">
+<div class="rank">03</div>
+<div><div class="li-title">Completion needs decision</div><div class="li-meta">D2 Stack · Final inspection · supervisor review</div></div>
+<span class="age">20m</span>
+</div>
+<div class="ledger-item">
+<div class="rank">04</div>
+<div><div class="li-title">Evidence upload failed</div><div class="li-meta">Vac out HV bottom · device retry pending</div></div>
+<span class="age red">46m</span>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-h"><strong>B · Workstream position</strong><span>execution horizons · not a schedule</span></div>
+<div class="workstreams">
+<div class="swim">
+<div class="area">Calciner</div>
+<div class="workcard"><strong>Rig and lower Brokk</strong><span class="state-line red">95% · blocked</span></div>
+<div class="workcard"><strong>Remove cyclone refractory</strong><span class="state-line blue">ready</span></div>
+<div class="workcard"><strong>Access modification</strong><span class="state-line amber">required</span></div>
+</div>
+<div class="swim">
+<div class="area">Furnace</div>
+<div class="workcard"><strong>Scaffold furnace access</strong><span class="state-line blue">75% · active</span></div>
+<div class="workcard"><strong>Inspect vessel lining</strong><span class="state-line review">review</span></div>
+<div class="workcard"><strong>Crane lift slot</strong><span class="state-line amber">15:00</span></div>
+</div>
+<div class="swim">
+<div class="area">Preheater</div>
+<div class="workcard"><strong>Vac out HV bottom</strong><span class="state-line blue">60% · active</span></div>
+<div class="workcard"><strong>Install anchors</strong><span class="state-line amber">paused</span></div>
+<div class="workcard"><strong>QA batch release</strong><span class="state-line amber">overdue</span></div>
+</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-h"><strong>C · Decision docket</strong><span>your work · coordinator</span></div>
+<div class="docket">
+<div class="docket-item">
+<div class="docket-title">Critical report overdue <span class="tiny-badge">16m</span></div>
+<div class="docket-meta">C2 Cyclone package</div>
+</div>
+<div class="docket-item">
+<div class="docket-title">Supervisor decisions <span class="tiny-badge">9</span></div>
+<div class="docket-meta">Completions + progress</div>
+</div>
+<div class="docket-item">
+<div class="docket-title">Planner decisions <span class="tiny-badge">12</span></div>
+<div class="docket-meta">Export batch 014</div>
+</div>
+<div class="docket-item">
+<div class="docket-title">Evidence gaps <span class="tiny-badge">4</span></div>
+<div class="docket-meta">Completion records</div>
+</div>
+<div class="docket-item">
+<div class="docket-title">Handover readiness <span class="tiny-badge">72%</span></div>
+<div class="docket-meta">Day → Night</div>
+</div>
+<div class="critical-card">
+<div class="k">Critical Watch</div>
+<div class="docket-meta">Planner-selected operational monitoring. Not Microsoft Project critical path.</div>
+<strong>C2 Cyclone Top</strong>
+<div class="docket-title"><span>Next report overdue</span><span class="tiny-badge">AT RISK</span></div>
+</div>
+</div>
+</section>
+</div>
+<div class="statusbar">
+<span class="ok">Snapshot rev 12</span>
+<span class="ok">Field freshness 2 min</span>
+<span class="warn">Local queue 2</span>
+<span class="warn">Reviews 18</span>
+<span>Export 014 · draft</span>
+<span class="right">PROJECT NOT UPDATED</span>
+</div>
+</div>
+<div class="view" id="view-work">
+<div class="eyebrow">Work / execution</div>
+<div class="page-head">
+<div><h1>Execution register</h1><div class="sub">Schedule-derived work with live execution state. Microsoft Project source facts remain read-only.</div></div>
+<div class="toolbar"><button class="btn">Saved views</button><button class="btn primary">Add field update</button></div>
+</div>
+<div class="kpi-line">
+<div class="kpi-cell"><div class="n">27</div><div class="l">In progress</div></div>
+<div class="kpi-cell"><div class="n">7</div><div class="l">Blocked</div></div>
+<div class="kpi-cell"><div class="n">9</div><div class="l">Awaiting review</div></div>
+<div class="kpi-cell"><div class="n">12</div><div class="l">Planner candidates</div></div>
+</div>
+<div class="section" id="work">
+<div class="section-title">
+<div><div class="eyebrow">Work / execution register</div><h2>Execution register</h2></div>
+<button class="btn primary">+ Add field update</button>
+</div>
+<div class="toolbar" style="margin-bottom:8px">
+<input class="btn" style="min-width:270px;text-align:left" value="Search task, package, owner…"/>
+<button class="btn">Saved view: In progress now</button>
+<button class="btn">Filters 3</button>
+<button class="btn">Group · Area</button>
+<button class="btn">Columns</button>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Task / work package</th><th>Area</th><th>Assigned dept.</th><th>Work group</th><th>Owner</th><th>State</th><th>Planned window</th><th>Actual start</th><th>%</th><th>Problem</th><th>Last update</th><th>Review</th>
+</tr></thead>
+<tbody>
+<tr><td><div class="taskname">Rig and lower Brokk</div><div class="taskmeta">C2 Cyclone Top, Roof &amp; Inlet · ID 1842</div></td><td>Calciner</td><td>W4M1</td><td class="linkish">CVM MECH</td><td>J. Mercer</td><td><span class="badge red">Blocked</span></td><td>06:00–14:00</td><td>06:18</td><td class="strong">95%</td><td><span class="badge red">2 open</span></td><td>42m</td><td>—</td></tr>
+<tr><td><div class="taskname">Remove cyclone refractory</div><div class="taskmeta">C2 Cyclone Entry · ID 1907</div></td><td>Calciner</td><td>W4M1</td><td class="linkish">CVM REF</td><td>S. Naylor</td><td><span class="badge blue">Ready</span></td><td>06:00–16:00</td><td>—</td><td class="strong">0%</td><td>—</td><td>1h</td><td>—</td></tr>
+<tr><td><div class="taskname">Scaffold furnace access</div><div class="taskmeta">Furnace Bottom Vessel Opening · ID 1733</div></td><td>Furnace</td><td>W4M1</td><td class="linkish">CVM SCAF</td><td>T. Burke</td><td><span class="badge blue">In progress</span></td><td>06:00–16:00</td><td>06:07</td><td class="strong">75%</td><td><span class="badge red">1 open</span></td><td>4h18m</td><td>Overdue</td></tr>
+<tr><td><div class="taskname">Inspect vessel lining</div><div class="taskmeta">Furnace Bottom Vessel Opening · ID 2021</div></td><td>Furnace</td><td>W4M1</td><td class="linkish">CVM MECH</td><td>A. Singh</td><td><span class="badge review">Awaiting review</span></td><td>10:00–14:00</td><td>10:12</td><td class="strong">100%</td><td>—</td><td>20m</td><td>Supervisor</td></tr>
+<tr><td><div class="taskname">Vac out HV bottom</div><div class="taskmeta">D2 / HV &amp; FR Top · ID 2114</div></td><td>Preheater</td><td>W4M2</td><td class="linkish">CVM MECH</td><td>R. Holt</td><td><span class="badge blue">In progress</span></td><td>08:00–18:00</td><td>08:03</td><td class="strong">60%</td><td><span class="badge red">1 open</span></td><td>12m</td><td>—</td></tr>
+<tr><td><div class="taskname">Install refractory anchors</div><div class="taskmeta">D2 Stack · ID 2218</div></td><td>Preheater</td><td>W4M1</td><td class="linkish">CVM REF</td><td>L. Vella</td><td><span class="badge amber">Paused</span></td><td>07:00–02:00</td><td>07:09</td><td class="strong">42%</td><td><span class="badge red">1 open</span></td><td>28m</td><td>—</td></tr>
+<tr><td><div class="taskname">Complete final refractory inspection</div><div class="taskmeta">D2 Stack · ID 2270</div></td><td>Preheater</td><td>W4M1</td><td class="linkish">CVM REF</td><td>M. Chen</td><td><span class="badge green">Complete</span></td><td>09:00–13:30</td><td>09:16</td><td class="strong">100%</td><td>—</td><td>31m</td><td>Accepted</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="split section">
+<div class="list-panel">
+<div class="list-head">Selected task · operational history</div>
+<div class="rowline"><div><b>Field update submitted</b><small>Progress 95%. Scaffold access unavailable.</small></div><div class="rowmeta">13:20</div></div>
+<div class="rowline"><div><b>Problem linked</b><small>Scaffold access unavailable · CVM SCAF</small></div><div class="rowmeta">13:21</div></div>
+<div class="rowline"><div><b>Action assigned</b><small>Complete upper platform modification.</small></div><div class="rowmeta">13:27</div></div>
+</div>
+<div class="detail-sheet">
+<div class="detail-head"><h3>Rig and lower Brokk</h3></div>
+<div class="detail-body detail-grid">
+<div class="label">Project source</div><div>Task 1842 · C2 Cyclone Top, Roof &amp; Inlet</div>
+<div class="label">Planned</div><div>06:00–14:00</div>
+<div class="label">Execution state</div><div><span class="badge red">Blocked</span></div>
+<div class="label">Assigned dept.</div><div>W4M1</div>
+<div class="label">Work group</div><div>CVM MECH</div>
+<div class="label">Why this group?</div><div class="source">Assigned resource → Resource.Group → CVM MECH</div>
+</div>
+</div>
+</div>
+</div>
+<div class="view" id="view-resolve">
+<div class="eyebrow">Resolve / problems + actions</div>
+<div class="page-head">
+<div><h1>Problems and actions</h1><div class="sub">Structured execution constraints, ownership and follow-up.</div></div>
+<div class="toolbar"><button class="btn">Filters</button><button class="btn primary">Log problem</button></div>
+</div>
+<div class="kpi-line">
+<div class="kpi-cell"><div class="n">7</div><div class="l">Open blockers</div></div>
+<div class="kpi-cell"><div class="n">3</div><div class="l">Critical</div></div>
+<div class="kpi-cell"><div class="n">11</div><div class="l">Open actions</div></div>
+<div class="kpi-cell"><div class="n">4</div><div class="l">Overdue actions</div></div>
+</div>
+<div class="split">
+<div class="list-panel">
+<div class="list-head">Open problems</div>
+<div class="rowline problem-sev"><div><b>Scaffold access unavailable</b><small>C2 Cyclone · blocks Rig and lower Brokk · owner CVM SCAF</small></div><div class="rowmeta red">42M</div></div>
+<div class="rowline problem-warn"><div><b>Crane lift delayed</b><small>Furnace area · Crane crew · next review 14:30</small></div><div class="rowmeta amber">28M</div></div>
+<div class="rowline"><div><b>Permit not issued</b><small>D2 Stack · Operations · due 14:15</small></div><div class="rowmeta">17M</div></div>
+<div class="rowline"><div><b>Evidence missing for completion</b><small>Final refractory inspection · supervisor review held</small></div><div class="rowmeta">20M</div></div>
+</div>
+<div class="stack">
+<div class="detail-sheet">
+<div class="detail-head"><h3>Scaffold access unavailable</h3></div>
+<div class="detail-body detail-grid">
+<div class="label">Severity</div><div><span class="badge red">Critical blocker</span></div>
+<div class="label">Affected work</div><div>Rig and lower Brokk</div>
+<div class="label">Owner</div><div>CVM SCAF</div>
+<div class="label">Raised</div><div>13:20 · J. Mercer</div>
+<div class="label">Next review</div><div>14:30</div>
+</div>
+</div>
+<div class="list-panel">
+<div class="list-head">Actions</div>
+<div class="rowline"><div><b>Complete upper platform modification</b><small>CVM SCAF · due 14:30</small></div><div class="rowmeta red">OPEN</div></div>
+<div class="rowline"><div><b>Confirm safe access with supervisor</b><small>Area supervisor · after scaffold release</small></div><div class="rowmeta">WAITING</div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="view" id="view-evidence">
+<div class="eyebrow">Evidence / review</div>
+<div class="page-head">
+<div><h1>Evidence review</h1><div class="sub">Execution evidence linked to tasks, problems and close-out decisions.</div></div>
+<div class="toolbar"><button class="btn">Failed uploads</button><button class="btn">Evidence gaps</button></div>
+</div>
+<div class="notice-flat"><b>2 local uploads are not yet server-confirmed.</b> Field devices retain their local queue until acknowledgement.</div>
+<div class="evidence-grid">
+<div class="evidence-card"><div class="evidence-thumb">PHOTO 01</div><div class="evidence-body"><b>Furnace lining inspection</b><small>Inspect vessel lining · uploaded 13:42 · A. Singh</small><div style="margin-top:6px"><span class="badge green">Received</span></div></div></div>
+<div class="evidence-card"><div class="evidence-thumb">PHOTO 02</div><div class="evidence-body"><b>Cyclone scaffold access</b><small>Scaffold access unavailable · captured 13:23 · J. Mercer</small><div style="margin-top:6px"><span class="badge amber">Queued</span></div></div></div>
+<div class="evidence-card"><div class="evidence-thumb">PHOTO 03</div><div class="evidence-body"><b>HV bottom vacuum-out</b><small>Vac out HV bottom · upload retry failed</small><div style="margin-top:6px"><span class="badge red">Failed</span></div></div></div>
+</div>
+<div class="section split">
+<div class="list-panel">
+<div class="list-head">Completion evidence gaps</div>
+<div class="rowline"><div><b>Complete final refractory inspection</b><small>Completion claimed 13:31 · required close-out photo absent</small></div><div class="rowmeta red">HELD</div></div>
+<div class="rowline"><div><b>Inspect vessel lining</b><small>3 photos received · supervisor review pending</small></div><div class="rowmeta">REVIEW</div></div>
+</div>
+<div class="list-panel">
+<div class="list-head">Upload state</div>
+<div class="rowline"><div><b>Server received</b><small>16 evidence items</small></div><div class="rowmeta green">16</div></div>
+<div class="rowline"><div><b>Queued on devices</b><small>Saved locally, not yet confirmed</small></div><div class="rowmeta amber">2</div></div>
+<div class="rowline"><div><b>Failed</b><small>Needs retry</small></div><div class="rowmeta red">1</div></div>
+</div>
+</div>
+</div>
+<div class="view" id="view-bridge">
+<div class="eyebrow">Project bridge / planner workspace</div>
+<div class="page-head">
+<div><h1>Schedule boundary</h1><div class="sub">Project source review, operational mapping and controlled export handoff.</div></div>
+<div class="toolbar"><button class="btn">Import review</button><button class="btn">Planner review</button></div>
+</div>
+<div class="warning-banner"><strong>THE MASTER .MPP HAS NOT BEEN UPDATED</strong>Approval and artifact generation remain separate from the planner-controlled save of the master Microsoft Project file.</div>
+<div class="tabs-inline">
+<button class="active">Snapshot</button><button>Mappings</button><button>Planner review</button><button>Export preview</button><button>Project verification</button>
+</div>
+<div class="section" id="bridge">
+<div class="section-title"><div><div class="eyebrow">Project bridge</div><h2>Schedule boundary</h2></div><span class="pill">Planner workspace</span></div>
+<div class="warning-banner">
+<strong>THE MASTER .MPP HAS NOT BEEN UPDATED</strong>
+          Execution reviews, export approval and artifact generation remain separate from the planner-controlled save of the master Microsoft Project file.
+        </div>
+<div class="bridge">
+<section class="panel">
+<div class="panel-h"><strong>Active Project snapshot</strong><span>read-only source facts</span></div>
+<div style="padding:12px;font-size:12px;line-height:1.8">
+<div><b>Revision:</b> 12</div>
+<div><b>Imported:</b> 15 Aug 2026 · 05:48</div>
+<div><b>Tasks:</b> 1,982</div>
+<div><b>Resources:</b> 57</div>
+<div><b>Assignments:</b> 3,114</div>
+<div><b>Mapping profile:</b> Calciner Shutdown Template v3</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-h"><strong>Operational mappings</strong><span>planner-configured</span></div>
+<div class="mapping-list">
+<div class="mapping-row"><div><b>Assigned Department</b><br/><small>W4M1</small></div><div class="prov">Task → Text30</div><span class="badge green">Healthy</span></div>
+<div class="mapping-row"><div><b>Work Group</b><br/><small>CVM MECH</small></div><div class="prov">Assigned resource → Resource.Group</div><span class="badge green">Healthy</span></div>
+<div class="mapping-row"><div><b>Area</b><br/><small>Calciner</small></div><div class="prov">Selected hierarchy branch</div><span class="badge amber">1 new value</span></div>
+</div>
+</section>
+</div>
+</div>
+<div class="section split">
+<div class="list-panel">
+<div class="list-head">Planner review queue</div>
+<div class="rowline"><div><b>Rig and lower Brokk · % Complete</b><small>Project 75% → proposed 95% · supervisor accepted</small></div><div class="rowmeta">ELIGIBLE</div></div>
+<div class="rowline"><div><b>Inspect vessel lining · Actual Finish</b><small>Proposed 13:42 · completion evidence under review</small></div><div class="rowmeta amber">HOLD</div></div>
+<div class="rowline"><div><b>D2 Stack summary task</b><small>Summary-task actual excluded by export authority policy</small></div><div class="rowmeta red">EXCLUDED</div></div>
+</div>
+<div class="detail-sheet">
+<div class="detail-head"><h3>Export batch 014</h3></div>
+<div class="detail-body detail-grid">
+<div class="label">State</div><div>Draft preview</div>
+<div class="label">Eligible lines</div><div>12</div>
+<div class="label">Excluded</div><div>3</div>
+<div class="label">Artifact</div><div>Not generated</div>
+<div class="label">Project opened</div><div>No</div>
+<div class="label">Master .mpp</div><div class="red strong">Not updated</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+</main>
+</div>
+<script>
+(function(){
+  const navItems = document.querySelectorAll('.nav-item[data-view]');
+  const views = document.querySelectorAll('.view');
+
+  function showView(name){
+    views.forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    navItems.forEach(n => n.classList.toggle('active', n.dataset.view === name));
+    window.scrollTo({top:0,behavior:'instant'});
+  }
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => showView(item.dataset.view));
+  });
+
+  document.querySelectorAll('.tabs-inline button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      btn.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+})();
+</script>
+</body>
+</html>
