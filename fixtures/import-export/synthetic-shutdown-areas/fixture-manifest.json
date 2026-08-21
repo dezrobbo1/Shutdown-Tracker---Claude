@@ -1,0 +1,26 @@
+{
+  "fixture_id": "synthetic-shutdown-areas",
+  "fixture_name": "Synthetic Shutdown Areas",
+  "fixture_type": "project_file",
+  "source_format": "mspdi_xml",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "sanitisation_reviewed_by": "Shutdown Tracker fixture policy",
+  "sanitisation_reviewed_at": "2026-08-21",
+  "allowed_commit": true,
+  "expected_counts": {
+    "tasks": 48,
+    "summary_tasks": 12,
+    "leaf_tasks": 36,
+    "milestones": 4,
+    "resources": 8,
+    "assignments": 34,
+    "calendars": 1,
+    "custom_fields": 3,
+    "dependencies": 24,
+    "baselines": 0
+  },
+  "warning_count": 0,
+  "error_count": 0,
+  "notes": "Approved synthetic MSPDI fixture with neutral names only. Contains no real project, customer, site, asset, work order, vendor, cost, person, location, or commercial data. Four areas, each with two discipline branches, eight work tasks and a completion milestone. leaf_tasks counts the four milestones, so leaf_tasks is tasks minus summary_tasks rather than the work tasks alone. custom_fields is 3, not 4: the file defines a fourth extended attribute with no Alias, and the parser reports only the aliased ones. Seven of the eight resources carry a Group and one deliberately does not; one group-carrying resource has no assignment at all, so a mapping that read groups without joining assignments would be caught. Carries no PercentComplete, ActualStart or ActualFinish on any task, so every approved field in an export is an insertion."
+}

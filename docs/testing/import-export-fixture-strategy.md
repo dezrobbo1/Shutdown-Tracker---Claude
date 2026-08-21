@@ -14,7 +14,9 @@ Fixtures must protect the product boundary: Shutdown Tracker is live execution a
 - Expected parser/export output JSON generated from safe fixtures.
 - Text-only fixture manifests.
 
-The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. This approval is limited to that reviewed synthetic fixture path and does not permit real Project XML or broad Project-file commits.
+The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. The second is `fixtures/import-export/synthetic-shutdown-areas/synthetic-shutdown-areas.mspdi.xml`, which is shutdown-shaped rather than minimal: four areas, two discipline branches each, resources carrying Groups, assignments, and aliased task custom fields. This approval is limited to those reviewed synthetic fixture paths and does not permit real Project XML or broad Project-file commits.
+
+Fixtures are hand-authored rather than written by MPXJ. Generating one would give schema-correct element ordering by construction, but at the cost of hundreds of defaulted elements and writer-version markers in a file this policy requires a person to review, and of bytes that churn on every MPXJ upgrade. Ordering is guarded by assertion instead: `MspdiFixtureElementOrderTests` checks every committed `*.mspdi.xml` against `MspdiTaskElementOrder`, which reflects over MPXJ's own JAXB binding — the same authority the export writer uses.
 
 ## Prohibited Fixtures
 
@@ -41,6 +43,7 @@ Sanitized files must be reviewed by a human and recorded in the fixture manifest
 Use neutral, synthetic fixture identifiers. Current reserved names:
 
 - `synthetic-basic-wbs`
+- `synthetic-shutdown-areas`
 - `synthetic-summary-descendants`
 - `synthetic-custom-fields`
 - `synthetic-assignments`
@@ -61,6 +64,10 @@ Expected outputs should be deterministic text files derived from safe fixtures:
 - Expected outputs must not include real names, work orders, sites, assets, costs, people, vendors, locations, or commercial data.
 - `fixtures/import-export/synthetic-basic-wbs/expected-import-summary.json` is the first approved expected summary for a synthetic MSPDI import test.
 - `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json` is the first approved expected summary for a synthetic MSPDI/XML export artifact test.
+- `fixtures/import-export/synthetic-shutdown-areas/expected-import-summary.json` is the approved expected summary for the larger shutdown-shaped fixture.
+- `fixtures/import-export/synthetic-shutdown-areas/expected-operational-mapping.json` is the first approved expected-output file for Operational Mapping. Mapping resolves from resource Groups, task custom fields and summary ancestry, so it stays inert on a fixture that carries none of them, and its expectations are recorded rather than discovered.
+
+Fixtures are **discovered, not listed**: the fixture tests walk `fixtures/import-export/*/fixture-manifest.json` and assert each fixture against the manifest beside it. A fixture added without touching a test is still checked, and its manifest and expected-import-summary are asserted against each other so two files describing one fixture cannot drift apart.
 
 ## Import/Export Test Levels
 

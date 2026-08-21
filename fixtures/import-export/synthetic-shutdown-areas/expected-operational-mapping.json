@@ -1,0 +1,53 @@
+{
+  "fixture_id": "synthetic-shutdown-areas",
+  "synthetic_or_sanitized": "synthetic",
+  "contains_real_project_data": false,
+  "purpose": "What Operational Mapping should resolve from this fixture. Mapping is the surface that stays inert on a fixture with no resource Groups and no task custom fields, which is why this fixture exists and why its expectations are recorded rather than discovered.",
+  "extended_attributes": {
+    "extracted_total": 112,
+    "explanation": "Area on all 48 tasks, Discipline on the 8 discipline summaries and their 32 work tasks, Permit Type on the 24 work tasks where it is non-blank. Text4 carries a value on 8 tasks and contributes none of these: an extended attribute with no Alias is dropped by the extractor, so 112 rather than 120 is the assertion that the alias filter is real."
+  },
+  "resource_group": {
+    "source_mode": "resource_group",
+    "raw_data_key": "group",
+    "resources_total": 8,
+    "resources_carrying_a_group": 7,
+    "distinct_group_values": [
+      "Electrical Crew",
+      "Inspection",
+      "Mechanical Crew",
+      "Scaffold Crew"
+    ],
+    "notes": [
+      "One resource carries no Group at all. The extractor skips a null or blank value rather than storing an empty string, so that resource contributes no 'group' key and the mapping SQL sees nothing for it.",
+      "One group-carrying resource has no assignment. Group resolution joins assignments to resources, so it contributes no task values -- a mapping that read groups without that join would wrongly include it.",
+      "Two work tasks carry assignments from two different groups, which is the multi-valued case a single-value mapping would silently truncate."
+    ]
+  },
+  "task_field": {
+    "source_mode": "task_field",
+    "aliases_available": [
+      "Area",
+      "Discipline",
+      "Permit Type"
+    ],
+    "notes": [
+      "Permit Type is blank on 8 of the 32 work tasks. A blank value is not stored, so a category resolved from it should report those tasks as unmapped rather than as mapped to an empty string."
+    ]
+  },
+  "hierarchy_ancestor": {
+    "source_mode": "hierarchy_ancestor",
+    "outline_level_1_values": [
+      "Area A",
+      "Area B",
+      "Area C",
+      "Area D"
+    ],
+    "notes": [
+      "Every task sits under exactly one area summary, so an ancestor mapping at outline level 1 resolves all 48."
+    ]
+  },
+  "notes": [
+    "Text-only expectations. No generated artifacts, no real project data, and no schedule calculation by Shutdown Tracker."
+  ]
+}

@@ -101,3 +101,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-21 — Identities to walk it as](2026-08-21-identities-to-walk-it-as.md)
 - [2026-08-21 — A role the client could not read](2026-08-21-a-role-the-client-could-not-read.md)
 - [2026-08-21 — A door at both ends](2026-08-21-a-door-at-both-ends.md)
+- [2026-08-21 — A fixture worth walking](2026-08-21-a-fixture-worth-walking.md)
