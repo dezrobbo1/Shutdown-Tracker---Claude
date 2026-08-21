@@ -14,7 +14,15 @@ The API already has a guarded review project bootstrap that can create or reuse 
 SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED=true
 ```
 
-That bootstrap creates project metadata only. It does not create source files, import batches, snapshots, imported tasks, export batches, live execution records, evidence, demo users, generated artifacts, or Project files.
+That bootstrap creates project metadata only. It does not create source files, import batches, snapshots, imported tasks, export batches, live execution records, evidence, generated artifacts, or Project files, and it does not create identities.
+
+Review identities are seeded separately, by their own guarded runner:
+
+```text
+SHUTDOWN_TRACKER_REVIEW_DEMO_IDENTITIES_ENABLED=true
+```
+
+They are kept apart from the project bootstrap deliberately. Identities are the one class of seeded row that grants something — a membership is what authorization resolves — so it must be possible to have the synthetic project without them.
 
 The repository also has approved synthetic import/export fixtures under `fixtures/import-export/`. Those fixtures are test fixtures, not database seed data.
 
@@ -29,6 +37,7 @@ Allowed future review/demo data:
 - Synthetic task lineage review rows for re-import review scenarios.
 - Synthetic export preview batches and lines that exercise approved leaf-task progress/actual fields.
 - Synthetic audit events for the review/demo actions the seeder performs.
+- Synthetic review identities: one user per journey role, created `active`, each holding a single membership on the synthetic review project and none elsewhere. Neutral display names, and addresses in a reserved domain that cannot resolve.
 - Text-only manifests describing the seeded dataset.
 
 Prohibited review/demo data:
@@ -68,6 +77,8 @@ Every future seeded row should be traceable to a synthetic dataset. Use metadata
   "fixture_id": "synthetic-basic-wbs"
 }
 ```
+
+Identities carry the same marker under their own dataset id, `synthetic-review-identities`, so a reset scoped to the data dataset cannot reach the people.
 
 Dataset manifests should be text-only and include:
 
@@ -132,7 +143,7 @@ The first preferred source fixture for future seeded import/review data is `synt
 1. Keep the existing review project bootstrap as project-metadata-only.
 2. Add a guarded source/import/export review smoke script that can run validation-only checks now and richer ID-driven checks later.
 3. Add a text-only review/demo dataset manifest format.
-4. Add a local-only seeded-data command or runner guarded by explicit configuration.
+4. Add a local-only seeded-data command or runner guarded by explicit configuration. Take review identities first: until a membership can be created without raw SQL, nobody can walk the chain at all, and every later step in this list is seeding work that no one can act on.
 5. Seed synthetic import metadata and parsed snapshot rows from approved expected-output data.
 6. Seed synthetic import review and lineage scenarios using existing status/review-state values.
 7. Seed synthetic export preview scenarios using existing export batch status values.

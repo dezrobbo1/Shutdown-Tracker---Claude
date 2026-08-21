@@ -1,5 +1,7 @@
 package com.shutdowntracker.api.identity;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import java.util.UUID;
 import com.shutdowntracker.api.support.AbstractDatabaseTest;
 import com.shutdowntracker.api.support.DatabaseFixtures;
@@ -18,7 +20,7 @@ class JdbcUserRepositoryTests extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() {
-        repository = new JdbcUserRepository(new NamedParameterJdbcTemplate(dataSource()));
+        repository = new JdbcUserRepository(new NamedParameterJdbcTemplate(dataSource()), new ObjectMapper());
         fixtures = new DatabaseFixtures(jdbcTemplate());
     }
 
@@ -31,6 +33,50 @@ class JdbcUserRepositoryTests extends AbstractDatabaseTest {
         assertThat(created.status())
                 .describedAs("a new account should not be able to act until activated")
                 .isEqualTo(UserStatus.INVITED);
+    }
+
+    @Test
+    void storesUserMetadataAsAJsonObject() {
+        UserRecord created = repository.create(new UserCreateRequest(
+                "seeded.planner@review.invalid",
+                "Review Planner",
+                UserStatus.ACTIVE,
+                null,
+                Map.of("synthetic", true, "demo_dataset_id", "synthetic-review-identities")));
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT metadata ->> 'demo_dataset_id' FROM users WHERE id = ?", String.class, created.id()))
+                .isEqualTo("synthetic-review-identities");
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT jsonb_typeof(metadata) FROM users WHERE id = ?", String.class, created.id()))
+                .describedAs("V008 constrains the column to an object, so anything else fails on insert")
+                .isEqualTo("object");
+    }
+
+    @Test
+    void defaultsUserMetadataToAnEmptyObjectWhenNoneIsGiven() {
+        UserRecord created = repository.create(
+                new UserCreateRequest("plain.user@example.com", "Plain User", UserStatus.ACTIVE, null));
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT metadata::text FROM users WHERE id = ?", String.class, created.id()))
+                .describedAs("a real person carries no provenance marker, not a null")
+                .isEqualTo("{}");
+    }
+
+    @Test
+    void storesMembershipMetadataSoSeededGrantsCanBeToldFromRealOnes() {
+        UUID projectId = fixtures.createProject("Kiln Shutdown");
+        UserRecord user = repository.create(
+                new UserCreateRequest("seeded.field@review.invalid", "Review Field User", UserStatus.ACTIVE, null));
+
+        ProjectMembershipRecord membership = repository.grantMembership(
+                projectId, user.id(), ProjectRole.FIELD_USER, null, Map.of("synthetic", true));
+
+        assertThat(jdbcTemplate().queryForObject(
+                "SELECT metadata ->> 'synthetic' FROM project_memberships WHERE id = ?",
+                String.class, membership.id()))
+                .isEqualTo("true");
     }
 
     @Test

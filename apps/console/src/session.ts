@@ -11,9 +11,14 @@ import type { ActorIdentity, Capability, ProjectRole } from "@shutdown-tracker/a
  *
  * The actor is configured rather than authenticated. Until production token authentication
  * lands, the console carries the actor in trusted headers, which only means anything behind
- * a gateway that sets them from a real login. The role selector below is a development
- * affordance for exercising the review chain from both sides; it grants nothing, because the
- * server resolves the caller's actual project membership before allowing any operation.
+ * a gateway that sets them from a real login.
+ *
+ * What is stored is a whole identity — user id, name, role and project together — and not a role
+ * on its own. A role by itself was actively misleading: changing it rewrote the role header and
+ * re-derived every capability flag, but the server resolves the caller's role from their
+ * `project_memberships` row and ignores the header entirely. With one identity configured, the
+ * only two things the old selector could do were un-grey a control the server would refuse, or
+ * grey out one it would have allowed. Switching the person is what changes the answer.
  */
 
 export type ConsoleSession = {
@@ -25,13 +30,28 @@ export type ConsoleSession = {
 
 export type ConsoleEnv = Record<string, unknown>;
 
-const roleStorageKey = "shutdown-tracker.console.role";
+const identityStorageKey = "shutdown-tracker.console.identity";
 
-export function buildConsoleSession(env: ConsoleEnv, storedRole?: string | null): ConsoleSession {
-  const projectId = readString(env.VITE_SHUTDOWN_TRACKER_PROJECT_ID);
-  const userId = readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ID);
-  const displayName = readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_NAME) || "Console user";
-  const role = resolveRole(storedRole, readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ROLE));
+/** An identity chosen in this browser, as it is remembered between reloads. */
+export type StoredIdentity = {
+  userId: string;
+  role: string;
+  displayName: string;
+  projectId?: string;
+};
+
+export function buildConsoleSession(env: ConsoleEnv, storedIdentity?: StoredIdentity | null): ConsoleSession {
+  const stored = validStoredIdentity(storedIdentity);
+
+  // A stored identity replaces the build-time actor wholesale. Taking the id from one source and
+  // the role from another is how a session ends up claiming a role its membership does not have.
+  const projectId = stored?.projectId ?? readString(env.VITE_SHUTDOWN_TRACKER_PROJECT_ID);
+  const userId = stored?.userId ?? readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ID);
+  const displayName =
+    stored?.displayName ?? (readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_NAME) || "Console user");
+  const role = stored
+    ? (stored.role as ProjectRole)
+    : resolveRole(null, readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ROLE));
 
   const actor: ActorIdentity | null =
     userId.length > 0 && role !== null ? { userId, role, displayName } : null;
@@ -40,6 +60,30 @@ export function buildConsoleSession(env: ConsoleEnv, storedRole?: string | null)
     projectId,
     actor,
     live: projectId.length > 0 && actor !== null
+  };
+}
+
+/**
+ * A stored identity, or null if it is unusable.
+ *
+ * Discarded rather than partially applied, for the reason `resolveRole` gives: a half-valid
+ * identity produces a confusing rejection at the first write rather than an obvious one now.
+ */
+function validStoredIdentity(stored: StoredIdentity | null | undefined): StoredIdentity | null {
+  if (!stored || typeof stored !== "object") {
+    return null;
+  }
+  const userId = readString(stored.userId);
+  const displayName = readString(stored.displayName);
+  const projectId = readString(stored.projectId);
+  if (userId.length === 0 || !isProjectRole(readString(stored.role))) {
+    return null;
+  }
+  return {
+    userId,
+    role: readString(stored.role),
+    displayName: displayName.length > 0 ? displayName : userId,
+    projectId: projectId.length > 0 ? projectId : undefined
   };
 }
 
@@ -58,18 +102,20 @@ export function resolveRole(storedRole: string | null | undefined, configuredRol
   return null;
 }
 
-export function readStoredRole(storage: Pick<Storage, "getItem"> | undefined): string | null {
+export function readStoredIdentity(storage: Pick<Storage, "getItem"> | undefined): StoredIdentity | null {
   try {
-    return storage?.getItem(roleStorageKey) ?? null;
+    const raw = storage?.getItem(identityStorageKey);
+    return raw === null || raw === undefined ? null : (JSON.parse(raw) as StoredIdentity);
   } catch {
-    // Private browsing modes can throw on access. A missing preference is not an error.
+    // Private browsing modes throw on access, and a value written by an older build may not
+    // parse. Neither is an error: an unreadable preference is simply no preference.
     return null;
   }
 }
 
-export function writeStoredRole(storage: Pick<Storage, "setItem"> | undefined, role: ProjectRole) {
+export function writeStoredIdentity(storage: Pick<Storage, "setItem"> | undefined, identity: StoredIdentity) {
   try {
-    storage?.setItem(roleStorageKey, role);
+    storage?.setItem(identityStorageKey, JSON.stringify(identity));
   } catch {
     // The selection still applies to this session even when it cannot be remembered.
   }

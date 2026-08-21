@@ -60,4 +60,18 @@ class ApplicationYamlTests {
                 .describedAs("both keys must survive the same parse")
                 .isEqualTo(true);
     }
+
+    @Test
+    void reviewDemoIdentitiesAreDisabledByDefault() throws IOException {
+        List<PropertySource<?>> sources =
+                loader.load("application.yml", new ClassPathResource("application.yml"));
+
+        // The seeder creates users and grants memberships, and the endpoint that lists them is
+        // registered only alongside it. Both are safe because neither exists unless this is
+        // switched on, so the default is the guarantee and belongs in a test rather than in a
+        // reader's memory of the YAML.
+        assertThat(sources.get(0).getProperty("shutdown-tracker.review-demo-identities.enabled"))
+                .describedAs("seeded identities must never be on unless somebody asked for them")
+                .isEqualTo("${SHUTDOWN_TRACKER_REVIEW_DEMO_IDENTITIES_ENABLED:false}");
+    }
 }
