@@ -1,5 +1,7 @@
 package com.shutdowntracker.api.identity;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Arrays;
 
 /**
@@ -7,6 +9,12 @@ import java.util.Arrays;
  *
  * <p>Roles are per project, not global: the same person may be a planner on one shutdown
  * and a viewer on another.
+ *
+ * <p>The database value is also the wire value. The enum constant name is an implementation
+ * detail of this service; {@code field_user} is what the schema stores, what the permission
+ * matrix is written in, and what the TypeScript client's {@code ProjectRole} union contains.
+ * Letting Jackson fall back to the constant name would emit {@code FIELD_USER}, which that union
+ * does not include — so a client would silently fail to recognise its own role.
  */
 public enum ProjectRole {
 
@@ -26,10 +34,12 @@ public enum ProjectRole {
         this.databaseValue = databaseValue;
     }
 
+    @JsonValue
     public String databaseValue() {
         return databaseValue;
     }
 
+    @JsonCreator
     public static ProjectRole fromDatabaseValue(String databaseValue) {
         return Arrays.stream(values())
                 .filter(role -> role.databaseValue.equals(databaseValue))
