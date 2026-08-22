@@ -89,7 +89,10 @@ Only the risk-free subset, in one change:
   history;
 - this entry.
 
-The deletion of the two merged remote branches is a separate operation, not part of the change.
+The two merged remote branches were deleted separately, outside this change:
+`feat/migration-drift-guard` at `58146d4` and `docs/product-walkthrough` at `7a6c764`. Both were
+re-confirmed 0 commits ahead of `main` immediately beforehand, so both commits remain reachable as
+ancestors of `main`.
 
 ## Decisions
 
