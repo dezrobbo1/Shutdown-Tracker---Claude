@@ -8,7 +8,7 @@ These files are design references only. They are **not production application co
 
 Design C is adopted as **visual and density guidance only**.
 
-Its zone names — Control, Work, Resolve, Project bridge — are **not** the product information architecture and are not built. The baseline zones come from the [concept pack](../../../concept/README.md) and are repeated in [ADR-009](../../../adr/ADR-009-ux-ui-architecture.md), the navigation freeze in [UX Anti-Slop Rules](../../../product/ux-anti-slop-rules.md), and [Frontend Visual Review Scope](../../../product/frontend-visual-review-scope.md):
+Its zone names — Control, Work, Resolve, Project bridge — are **not** the product information architecture and are not built. The baseline zones come from the [product documentation](../../../product/README.md) and are repeated in [ADR-009](../../../adr/ADR-009-ux-ui-architecture.md), the navigation freeze in [UX Anti-Slop Rules](../../../product/ux-anti-slop-rules.md), and [Frontend Visual Review Scope](../../../product/frontend-visual-review-scope.md):
 
 ```text
 Master Console:  Today | Tasks | Problems | Evidence | Exports

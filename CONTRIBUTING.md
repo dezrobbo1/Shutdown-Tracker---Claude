@@ -33,10 +33,9 @@ Frontend/mobile delivery technology may evolve through explicit product and arch
 
 Use documentation according to its purpose:
 
-- `docs/concept` for high-level product/MVP definition;
-- `docs/product` for current product behavior and UX rules;
+- `docs/product` for what the product is and how it behaves now, including UX rules;
 - `docs/architecture` for durable technical boundaries;
-- `docs/adr` for decision history;
+- `docs/adr` for decision history, including the MVP scope boundary in ADR-008;
 - `docs/research` for evidence/provenance, not implementation roadmaps;
 - GitHub history for completed implementation chronology.
 
