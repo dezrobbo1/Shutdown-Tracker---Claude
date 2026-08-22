@@ -3,11 +3,11 @@
 ## Status
 
 Phase 0 is **complete**. Phase 3 is **complete**, taken out of order before Phase 2. Of Phase 1,
-slice 1 is merged as pull request
-[#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12) and slice 4 was merged early
-as part of Phase 0.
+slices 1, 2 and 4 are merged — slice 1 as pull request
+[#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12), slice 2 as the journey test,
+and slice 4 early as part of Phase 0.
 
-What remains is **Phase 1 slices 2, 3 and 5, and all of Phase 2**, listed under Remaining work
+What remains is **Phase 1 slices 3 and 5, and all of Phase 2**, listed under Remaining work
 below.
 
 This document was itself out of date between 2026-08-21 and 2026-08-22. Ten pull requests — #14
@@ -40,10 +40,6 @@ Ordered. Each slice is one reviewed outcome on one branch, finished before the n
 
 ### Phase 1 — A working flow path
 
-- **Slice 2 — the journey test.** One test that walks every step through the controllers against a
-  real database, asserting the output of each step is a legal input to the next. This is the
-  artefact that fails when a link between two working steps is severed, and it is the safety net
-  Phase 2 changes roles underneath. Nothing under `services/api/src/test` walks the chain today.
 - **Slice 3 — the batch says what it carried.** `export_state` and `export_batch_id` advance
   through the batch lifecycle, so the audit can answer which batch carried which field update.
 
@@ -101,8 +97,10 @@ tests, and a repeated-`Resource` case in `MspdiCandidateDifferenceTests`.
   only through the API.~~ **Met.** The import and download doors landed in pull request
   [#16](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/16); the controls exist and are
   capability-gated. Whether a person can in fact drive them is the interface walk, below.
-- One test walks the whole chain and fails if any link between two steps is severed. **Not met** —
-  Phase 1 slice 2.
+- ~~One test walks the whole chain and fails if any link between two steps is severed.~~ **Met.**
+  `ProductJourneyTests` walks all sixteen steps through the controllers against a real database, as
+  three identities. Every severed link tried against it failed it; see the session entry for which,
+  and for the honest limit — each was also caught by an existing unit test.
 - Four roles replace nine, and no single person can advance both halves of the two-step review.
   **Not met** — Phase 2.
 - ~~The same operational state looks and reads the same in both applications.~~ **Met** by the
@@ -279,6 +277,14 @@ Taken before Phase 2 rather than after it.
   status classes, and the console and field component treatments. Three treatments were deliberately
   left short of the prototypes and are recorded in
   [the surface entry](../sessions/2026-08-21-a-surface-that-looks-operational.md).
+
+### Phase 1 slice 2 — The journey test — merged
+
+One test walks the whole chain through the controllers against a real PostgreSQL, as a planner, a
+supervisor and a field user, feeding each step only what the previous step returned. The two project
+worker client interfaces are the only things stubbed. It is the safety net Phase 2 changes roles
+underneath. See
+[the journey-test entry](../sessions/2026-08-22-one-test-that-walks-the-whole-thing.md).
 
 ### Phase 1 slice 1 — The export queue — merged
 
