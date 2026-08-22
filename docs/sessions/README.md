@@ -108,3 +108,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-21 — Something that knows what ran](2026-08-21-something-that-knows-what-ran.md)
 - [2026-08-22 — A handover that had aged](2026-08-22-a-handover-that-had-aged.md)
 - [2026-08-22 — Left open, and closed the same hour](2026-08-22-left-open-and-closed-the-same-hour.md)
+- [2026-08-22 — A goal that described a younger repository](2026-08-22-a-goal-that-described-a-younger-repository.md)
