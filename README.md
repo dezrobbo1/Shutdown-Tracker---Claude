@@ -167,7 +167,6 @@ scripts/
 fixtures/
   import-export/
 docs/
-  concept/
   product/
   architecture/
   adr/
@@ -182,8 +181,7 @@ docs/
 
 Use documentation by purpose:
 
-- [docs/concept](docs/concept/README.md) — high-level product definition and MVP boundary.
-- [docs/product](docs/product/README.md) — current product behavior, roles, permissions, workflows, and UX rules.
+- [docs/product](docs/product/README.md) — what the product is and how it behaves now: authority model, roles, permissions, workflows, and UX rules. The MVP scope boundary is [ADR-008](docs/adr/ADR-008-mvp-scope-boundary.md).
 - [docs/architecture](docs/architecture/README.md) — durable system structure and technical boundaries.
 - [docs/adr](docs/adr/README.md) — architecture decision history.
 - [docs/research](docs/research/README.md) — research evidence, source quality, and provenance.
