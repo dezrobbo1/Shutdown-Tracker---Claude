@@ -43,6 +43,10 @@ Point the apps at the bootstrapped project with `VITE_SHUTDOWN_TRACKER_PROJECT_I
 starting actor with `VITE_SHUTDOWN_TRACKER_ACTOR_ID`, `_NAME` and `_ROLE`. Those are a starting
 point only; the identity pickers below override them.
 
+**Leave `VITE_SHUTDOWN_TRACKER_API_BASE_URL` unset.** It makes the client call that origin directly
+rather than its own, which goes around the proxy and straight into the missing CORS configuration.
+`SHUTDOWN_TRACKER_API_ORIGIN` is the one to set when the API is not on this machine.
+
 Storage roots that resolve somewhere unwritable are the failure that cost a deployment: the health
 check stays green and the first upload fails at request time. Give each root a real directory.
 
