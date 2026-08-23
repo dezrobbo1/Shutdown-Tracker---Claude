@@ -77,9 +77,9 @@ no way back short of a correction.
 
 From the repository root, all in this session:
 
-- `mvn test` — **BUILD SUCCESS**, 456 in `services/api` and 75 in `services/project-worker`. The
-  goal document's expected 448/75 predates pull request #26, which added two; six of the eight new
-  api tests are this slice's.
+- `mvn test` — **BUILD SUCCESS**, 458 in `services/api` and 75 in `services/project-worker`. The
+  goal document's expected 448/75 predates pull request #26, which added two; the other eight are
+  this slice's.
 - `npm ci`, `npm test` — 73 console, 43 mobile-pwa, 28 api-client, 144 total, all passing.
 - `npm run build` — all three workspaces, `tsc --noEmit` included.
 - `git diff --check` — clean.
@@ -98,8 +98,54 @@ export-integrity validation*. The Docker path is therefore confirmed, by CI rath
 
 No manual Microsoft Project verification was performed and none is claimed.
 
+## Review
+
+Codex reviewed the pull request and raised three findings. Two were real and are fixed on the
+branch; the third is real, pre-existing, and deliberately not taken here.
+
+**`exported` was being set at verification rather than at generation.** Accepted. The row's fact is
+that its value was written into an artifact; whether a planner then opened and verified that
+artifact is the batch's fact, read from its status. Setting it at verification meant a generated
+batch nobody clicked through left its updates saying they were still "in a preview" — and it
+contradicted the principle the migration itself argues, that a fact owned by the batch must not be
+mirrored onto the row. `FAILED` exists in `ExportBatchState` but nothing in the service ever writes
+it, and only a draft preview can be rejected, so generation is the last point at which the outcome
+is still in doubt.
+
+**A rejected batch left its id on an update superseded while it held it.** Accepted, and worse than
+it first looks: `markSuperseded` sets `export_state = 'superseded'` unconditionally, so the release
+predicate — which only looked at `in_export_preview` — skipped exactly those rows and left
+`export_batch_id` naming a batch that was rejected and carried nothing. That is false provenance in
+the column this slice exists to make trustworthy. Release now unlinks superseded rows too, without
+making them eligible again: the value has been replaced and must not travel.
+
+**A candidate can name a progress update it does not describe.** Real, and not taken. Nothing
+validates that a candidate whose `source_entity_type` is `task_progress_update` actually matches the
+row its `source_entity_id` names — `export_candidate_records` has no foreign key on that column and
+V007 validates the candidate against the imported task, not against the progress row. A planner can
+therefore cite update X while proposing an unrelated value, and this slice now also binds X to that
+batch. The proposed fix — joining task, snapshot, field, value and source version into the claim
+predicate — puts the check in the wrong layer: the claim is not where a candidate should first be
+found to be lying about its origin. Candidate creation is. That is its own outcome, and it is
+recorded under Left open rather than bolted onto this one. Note that the falsifiable *artifact*
+predates this change; what is new is the falsifiable reverse link.
+
+## Corrections
+
+The note added to `docs/product/approval-export-state-model.md` in the first commit described the
+*Export candidate states* table as "a target lifecycle" and cited the document's own instruction
+against editing these tables to match a target. That inverts what the document says: the heading
+above those tables states they describe shipped behaviour. The table was in fact accurate for
+neither — it listed `rejected` and `exported`, which the column never held, and omitted three values
+it did hold — so the honest statement is that the column and the table disagreed, and `V015` moves
+the column most of the way to it. The note now says that instead.
+
 ## Left open
 
+- **A candidate that cannot lie about where it came from.** Per the review above: when
+  `source_entity_type` is `task_progress_update`, candidate creation should verify the referenced
+  row exists, is export eligible, belongs to the same project, snapshot and task, and carries the
+  value being proposed for that field. Worth a slice of its own.
 - The `distinct()` in the claim's expected count is load-bearing and now has a test
   (`twoFieldsOfOneUpdateClaimItOnce`), but the shortfall path is only proved for a superseded
   update. A second batch racing for the same update is refused by the same guard and is not

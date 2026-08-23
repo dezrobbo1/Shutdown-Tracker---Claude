@@ -31,21 +31,27 @@ public interface ExportBatchProgressBinding {
     int claimForExportBatch(UUID projectId, UUID exportBatchId);
 
     /**
-     * Returns a rejected batch's updates to the export queue.
+     * Unbinds a rejected batch's updates, returning to the queue the ones that may still travel.
      *
      * <p>The field work was reviewed and approved and was never carried anywhere, so it must be
      * available to a fresh batch. Leaving it claimed would discard it permanently — the queue
      * offers only updates no batch has claimed — with no way back short of a correction.
      *
-     * @return how many updates were released
+     * <p>An update superseded while the batch held it is unlinked without being made eligible: its
+     * value has been replaced and must not travel, but a rejected batch carried nothing, so it must
+     * not be left named as the batch that carried this one.
+     *
+     * @return how many updates the batch released its claim on
      */
     int releaseFromExportBatch(UUID exportBatchId);
 
     /**
-     * Records that a verified batch's updates travelled.
+     * Records that a generated batch's updates travelled.
      *
-     * <p>Terminal for {@code export_state}. How far the batch got is the batch's own status,
-     * reached through {@code export_batch_id}, and is deliberately not mirrored onto the row.
+     * <p>Called when the artifact exists, not when a planner later verifies it. Verification is the
+     * batch's fact: a generated batch nobody opens still carried these values, and how far the batch
+     * itself got is its own status, reached through {@code export_batch_id} and deliberately not
+     * mirrored onto the row. Terminal for {@code export_state}.
      *
      * @return how many updates were marked exported
      */

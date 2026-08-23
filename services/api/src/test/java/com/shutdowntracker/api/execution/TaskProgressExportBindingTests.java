@@ -152,10 +152,17 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                 .isNull();
     }
 
+    /**
+     * Generation, not verification, is what makes an update {@code exported}.
+     *
+     * <p>Verification is the batch's fact. A generated batch a planner never opens still carried
+     * these values, and an update left at {@code in_export_preview} because nobody clicked verify
+     * would say the artifact does not contain it.
+     */
     @Test
-    void aVerifiedBatchRecordsThatItsUpdatesTravelledAndKeepsTheBatchId() {
+    void generationRecordsThatTheUpdatesTravelledAndKeepsTheBatchId() {
         TaskProgressUpdateRecord approved = eligibleUpdate();
-        UUID batchId = verifiedBatch(approved);
+        UUID batchId = generatedBatch(approved);
 
         assertThat(exportState(approved.id())).isEqualTo("exported");
         assertThat(exportBatchId(approved.id()))
@@ -165,9 +172,22 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
     }
 
     @Test
+    void verificationLeavesTheUpdateAsGenerationFoundIt() {
+        TaskProgressUpdateRecord approved = eligibleUpdate();
+        UUID batchId = generatedBatch(approved);
+
+        verify(batchId);
+
+        assertThat(exportState(approved.id()))
+                .describedAs("how far the batch got is the batch's status, not a second copy here")
+                .isEqualTo("exported");
+        assertThat(exportBatchId(approved.id())).isEqualTo(batchId);
+    }
+
+    @Test
     void anExportedUpdateIsTerminalAndCannotBeReleasedBack() {
         TaskProgressUpdateRecord approved = eligibleUpdate();
-        UUID batchId = verifiedBatch(approved);
+        UUID batchId = generatedBatch(approved);
 
         int released = new JdbcTaskProgressRepository(new NamedParameterJdbcTemplate(dataSource()))
                 .releaseFromExportBatch(batchId);
@@ -176,6 +196,39 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                 .describedAs("release returns claimed updates, not ones that already travelled")
                 .isZero();
         assertThat(exportState(approved.id())).isEqualTo("exported");
+    }
+
+    /**
+     * The stale link a release that only looked at claimed rows would leave behind.
+     *
+     * <p>A correction can supersede an update after a preview has claimed it. {@code markSuperseded}
+     * moves the row out of {@code in_export_preview}, so a release predicated only on that state
+     * skips it and leaves {@code export_batch_id} naming a batch that was rejected and carried
+     * nothing — false provenance in the column whose whole purpose is provenance.
+     */
+    @Test
+    void aRejectedBatchUnlinksAnUpdateSupersededWhileItHeldIt() {
+        TaskProgressUpdateRecord approved = eligibleUpdate();
+        UUID batchId = previewFor(approved).batch().id();
+
+        progressService.submit(projectId, fieldUser, new TaskProgressSubmitRequest(
+                leafTaskId, TaskExecutionState.IN_PROGRESS, new BigDecimal("60"), null, null,
+                null, "Corrected after walkdown.", null, null, approved.id()));
+        assertThat(exportState(approved.id())).isEqualTo("superseded");
+        assertThat(exportBatchId(approved.id())).isEqualTo(batchId);
+
+        previewService.rejectBatch(
+                projectId, batchId, new ExportBatchDecisionRequest(planner.userId(), "Wrong window.", Map.of()));
+
+        assertThat(exportState(approved.id()))
+                .describedAs("a replaced value must not become offerable again")
+                .isEqualTo("superseded");
+        assertThat(exportBatchId(approved.id()))
+                .describedAs("a rejected batch carried nothing and must not be named as this one's carrier")
+                .isNull();
+        assertThat(progressService.exportQueue(projectId))
+                .describedAs("neither the replaced value nor the unreviewed correction may be exported")
+                .isEmpty();
     }
 
     /**
@@ -228,17 +281,20 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                 projectId, new ExportPreviewCreateRequest(snapshotId, List.of(candidateId), Map.of()));
     }
 
-    private UUID verifiedBatch(TaskProgressUpdateRecord update) {
+    private UUID generatedBatch(TaskProgressUpdateRecord update) {
         UUID batchId = previewFor(update).batch().id();
         previewService.approveBatch(
                 projectId, batchId, new ExportBatchDecisionRequest(planner.userId(), "Ready to send.", Map.of()));
         previewService.markGenerated(projectId, batchId, new ExportBatchGeneratedRequest(
                 "file:///artifacts/" + batchId + ".mspdi.xml", "c".repeat(64), planner.userId(), "Generated.", Map.of()));
+        return batchId;
+    }
+
+    private void verify(UUID batchId) {
         previewService.markOpenedInMicrosoftProject(projectId, batchId, new ExportBatchProjectOpenRequest(
                 planner.userId(), "Opened by the planner.", Map.of()));
         previewService.verifyBatch(projectId, batchId, new ExportBatchVerificationRequest(
                 planner.userId(), "Opened as a complete schedule.", Map.of()));
-        return batchId;
     }
 
     /**

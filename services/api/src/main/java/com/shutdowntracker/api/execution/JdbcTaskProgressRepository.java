@@ -231,15 +231,27 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
                         .addValue("exportBatchId", exportBatchId));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A row superseded while this batch held it is unlinked but not made eligible again. Its
+     * value has been replaced and must never travel, so returning it to the queue would be wrong —
+     * but leaving {@code export_batch_id} set would be a worse kind of wrong: the column answers
+     * which batch carried this update, and a rejected batch carried nothing. Only rows still in
+     * the preview go back to {@code eligible}.
+     */
     @Override
     public int releaseFromExportBatch(UUID exportBatchId) {
         return jdbcTemplate.update(
                 """
                 UPDATE task_progress_updates
-                SET export_state = 'eligible',
+                SET export_state = CASE
+                        WHEN export_state = 'in_export_preview' THEN 'eligible'
+                        ELSE export_state
+                    END,
                     export_batch_id = NULL
                 WHERE export_batch_id = :exportBatchId
-                  AND export_state = 'in_export_preview'
+                  AND export_state IN ('in_export_preview', 'superseded')
                 """,
                 new MapSqlParameterSource("exportBatchId", exportBatchId));
     }
@@ -249,6 +261,10 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
      *
      * <p>{@code export_batch_id} is deliberately left set. It is the answer to which batch carried
      * this update, and that question outlives the batch reaching its end.
+     *
+     * <p>Guarded on {@code in_export_preview} so a row superseded since the batch claimed it is
+     * not marked as having travelled. Its value did reach the artifact, but the row's own state is
+     * {@code superseded}, which is the fact the export queue reads.
      */
     @Override
     public int markExported(UUID exportBatchId) {

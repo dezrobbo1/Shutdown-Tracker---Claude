@@ -81,23 +81,35 @@ The export-integrity implementation in this repository enforces the state machin
 | `rejected` | Candidate is not approved for export. | `superseded` |
 | `superseded` | A later candidate replaces this one. | none |
 
-As implemented, `task_progress_updates.export_state` is the column that carries this lifecycle for an
-approved field update, and since `V015` it holds five of these values:
-`not_eligible -> eligible -> in_export_preview -> exported`, plus `superseded`. Three are
-deliberately absent because another column already owns the fact. `approved_for_export` is
-`planner_review_state`; `rejected` is `planner_review_state` again, which records the planner's
-decision as history and is never rewritten; `export_blocked` had no blocking logic behind it, and a
-candidate that may not travel is `not_eligible`.
+`task_progress_updates.export_state` is the column that carries this lifecycle for an approved field
+update. Until `V015` it did not match the table above and the table did not describe it: the column
+held nine values, three of them (`artifact_generated`, `opened_in_microsoft_project`, `verified`)
+absent from this table, and six of the nine were never assigned by any code. `V015` narrowed it to
+`not_eligible -> eligible -> in_export_preview -> exported`, plus `superseded` — five of the eight
+above.
 
-`in_export_preview` is set when a preview claims the update, and `export_batch_id` names the batch
-that claimed it. A rejected batch returns its updates to `eligible` with the batch id cleared,
-because approved field work that was never carried anywhere must remain offerable. `exported` is set
-when the batch is verified, and the batch id is kept: which batch carried which field change is a
-question that outlives the batch finishing.
+The other three are deliberately absent, because another column already owns each fact.
+`approved_for_export` is `planner_review_state`. `rejected` is `planner_review_state` again, which
+records the planner's decision as history and is never rewritten. `export_blocked` had no blocking
+logic behind it, and an update that may not travel is `not_eligible`.
 
-How far the carrying batch got is the batch's own status, reached through `export_batch_id`, and is
-deliberately not mirrored onto the update. In particular this column stops at `exported` and has no
-`verified`: `verified` is a batch state meaning the artifact opened in Microsoft Project as
+The transitions:
+
+- `in_export_preview` is set when an export preview claims the update, and `export_batch_id` names
+  the batch that claimed it. An update a batch has claimed leaves the export queue, so the same
+  approved change cannot be carried by two batches.
+- A rejected batch releases its updates to `eligible` with the batch id cleared, because approved
+  field work that was never carried anywhere must remain offerable. Only a draft preview can be
+  rejected, so a rejected batch has never generated anything. An update superseded while such a
+  batch held it is unlinked without becoming eligible again — its value has been replaced and must
+  not travel, but a batch that carried nothing must not be left named as the batch that carried it.
+- `exported` is set when the artifact is generated, matching this table's meaning for that value,
+  and the batch id is kept: which batch carried which field change is a question that outlives the
+  batch finishing.
+
+How far the carrying batch got beyond generation is the batch's own status, reached through
+`export_batch_id`, and is deliberately not mirrored onto the update. In particular this column has
+no `verified`: `verified` is a batch state meaning the artifact opened in Microsoft Project as
 expected, and the warning below against overloading it applies here too.
 
 ### Export batch states

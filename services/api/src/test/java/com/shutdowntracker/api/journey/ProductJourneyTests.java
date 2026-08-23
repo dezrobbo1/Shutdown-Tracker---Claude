@@ -318,6 +318,14 @@ class ProductJourneyTests {
                 .isEqualTo(2);
         String generatedHash = generated.path("workerResponse").path("exportFileHash").asText();
 
+        //     The artifact exists, so the update it carried has travelled. `export_batch_id` was
+        //     carried unwritten from V009, so the audit could not say which batch carried which
+        //     approved field change; this is that answer. Recorded at generation rather than at
+        //     verification, because verification is the batch's fact and a generated batch nobody
+        //     opens still carried this value.
+        assertThat(exportStateOf(progressUpdateId)).isEqualTo("exported");
+        assertThat(exportBatchIdOf(progressUpdateId)).isEqualTo(exportBatchId);
+
         // 14. Downloading it is the step that had no door. The bytes must be the ones generated,
         //     or the file a planner opens in Microsoft Project is not the one this batch approved.
         MvcResult download = mockMvc.perform(get(
@@ -344,9 +352,10 @@ class ProductJourneyTests {
                 .headers(as(plannerId, "planner", "Journey Planner")));
         assertThat(verified.path("batch").path("status").asText()).isEqualTo("VERIFIED");
 
-        //     And the update it carried says so. This is the answer the audit could not give: the
-        //     value travelled, in this batch, and the batch id stays set because which batch
-        //     carried which field change outlives the batch finishing.
+        //     The update it carried is untouched by that. How far the batch got is the batch's own
+        //     status, read through `export_batch_id`, and mirroring it onto the row would be the
+        //     duplication V015 removed. The batch id stays set: which batch carried which field
+        //     change outlives the batch finishing.
         assertThat(exportStateOf(progressUpdateId)).isEqualTo("exported");
         assertThat(exportBatchIdOf(progressUpdateId)).isEqualTo(exportBatchId);
 

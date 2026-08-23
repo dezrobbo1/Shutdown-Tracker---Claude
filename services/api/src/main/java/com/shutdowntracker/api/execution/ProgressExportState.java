@@ -11,16 +11,17 @@ import java.util.Arrays;
  * {@code export_batch_id}; two columns that must agree about one fact eventually disagree.
  *
  * <pre>
- *   eligible --(preview created)--&gt; IN_EXPORT_PREVIEW --(batch verified)--&gt; EXPORTED
+ *   eligible --(preview created)--&gt; IN_EXPORT_PREVIEW --(artifact generated)--&gt; EXPORTED
  *                   ^                       |
  *                   +---(batch rejected)----+
  * </pre>
  *
- * <p>{@link #EXPORTED} means this update's value was carried by a batch a planner verified — that
- * the generated artifact opened in Microsoft Project as expected. It does not mean Shutdown Tracker
- * saved the master {@code .mpp}, that a candidate schedule was recalculated, or that anything was
- * adopted; nothing in this product writes back. The deliberate absence of a {@code verified} value
- * here is the point, and {@code docs/product/approval-export-state-model.md} says why.
+ * <p>{@link #EXPORTED} means this update's value was written into a generated export artifact. It
+ * does not mean a planner has verified that artifact, that Shutdown Tracker saved the master
+ * {@code .mpp}, that a candidate schedule was recalculated, or that anything was adopted; nothing
+ * in this product writes back. The deliberate absence of a {@code verified} value here is the
+ * point — verification is the batch's fact, read from its status — and
+ * {@code docs/product/approval-export-state-model.md} says why.
  *
  * <p>{@link #SUPERSEDED} is set by a correction and leaves {@code planner_review_state} alone,
  * because the planner did approve that value once. Only this column distinguishes a value that may

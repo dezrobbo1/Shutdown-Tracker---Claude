@@ -279,6 +279,8 @@ public class ExportPreviewService {
 
         // Approved field work that was never carried anywhere returns to the queue. Without this a
         // rejected preview would strand it: the queue only offers updates no batch has claimed.
+        // An update superseded while this batch held it is unlinked too, without being made
+        // eligible again — see releaseFromExportBatch.
         carriedUpdates.releaseFromExportBatch(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), REJECTED_MESSAGE);
@@ -334,6 +336,14 @@ public class ExportPreviewService {
         } catch (DataIntegrityViolationException exception) {
             throw databaseIntegrityConflict("Export batch generation", exception);
         }
+
+        // The artifact exists, so the values it carries have travelled and the updates are no
+        // longer "in a preview". Recorded here rather than at verification because verification is
+        // the batch's fact, not the row's: a generated batch a planner never opens still carried
+        // these values, and how far the batch itself got is read from its status through
+        // export_batch_id. Their batch id stays set — which batch carried which field change is a
+        // question that outlives the batch finishing.
+        carriedUpdates.markExported(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), GENERATED_MESSAGE);
         recordExportBatchAudit(
@@ -441,11 +451,6 @@ public class ExportPreviewService {
                         HttpStatus.CONFLICT,
                         "Export batch verification could not be recorded because the batch is no longer opened in Microsoft Project."
                 ));
-
-        // The batch's values reached Microsoft Project and a planner confirmed the artifact opened
-        // as expected, so the updates it carried are terminal. Their batch id stays set: which
-        // batch carried which field change is a question that outlives the batch finishing.
-        carriedUpdates.markExported(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), VERIFIED_MESSAGE);
         recordExportBatchAudit(

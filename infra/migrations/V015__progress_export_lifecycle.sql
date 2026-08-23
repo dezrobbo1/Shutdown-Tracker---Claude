@@ -22,14 +22,22 @@
 -- reaching for `verified`: that document warns against overloading `verified`, which means a
 -- generated artifact opened in Microsoft Project as expected, not that anything was recalculated.
 --
---   eligible ──(preview created)──> in_export_preview ──(batch verified)──> exported
+--   eligible ──(preview created)──> in_export_preview ──(artifact generated)──> exported
 --                    ^                     │
 --                    └──(batch rejected)───┘
+--
+-- `exported` is set when the artifact is generated, not when a planner later verifies it. The row's
+-- fact is that its value travelled; whether the batch was then opened and verified is the batch's
+-- fact, and mirroring it here would be the same duplication the retired values are being dropped
+-- for. A generated batch nobody verifies still carried these values.
 --
 -- A rejected batch returns its updates to the queue rather than stranding them. The approved field
 -- work was never carried anywhere, and the queue filters on `export_batch_id IS NULL`, so leaving
 -- the row claimed would discard reviewed field work permanently with no way back short of a
--- correction.
+-- correction. Only draft previews can be rejected, so a rejected batch has never generated
+-- anything. An update superseded while such a batch held it is unlinked without becoming eligible
+-- again: its value has been replaced and must not travel, but a batch that carried nothing must not
+-- be left named as the batch that carried it.
 --
 -- PostgreSQL cannot drop a value from an enum, so the type is rebuilt and swapped rather than
 -- edited. The USING clause maps every retired value rather than defaulting them: no row can hold
@@ -96,4 +104,4 @@ COMMENT ON COLUMN task_progress_updates.export_state IS
   'Whether this update may travel to Microsoft Project, and whether it has. Only reviewed leaf-task percent complete, actual start, and actual finish may reach export; see the MVP export whitelist. How far the carrying batch got is export_batches.status, reached through export_batch_id, and is deliberately not mirrored here.';
 
 COMMENT ON COLUMN task_progress_updates.export_batch_id IS
-  'The export batch that carried this update. Set when a preview is created, cleared if that batch is rejected, and retained once the batch is verified so the audit can answer which batch carried which field change.';
+  'The export batch that carried this update. Set when a preview is created, cleared if that batch is rejected, and retained once the artifact is generated so the audit can answer which batch carried which field change.';
