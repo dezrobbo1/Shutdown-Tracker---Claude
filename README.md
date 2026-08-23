@@ -84,6 +84,11 @@ Implemented foundations include:
   double-report or raise the same problem twice, showing sync state rather than implying delivery,
   marking an unsent report on the work card itself, and listing a problem raised with no signal
   alongside the project's open ones rather than losing it;
+- a field app that opens without a connection: a service worker caches the application shell as it
+  installs, so one online visit is enough for the app to start again inside a vessel with no
+  signal. It caches the shell and nothing else — an API read is never served from a cache, because
+  a stale task list presented as current is the failure the visible-sync-state rules exist to
+  prevent, and a test asserts that boundary at both the deployed base and the development one;
 - assignment-scoped work lists: an explicit, planner-curated link says which Microsoft Project
   resource is which Shutdown Tracker user, so the field app shows a person their own work rather
   than the whole schedule. The link is never inferred from a name, survives re-import because it
