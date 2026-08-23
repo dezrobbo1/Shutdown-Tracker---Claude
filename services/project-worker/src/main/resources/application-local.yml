@@ -1,4 +1,11 @@
 spring:
+  # application.yml excludes datasource and Flyway auto-configuration, because the worker holds no
+  # state and its normal startup must not require a database. This profile exists for the opposite
+  # reason — running the migrations against a real PostgreSQL — so it puts them back. Without this
+  # the profile would load and do nothing, and a developer following the README would believe
+  # migrations had been exercised when no Flyway instance existed.
+  autoconfigure:
+    exclude: []
   datasource:
     url: ${SHUTDOWN_TRACKER_DB_URL:jdbc:postgresql://localhost:5432/shutdown_tracker}
     username: ${SHUTDOWN_TRACKER_DB_USERNAME:shutdown_tracker}

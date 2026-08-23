@@ -9,6 +9,52 @@ this goal — two unset storage roots, no way to import through the interface, n
 artifact, and a fixture with nothing in it — were all found by looking, and none of them would have
 failed a test.
 
+## Running it locally
+
+The walk below is written against the review deployment, but the same chain runs on one machine.
+Four processes, in this order:
+
+1. **PostgreSQL**, holding `shutdown_tracker` owned by `shutdown_tracker`. `infra/docker/docker-compose.postgres.yml` brings one up where Docker is available.
+2. **The project worker**, `services/project-worker`, on 8081. Import parsing and artifact generation go through it; without it steps 2 and 11 fail.
+3. **The API**, `services/api`, on 8080, with the `local` profile — it points Flyway at `infra/migrations` and applies them on start, enables persistence, and turns on the trusted-header actor. Nothing authenticates those headers, which is why the profile is local only.
+4. **The two front ends**, `npm run dev` in `apps/console` (5173) and `apps/mobile-pwa` (5174). Both ports are fixed and strict, because the two are meant to run together.
+
+Each app asks its own origin for the API, because a deployment serves them together. A dev server is
+a second origin and the API declares no CORS, so `vite.config.ts` proxies `/api` and `/actuator` to
+`http://127.0.0.1:8080`. Set `SHUTDOWN_TRACKER_API_ORIGIN` when the API is somewhere else.
+
+The API needs the identity seeder and a project to seed against, and both services need to agree on
+where files live — the worker reads the source file the API stored and writes the artifact the API
+serves:
+
+```text
+SHUTDOWN_TRACKER_REVIEW_DEMO_IDENTITIES_ENABLED=true
+SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED=true
+SHUTDOWN_TRACKER_PROJECT_PARSE_WORKER_ENABLED=true
+SHUTDOWN_TRACKER_PROJECT_EXPORT_WORKER_ENABLED=true
+SHUTDOWN_TRACKER_WORKER_AUTH_SHARED_SECRET=<any value, the same for both>
+SHUTDOWN_TRACKER_SOURCE_FILE_STORAGE_LOCAL_ROOT=<shared, both services>
+SHUTDOWN_TRACKER_EXPORT_ARTIFACT_STORAGE_LOCAL_ROOT=<shared, both services>
+SHUTDOWN_TRACKER_EVIDENCE_STORAGE_LOCAL_ROOT=<api>
+SHUTDOWN_TRACKER_CANDIDATE_SCHEDULE_STORAGE_LOCAL_ROOT=<api>
+```
+
+Point the apps at the bootstrapped project with `VITE_SHUTDOWN_TRACKER_PROJECT_ID`, and give each a
+starting actor with `VITE_SHUTDOWN_TRACKER_ACTOR_ID`, `_NAME` and `_ROLE`. Those are a starting
+point only; the identity pickers below override them.
+
+**Leave `VITE_SHUTDOWN_TRACKER_API_BASE_URL` unset.** It makes the client call that origin directly
+rather than its own, which goes around the proxy and straight into the missing CORS configuration.
+`SHUTDOWN_TRACKER_API_ORIGIN` is the one to set when the API is not on this machine.
+
+Storage roots that resolve somewhere unwritable are the failure that cost a deployment: the health
+check stays green and the first upload fails at request time. Give each root a real directory.
+
+A local run starts on an empty project, so step 1 below is where you begin. Import
+`fixtures/import-export/synthetic-shutdown-areas/synthetic-shutdown-areas.mspdi.xml` — it is the
+fixture with resources and assignments, so Operational Mapping, Exports › People and My Work have
+something in them.
+
 ## Before you start
 
 You need three identities, seeded and switchable. They are created by a guarded runner that is
