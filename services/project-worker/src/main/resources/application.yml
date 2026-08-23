@@ -1,6 +1,15 @@
 spring:
   application:
     name: shutdown-tracker-project-worker
+  # The worker holds no state and touches no database. It inherits spring-boot-starter-jdbc,
+  # Flyway and the PostgreSQL driver from the build, and Boot will try to configure a DataSource
+  # from their presence alone — so without this the process fails to start with "Failed to
+  # configure a DataSource", whether launched from its own Dockerfile or from the jar. Only the
+  # test profile excluded them, so that failure was invisible to every check.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   jackson:
     deserialization:
       fail-on-unknown-properties: true
