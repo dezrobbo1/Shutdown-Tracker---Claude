@@ -62,6 +62,7 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
     private UUID projectId;
     private UUID snapshotId;
     private UUID leafTaskId;
+    private UUID otherLeafTaskId;
     private Actor fieldUser;
     private Actor supervisor;
     private Actor planner;
@@ -88,12 +89,15 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                         new ImportedProjectEntities(
                                 List.of(
                                         task("1", "Mechanical", true, null),
-                                        task("2", "Remove guard", false, "1")),
+                                        task("2", "Remove guard", false, "1"),
+                                        task("3", "Refit guard", false, "1")),
                                 List.of(), List.of(), List.of())));
 
         snapshotId = fixtures.acceptNewestSnapshot(projectId);
         leafTaskId = jdbcTemplate().queryForObject(
                 "SELECT id FROM imported_tasks WHERE external_uid = ?", UUID.class, "2");
+        otherLeafTaskId = jdbcTemplate().queryForObject(
+                "SELECT id FROM imported_tasks WHERE external_uid = ?", UUID.class, "3");
 
         fieldUser = actor("field@example.com", "field_user");
         supervisor = actor("supervisor@example.com", "supervisor");
@@ -123,7 +127,7 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
      */
     @Test
     void twoFieldsOfOneUpdateClaimItOnce() {
-        TaskProgressUpdateRecord approved = eligibleUpdate();
+        TaskProgressUpdateRecord approved = eligibleUpdateWithTwoValues();
 
         UUID percentCandidate = candidate(approved, "percent_complete", approved.percentComplete().toPlainString());
         UUID startCandidate = candidate(approved, "actual_start", approved.actualStart().toString());
@@ -258,14 +262,97 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                 .isEqualTo("superseded");
     }
 
+    /**
+     * A batch takes every exportable value on an update, or none of them.
+     *
+     * <p>The binding is one row per batch, so a preview carrying percent complete while leaving the
+     * same update's reviewed actual start behind has no truthful way to be recorded: claiming the
+     * row marks it exported once the artifact exists, saying a value travelled that did not, and
+     * the row has left the export queue so no later preview can carry the remainder. Refusing is
+     * the reversible direction — the planner adds the missing candidate and previews again.
+     */
+    @Test
+    void aPreviewCarryingOnlySomeOfAnUpdatesReviewedValuesIsRefused() {
+        TaskProgressUpdateRecord approved = eligibleUpdateWithTwoValues();
+        UUID percentOnly = candidate(approved, "percent_complete", approved.percentComplete().toPlainString());
+
+        assertThatThrownBy(() -> previewService.createPreview(
+                projectId, new ExportPreviewCreateRequest(snapshotId, List.of(percentOnly), Map.of())))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("every exportable value on an update or none of them");
+
+        assertThat(exportState(approved.id()))
+                .describedAs("the update was not consumed by a batch that could not carry all of it")
+                .isEqualTo("eligible");
+        assertThat(exportBatchId(approved.id())).isNull();
+        assertThat(progressService.exportQueue(projectId)).extracting(TaskProgressUpdateRecord::id)
+                .describedAs("and it is still offered, so the remainder can be previewed properly")
+                .containsExactly(approved.id());
+    }
+
+    /**
+     * A line the batch cannot export does not carry its update anywhere.
+     *
+     * <p>A preview may hold a line whose candidate approval is not current; it is written with
+     * {@code is_export_eligible = false} and left out of the generated artifact. Counting or
+     * claiming its source would mark an update exported on the strength of a line that never
+     * travelled.
+     */
+    @Test
+    void anUpdatePresentOnlyThroughAnIneligibleLineIsNeitherCountedNorClaimed() {
+        TaskProgressUpdateRecord carried = eligibleUpdate();
+        TaskProgressUpdateRecord notCarried = eligibleUpdateOn(otherLeafTaskId);
+
+        UUID carriedCandidate = candidate(carried, "percent_complete", carried.percentComplete().toPlainString());
+        UUID awaitingCandidate = candidateAwaitingReview(
+                notCarried, "percent_complete", notCarried.percentComplete().toPlainString());
+
+        ExportPreviewDetail preview = previewService.createPreview(
+                projectId,
+                new ExportPreviewCreateRequest(snapshotId, List.of(carriedCandidate, awaitingCandidate), Map.of()));
+
+        assertThat(preview.lines()).hasSize(2);
+        assertThat(exportState(carried.id())).isEqualTo("in_export_preview");
+        assertThat(exportState(notCarried.id()))
+                .describedAs("an unapproved line carries nothing, so its update is untouched")
+                .isEqualTo("eligible");
+        assertThat(exportBatchId(notCarried.id())).isNull();
+        assertThat(progressService.exportQueue(projectId)).extracting(TaskProgressUpdateRecord::id)
+                .containsExactly(notCarried.id());
+    }
+
     // ------------------------------------------------------------------ fixture
 
-    /** Submitted, accepted by a supervisor, approved by a planner — the only way to reach eligible. */
+    /**
+     * One exportable value, submitted, accepted by a supervisor and approved by a planner — the
+     * only way to reach eligible.
+     *
+     * <p>Deliberately carries percent complete alone. A batch claims an update only when it carries
+     * every exportable value on it, so an update with a second reviewed value would need a second
+     * candidate in every preview below; {@link #eligibleUpdateWithTwoValues} is for the tests that
+     * are about that.
+     */
     private TaskProgressUpdateRecord eligibleUpdate() {
-        TaskProgressUpdateRecord submitted = progressService.submit(projectId, fieldUser, new TaskProgressSubmitRequest(
+        return eligibleUpdateOn(leafTaskId);
+    }
+
+    /** The same, on a named task, for previews carrying two updates at once. */
+    private TaskProgressUpdateRecord eligibleUpdateOn(UUID taskId) {
+        return reviewed(new TaskProgressSubmitRequest(
+                taskId, TaskExecutionState.IN_PROGRESS, new BigDecimal("50"),
+                null, null, null, "Started on shift.", null, null, null));
+    }
+
+    /** Percent complete and an actual start: two values a batch must carry together or not at all. */
+    private TaskProgressUpdateRecord eligibleUpdateWithTwoValues() {
+        return reviewed(new TaskProgressSubmitRequest(
                 leafTaskId, TaskExecutionState.IN_PROGRESS, new BigDecimal("50"),
                 OffsetDateTime.of(2026, 8, 1, 6, 0, 0, 0, ZoneOffset.UTC),
                 null, null, "Started on shift.", null, null, null));
+    }
+
+    private TaskProgressUpdateRecord reviewed(TaskProgressSubmitRequest request) {
+        TaskProgressUpdateRecord submitted = progressService.submit(projectId, fieldUser, request);
         progressService.supervisorReview(
                 projectId, submitted.id(), supervisor, ProgressReviewState.SUPERVISOR_ACCEPTED, "Checked on site.");
         TaskProgressUpdateRecord approved = progressService.plannerReview(
@@ -325,6 +412,19 @@ class TaskProgressExportBindingTests extends AbstractDatabaseTest {
                 "Approved for export",
                 Map.of()));
         return record.id();
+    }
+
+    /** A candidate whose current approval is not {@code approved_for_export}, so its line cannot travel. */
+    private UUID candidateAwaitingReview(TaskProgressUpdateRecord update, String fieldName, String proposedValue) {
+        UUID candidateId = candidate(update, fieldName, proposedValue);
+        candidateService.recordApprovalEvent(projectId, candidateId, new ExportCandidateApprovalEventRequest(
+                ApprovalState.AWAITING_REVIEW,
+                OffsetDateTime.of(2026, 8, 1, 7, 3, 0, 0, ZoneOffset.UTC),
+                planner.userId(),
+                OffsetDateTime.of(2026, 8, 1, 7, 4, 0, 0, ZoneOffset.UTC),
+                "Sent back for another look",
+                Map.of()));
+        return candidateId;
     }
 
     private String exportState(UUID progressUpdateId) {

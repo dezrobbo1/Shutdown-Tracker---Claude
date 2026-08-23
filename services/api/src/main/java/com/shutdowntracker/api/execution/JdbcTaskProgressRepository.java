@@ -202,28 +202,79 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
     }
 
     /**
+     * The eligible progress lines of a batch, counted by the update they came from.
+     *
+     * <p>Derived from the sealed line set rather than from the candidate list the caller passed,
+     * because the line set is what the batch actually carries. Only lines the batch can export
+     * count: a line whose candidate approval is not current, whose task is not a leaf, or whose
+     * field is off the whitelist is written with {@code is_export_eligible = false} and is left out
+     * of the generated artifact, so an update present only through such a line never travels and
+     * must not be claimed or later marked exported.
+     */
+    @Override
+    public int countClaimableUpdates(UUID exportBatchId) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT count(DISTINCT line.source_entity_id)
+                FROM export_batch_lines line
+                WHERE line.export_batch_id = :exportBatchId
+                  AND line.source_entity_type = 'task_progress_update'
+                  AND line.is_export_eligible
+                """,
+                new MapSqlParameterSource("exportBatchId", exportBatchId),
+                Integer.class);
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>Guarded on {@code eligible} and an unset batch id rather than trusting the line set: a row
      * that has been superseded since the preview was assembled, or already claimed by another
-     * batch, must not be swept into this one. The count the caller compares against the line count
-     * is how that disagreement becomes visible instead of silent.
+     * batch, must not be swept into this one.
+     *
+     * <p>An update is claimed only when the batch's eligible lines cover <em>every</em> exportable
+     * value on it. The binding is one row per batch, so a batch that took an update carrying two
+     * reviewed values while exporting one of them would mark the row exported and strand the other
+     * — the row has left the queue, and no later preview can claim it. Refusing is the reversible
+     * direction: the planner adds the missing candidate and previews again, where an append-only
+     * audit that recorded the wrong thing cannot be taken back. The caller turns the resulting
+     * shortfall into a refusal.
+     *
+     * <p>{@code physical_percent_complete} is deliberately not among the fields checked. It is
+     * reviewable and readable but off the MVP export whitelist, so it is not an exportable value
+     * and requiring a line for it would refuse every preview.
      */
     @Override
     public int claimForExportBatch(UUID projectId, UUID exportBatchId) {
         return jdbcTemplate.update(
                 """
+                WITH carried AS (
+                    SELECT DISTINCT line.source_entity_id, line.field_name
+                    FROM export_batch_lines line
+                    WHERE line.export_batch_id = :exportBatchId
+                      AND line.source_entity_type = 'task_progress_update'
+                      AND line.is_export_eligible
+                )
                 UPDATE task_progress_updates
                 SET export_state = 'in_export_preview',
                     export_batch_id = :exportBatchId
                 WHERE project_id = :projectId
                   AND export_state = 'eligible'
                   AND export_batch_id IS NULL
-                  AND id IN (
-                      SELECT line.source_entity_id
-                      FROM export_batch_lines line
-                      WHERE line.export_batch_id = :exportBatchId
-                        AND line.source_entity_type = 'task_progress_update'
+                  AND id IN (SELECT source_entity_id FROM carried)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM (VALUES
+                          ('percent_complete', percent_complete IS NOT NULL),
+                          ('actual_start', actual_start IS NOT NULL),
+                          ('actual_finish', actual_finish IS NOT NULL)
+                      ) AS exportable(field_name, present)
+                      WHERE exportable.present
+                        AND NOT EXISTS (
+                            SELECT 1 FROM carried
+                            WHERE carried.source_entity_id = task_progress_updates.id
+                              AND carried.field_name = exportable.field_name
+                        )
                   )
                 """,
                 new MapSqlParameterSource()

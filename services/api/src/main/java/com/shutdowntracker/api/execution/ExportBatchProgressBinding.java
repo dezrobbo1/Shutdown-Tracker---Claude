@@ -16,6 +16,17 @@ import java.util.UUID;
 public interface ExportBatchProgressBinding {
 
     /**
+     * How many distinct updates this batch's exportable lines came from.
+     *
+     * <p>The number {@link #claimForExportBatch} has to reach. Both are derived from the sealed
+     * line set rather than from anything the caller holds, so the expectation and the result cannot
+     * be measured against different things.
+     *
+     * @return how many updates the batch should be able to claim
+     */
+    int countClaimableUpdates(UUID exportBatchId);
+
+    /**
      * Binds every eligible update a batch's lines were built from to that batch.
      *
      * <p>This is what makes {@code export_batch_id} mean something, and with it the
@@ -24,7 +35,9 @@ public interface ExportBatchProgressBinding {
      *
      * <p>Matched through the batch's own lines rather than a list from the caller, because the
      * lines are what the batch actually carries. A caller-supplied list could disagree with them,
-     * and the disagreement would be invisible.
+     * and the disagreement would be invisible. Only lines the batch can actually export count, and
+     * an update is claimed only if the batch carries every exportable value on it — the binding is
+     * one row per batch, so a partially carried update could not be recorded truthfully.
      *
      * @return how many updates the batch claimed
      */

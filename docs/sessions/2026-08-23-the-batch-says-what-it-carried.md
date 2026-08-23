@@ -77,8 +77,8 @@ no way back short of a correction.
 
 From the repository root, all in this session:
 
-- `mvn test` — **BUILD SUCCESS**, 458 in `services/api` and 75 in `services/project-worker`. The
-  goal document's expected 448/75 predates pull request #26, which added two; the other eight are
+- `mvn test` — **BUILD SUCCESS**, 460 in `services/api` and 75 in `services/project-worker`. The
+  goal document's expected 448/75 predates pull request #26, which added two; the other ten are
   this slice's.
 - `npm ci`, `npm test` — 73 console, 43 mobile-pwa, 28 api-client, 144 total, all passing.
 - `npm run build` — all three workspaces, `tsc --noEmit` included.
@@ -119,6 +119,41 @@ predicate — which only looked at `in_export_preview` — skipped exactly those
 the column this slice exists to make trustworthy. Release now unlinks superseded rows too, without
 making them eligible again: the value has been replaced and must not travel.
 
+### Second round
+
+Codex reviewed the fixes and raised three more. All three were real; all three are fixed.
+
+**The TypeScript contract still described `EXPORTED` as requiring verification.** My own miss from
+the previous fix — I moved the transition and updated the Java and SQL comments but left the
+`ProgressExportState` JSDoc in `packages/api-client` and one line of this goal document saying the
+opposite. A client reading the published contract would have described carried updates as manually
+verified.
+
+**The claim ignored line eligibility.** `is_export_eligible` is computed per line as "the current
+approval is `approved_for_export`, the task is a leaf, and the field is on the whitelist", and
+`requireEligibleCandidates` only requires that *one* line qualifies — so a batch can be generated
+carrying a mix. `ExportArtifactHandoffService` leaves the ineligible lines out of the artifact, but
+the claim matched on source type alone, so the excluded line's update was claimed and then marked
+exported. That is a row asserting a value travelled when it demonstrably did not.
+
+**A partially carried update was consumed whole.** This one was a regression this branch
+introduced, and the fixture in `TaskProgressExportBindingTests` was quietly exercising it: the
+helper submitted an update carrying both a percent complete and an actual start, then previewed only
+the percent complete candidate. Before this branch nothing was tracked, so the two fields could be
+carried by separate batches. With a row-granular binding they cannot: claiming the row marks it
+exported and removes it from the queue, so the actual start could never be carried by anything, and
+the row would claim a completeness it did not have.
+
+Both are the same root cause — carriage is per line and the binding is per row — and both are fixed
+in the claim predicate: it now counts and takes only lines the batch can export, and takes an update
+only when the batch covers every exportable value on it. A partial preview fails the existing
+shortfall check with a message that names the case. The alternative, per-candidate carriage, is a
+schema change and would replace this rule rather than relax it; that is recorded in the state model
+document so the choice is visible if it is ever wanted.
+
+Both counts now come from the sealed line set rather than one from the line set and one from the
+caller's candidate list, which is what let the two disagree in the first place.
+
 **A candidate can name a progress update it does not describe.** Real, and not taken. Nothing
 validates that a candidate whose `source_entity_type` is `task_progress_update` actually matches the
 row its `source_entity_id` names — `export_candidate_records` has no foreign key on that column and
@@ -142,6 +177,10 @@ the column most of the way to it. The note now says that instead.
 
 ## Left open
 
+- **Per-field export carriage, if it is ever wanted.** A batch now takes every exportable value on
+  an update or none of them, because the binding is one row per batch. Splitting fields across
+  batches would need carriage recorded per candidate. Nothing asks for it today and the shipped
+  console never produces a partial preview, so the rule is enforced rather than the schema changed.
 - **A candidate that cannot lie about where it came from.** Per the review above: when
   `source_entity_type` is `task_progress_update`, candidate creation should verify the referenced
   row exists, is export eligible, belongs to the same project, snapshot and task, and carries the

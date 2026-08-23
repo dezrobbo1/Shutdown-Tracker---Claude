@@ -560,8 +560,10 @@ export type PlannerReviewState =
  * duplicated a fact another field already owned, and none was ever written. How far the carrying
  * batch got is the batch's status, reached through its id — deliberately not mirrored here.
  *
- * `EXPORTED` means a planner verified the batch that carried this value: the generated artifact
- * opened in Microsoft Project as expected. It does not mean anything was recalculated or adopted.
+ * `EXPORTED` means the value was written into a generated export artifact. It is set when that
+ * artifact is generated, not when a planner later opens and verifies it — so it does not mean the
+ * artifact behaved as expected in Microsoft Project, nor that anything was recalculated or adopted.
+ * Whether the carrying batch was verified is the batch's own status, read through its id.
  */
 export type ProgressExportState =
   | "NOT_ELIGIBLE"

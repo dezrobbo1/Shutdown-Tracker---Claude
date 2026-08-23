@@ -49,7 +49,7 @@ Ordered. Each slice is one reviewed outcome on one branch, finished before the n
   six `ProgressExportState` values nothing ever wrote, leaving
   `not_eligible -> eligible -> in_export_preview -> exported` plus `superseded`, and an export
   preview now claims the updates it was built from, releases them if it is rejected, and marks them
-  exported when it is verified. This was also item 5 of the hygiene track below; it must not be
+  exported when its artifact is generated. This was also item 5 of the hygiene track below; it must not be
   taken again there.
 
   The Docker Compose migration job still has to confirm `V015` — this machine has no Docker, so the
@@ -158,11 +158,11 @@ bash scripts/db/validate-migrations.sh
 `mvn test` and the frontend checks need no Docker. `validate-migrations.sh` does, and states so when
 it is missing. Report any check that could not be run rather than implying it passed.
 
-The counts to expect on a green tree are **533 backend** — 458 in `services/api`, 75 in
+The counts to expect on a green tree are **535 backend** — 460 in `services/api`, 75 in
 `services/project-worker` — and **144 frontend**, being 73 console, 43 mobile-pwa and 28 api-client.
 A number below these means a test was lost, not that the suite got faster. The backend figure was
 523 when this document was last restated, before the journey test added two and slice 3 added
-eight.
+ten.
 
 Verify GitHub Actions on the branch head. A previously green run is not evidence for a later commit.
 

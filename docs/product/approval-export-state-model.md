@@ -107,6 +107,25 @@ The transitions:
   and the batch id is kept: which batch carried which field change is a question that outlives the
   batch finishing.
 
+The binding is one row per batch, and two rules follow from that rather than from preference:
+
+- **A batch claims an update only if it carries every exportable value on it.** An update may hold
+  more than one reviewed value — percent complete and an actual start, say — and each becomes its
+  own export candidate. A batch carrying one of them and not the other could not be recorded
+  truthfully: claiming the row would mark it `exported` once the artifact exists, saying a value
+  travelled that did not, and the row would have left the export queue so no later preview could
+  carry the remainder. A partial preview is refused instead, which is the reversible direction —
+  the planner adds the missing candidate and previews again. `physical_percent_complete` is not an
+  exportable value and is not counted.
+- **A line the batch cannot export does not claim its update.** A preview may hold a line whose
+  candidate approval is not current, whose task is not a leaf, or whose field is off the whitelist;
+  it is written with `is_export_eligible = false` and left out of the generated artifact. Its source
+  update stays `eligible` and in the queue.
+
+If per-field carriage is wanted instead — one batch taking percent complete while another takes the
+actual start — that is a different design: carriage would have to be recorded per candidate rather
+than on the update row, and this rule replaced rather than relaxed.
+
 How far the carrying batch got beyond generation is the batch's own status, reached through
 `export_batch_id`, and is deliberately not mirrored onto the update. In particular this column has
 no `verified`: `verified` is a batch state meaning the artifact opened in Microsoft Project as

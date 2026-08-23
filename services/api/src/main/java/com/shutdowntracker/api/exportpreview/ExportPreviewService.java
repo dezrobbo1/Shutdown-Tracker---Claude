@@ -47,8 +47,6 @@ public class ExportPreviewService {
             + "and cannot progress. Create a fresh export preview under the current policy.";
     private static final String UNSEALED_BATCH_CONFLICT = "This export preview does not have a sealed line set "
             + "and cannot progress. Create a fresh export preview.";
-    /** The one candidate source that has a progress row to bind to the batch. */
-    private static final String TASK_PROGRESS_UPDATE_SOURCE = "task_progress_update";
 
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
@@ -131,7 +129,7 @@ public class ExportPreviewService {
         // The batch now carries these updates, and they leave the export queue. Done after sealing
         // so the line set the claim matches against can no longer change under it, and inside this
         // transaction so a preview cannot exist that its own updates do not point back at.
-        claimCarriedUpdates(requiredProjectId, batch.id(), candidates);
+        claimCarriedUpdates(requiredProjectId, batch.id());
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
         auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
@@ -155,34 +153,34 @@ public class ExportPreviewService {
     /**
      * Binds the field updates this batch was built from to it, and refuses if any could not be.
      *
-     * <p>Only candidates sourced from a task progress update are counted. A candidate may in
-     * principle come from elsewhere, and one that does has no row here to claim — so the
-     * expectation is derived from the candidates rather than from the line count, which would
-     * otherwise report a mismatch that is not one.
+     * <p>Both numbers come from the sealed line set. A candidate may in principle be sourced from
+     * something other than a task progress update, and one that is has no row here to claim; a line
+     * the batch cannot export does not carry its value anywhere either. Counting the candidates the
+     * caller passed instead would measure the expectation against a different thing from the
+     * result.
      *
-     * <p>A shortfall means an update was superseded or claimed by another batch between the
-     * candidates being validated and the lines being sealed. Continuing would produce a preview
-     * that silently carries fewer approved changes than it lists.
+     * <p>A shortfall means an update was superseded, was already claimed by another batch, or is
+     * only partly carried by this one. Continuing would produce a preview that silently carries
+     * fewer approved changes than it lists, or a row recording that a value travelled when it did
+     * not.
      */
-    private void claimCarriedUpdates(UUID projectId, UUID exportBatchId, List<ExportCandidateRecord> candidates) {
-        long expected = candidates.stream()
-                .filter(candidate -> TASK_PROGRESS_UPDATE_SOURCE.equals(candidate.sourceEntityType()))
-                .map(ExportCandidateRecord::sourceEntityId)
-                .distinct()
-                .count();
+    private void claimCarriedUpdates(UUID projectId, UUID exportBatchId) {
+        int expected = carriedUpdates.countClaimableUpdates(exportBatchId);
         if (expected == 0) {
             return;
         }
 
         // A shortfall, not an inequality: the claim matches only rows this batch's own lines name,
-        // and the lines were built from these candidates, so it can never take more than expected.
+        // so it can never take more than expected.
         int claimed = carriedUpdates.claimForExportBatch(projectId, exportBatchId);
         if (claimed < expected) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Export preview could not claim every field update it was built from — expected "
-                            + expected + " and claimed " + claimed + ". An update was superseded or "
-                            + "already carried by another batch. Create a fresh export preview."
+                            + expected + " and claimed " + claimed + ". An update was superseded, is "
+                            + "already carried by another batch, or has a reviewed value this preview "
+                            + "does not carry: an export batch takes every exportable value on an "
+                            + "update or none of them. Create a fresh export preview."
             );
         }
     }
