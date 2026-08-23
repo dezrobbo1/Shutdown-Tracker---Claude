@@ -7,10 +7,11 @@ slices 1, 2 and 4 are merged — slice 1 as pull request
 [#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12), slice 2 as the journey test,
 and slice 4 early as part of Phase 0.
 
-Slice 3 is **finished on `feat/batch-says-what-it-carried` and not yet merged**; see
-[the session entry](../sessions/2026-08-23-the-batch-says-what-it-carried.md). Update this line with
-its pull request number when it lands, rather than leaving the document to describe a younger
-repository again.
+Slice 3 is **open as pull request
+[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27) and not yet merged**; see
+[the session entry](../sessions/2026-08-23-the-batch-says-what-it-carried.md). Move it up to the
+merged list when it lands, rather than leaving the document to describe a younger repository
+again.
 
 What remains is **Phase 1 slice 5, and all of Phase 2**, listed under Remaining work below.
 
