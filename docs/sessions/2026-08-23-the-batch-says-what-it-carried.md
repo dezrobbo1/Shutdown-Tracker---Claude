@@ -88,16 +88,18 @@ From the repository root, all in this session:
   and then `run-export-integrity-suite.sh` in full — the current-policy assertions, all ten
   concurrency checks, and the late-V007 rollback check. All passed.
 
-**`scripts/db/validate-migrations.sh` itself could not be run**: this machine has no Docker. What is
-recorded above is the same sequence of checks driven against a local server started from the
-embedded PostgreSQL binaries, which is evidence for the SQL but not for the Docker Compose job. CI
-must confirm that path.
+**`scripts/db/validate-migrations.sh` itself could not be run here**: this machine has no Docker.
+What is recorded above is the same sequence of checks driven against a local server started from the
+embedded PostgreSQL binaries, which is evidence for the SQL but not for the Docker Compose job.
+
+GitHub Actions then ran that job. All four jobs passed on both commits of pull request #27 —
+*Frontend test and build*, *Backend Maven test*, *Docker image build*, and *Migration and
+export-integrity validation*. The Docker path is therefore confirmed, by CI rather than locally.
 
 No manual Microsoft Project verification was performed and none is claimed.
 
 ## Left open
 
-- The Docker migration job, per above.
 - The `distinct()` in the claim's expected count is load-bearing and now has a test
   (`twoFieldsOfOneUpdateClaimItOnce`), but the shortfall path is only proved for a superseded
   update. A second batch racing for the same update is refused by the same guard and is not
