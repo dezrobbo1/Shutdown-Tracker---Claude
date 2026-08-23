@@ -3,15 +3,11 @@
 ## Status
 
 Phase 0 is **complete**. Phase 3 is **complete**, taken out of order before Phase 2. Of Phase 1,
-slices 1, 2 and 4 are merged — slice 1 as pull request
+slices 1, 2, 3 and 4 are merged — slice 1 as pull request
 [#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12), slice 2 as the journey test,
-and slice 4 early as part of Phase 0.
-
-Slice 3 is **open as pull request
-[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27) and not yet merged**; see
-[the session entry](../sessions/2026-08-23-the-batch-says-what-it-carried.md). Move it up to the
-merged list when it lands, rather than leaving the document to describe a younger repository
-again.
+slice 3 as pull request
+[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27), and slice 4 early as part of
+Phase 0. Phase 1 is therefore one slice from done.
 
 What remains is **Phase 1 slice 5, and all of Phase 2**, listed under Remaining work below.
 
@@ -45,15 +41,6 @@ Ordered. Each slice is one reviewed outcome on one branch, finished before the n
 
 ### Phase 1 — A working flow path
 
-- ~~**Slice 3 — the batch says what it carried.**~~ **Done, awaiting review.** `V015` retires the
-  six `ProgressExportState` values nothing ever wrote, leaving
-  `not_eligible -> eligible -> in_export_preview -> exported` plus `superseded`, and an export
-  preview now claims the updates it was built from, releases them if it is rejected, and marks them
-  exported when its artifact is generated. This was also item 5 of the hygiene track below; it must not be
-  taken again there.
-
-  The Docker Compose migration job still has to confirm `V015` — this machine has no Docker, so the
-  migration sequence and the export-integrity suite were driven against a local PostgreSQL instead.
 - **Slice 5 — the field evidence gate.** `CAPTURE_EVIDENCE` is never checked in the field app; the
   control is offered and the server refuses it. The capability exists in `packages/api-client` and
   is honoured by the console; `apps/mobile-pwa` does not reference capabilities at all.
@@ -88,8 +75,10 @@ restated as unchanged by
 that list stand; item 1 closed as pull request
 [#23](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/23).
 
-It is referenced rather than copied here, so the two lists cannot drift. **Item 5 of that list is
-Phase 1 slice 3 above** — the same migration, tracked once.
+It is referenced rather than copied here, so the two lists cannot drift. **Item 5 of that list was
+Phase 1 slice 3 and is closed** as pull request
+[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27) — the same migration, taken
+once. Items 2 to 4 and 6 to 9 stand.
 
 The items are ordered there by ratio of value to risk, and the first three are free: two
 unreferenced fixture example files, two `@ConditionalOnProperty` spike runners superseded by real
@@ -284,6 +273,23 @@ Taken before Phase 2 rather than after it.
   status classes, and the console and field component treatments. Three treatments were deliberately
   left short of the prototypes and are recorded in
   [the surface entry](../sessions/2026-08-21-a-surface-that-looks-operational.md).
+
+### Phase 1 slice 3 — The batch says what it carried — merged
+
+Pull request [#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27). `export_batch_id`
+had existed since `V009` with nothing writing it, so the audit could not answer which batch carried
+which approved field change, and the `export_batch_id IS NULL` clause in the export queue decided
+nothing. `V015` retired the six `ProgressExportState` values nothing ever assigned, leaving
+`not_eligible -> eligible -> in_export_preview -> exported` plus `superseded`; an export preview now
+claims the updates it was built from, releases them if the batch is rejected, and marks them
+exported when the artifact is generated. This was also item 5 of the hygiene track.
+
+Two rounds of review shaped it more than the first draft did. `exported` moved from verification
+to generation, a rejected batch stopped leaving its id on updates superseded while it held them, and
+the claim was narrowed to lines the batch can actually export and to updates it can carry whole. See
+[the session entry](../sessions/2026-08-23-the-batch-says-what-it-carried.md), which records what
+was accepted, what was refused and why, and the one behaviour tightening a reviewer should know
+about: **an export batch takes every exportable value on an update or none of them.**
 
 ### Phase 1 slice 2 — The journey test — merged
 
