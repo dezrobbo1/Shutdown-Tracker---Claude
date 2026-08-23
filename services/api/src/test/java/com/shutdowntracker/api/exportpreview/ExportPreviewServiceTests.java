@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventTypes;
 import com.shutdowntracker.api.audit.CapturingAuditEventRecorder;
+import com.shutdowntracker.api.support.RecordingExportBatchProgressBinding;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -70,7 +71,7 @@ class ExportPreviewServiceTests {
     void keepsApprovedSummaryTaskLineIneligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -88,7 +89,7 @@ class ExportPreviewServiceTests {
     void keepsStableAwaitingReviewCandidateVisibleButIneligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -107,7 +108,7 @@ class ExportPreviewServiceTests {
     void keepsApprovedPhysicalPercentCompleteInternalButIneligible() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -135,7 +136,7 @@ class ExportPreviewServiceTests {
     void rejectsDifferentCandidatesForTheSameTaskAndFieldBeforeCreatingBatch() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -158,7 +159,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         UUID secondTaskId = repository.addLeafTask("101", "2", "Synthetic Task A2");
         UUID secondSourceEntityId = repository.addApprovedSource();
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -182,7 +183,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         UUID secondTaskId = repository.addLeafTask("303", "1", "Synthetic Task A3");
         UUID secondSourceEntityId = repository.addApprovedSource();
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -205,7 +206,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "75")),
@@ -226,7 +227,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.sealSucceeds = false;
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -246,7 +247,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.integrityPolicyVersion = null;
         repository.lineSetSealed = null;
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail legacy = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -269,7 +270,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.integrityPolicyVersion = null;
         repository.lineSetSealed = null;
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail legacy = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -306,7 +307,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.integrityPolicyVersion = null;
         repository.lineSetSealed = null;
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail legacy = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(
@@ -343,7 +344,7 @@ class ExportPreviewServiceTests {
         UUID reviewerId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -376,7 +377,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -398,7 +399,7 @@ class ExportPreviewServiceTests {
     void rejectsUnsealedCurrentPolicyBatch() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -418,7 +419,7 @@ class ExportPreviewServiceTests {
     void rejectsUnknownIntegrityPolicyVersionWithoutTreatingItAsLegacy() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -440,7 +441,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenSourceWasRejectedAfterPreviewCreation() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -460,7 +461,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenOriginallyIneligibleLineApprovalChanges() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(
@@ -485,7 +486,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenIneligibleApprovalChangesFromAwaitingReviewToRejected() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(
@@ -511,7 +512,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenCurrentApprovalIdentityChangesWithoutStateChange() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -536,7 +537,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenCandidateBindingPolicyIsNotCurrent() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -564,7 +565,7 @@ class ExportPreviewServiceTests {
     void rejectsApprovalWhenAcceptedSnapshotBecomesStale() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -583,7 +584,7 @@ class ExportPreviewServiceTests {
     void rejectsGenerationWhenAcceptedSnapshotBecomesStale() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -622,7 +623,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.replaceLeafTask("001", "1", "Synthetic Task A1", false, new BigDecimal("25"));
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -697,7 +698,7 @@ class ExportPreviewServiceTests {
     void rejectsCandidateSelectionForAnotherProject() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         UUID candidateId = line(
                 repository.leafTaskId,
                 repository.approvedSourceEntityId,
@@ -721,7 +722,7 @@ class ExportPreviewServiceTests {
     void rejectsCandidateSelectionForAnotherSnapshot() {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         UUID candidateId = line(
                 repository.leafTaskId,
                 repository.approvedSourceEntityId,
@@ -746,7 +747,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.approvalCandidates.remove(repository.approvedSourceEntityId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -770,7 +771,7 @@ class ExportPreviewServiceTests {
                         new ExportPreviewApprovalRecord(UUID.randomUUID(), ApprovalState.REJECTED)
                 )
         );
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -792,7 +793,7 @@ class ExportPreviewServiceTests {
                 repository.approvedSourceEntityId,
                 List.of(new ExportPreviewApprovalRecord(resolvedApprovalId, ApprovalState.APPROVED_FOR_EXPORT))
         );
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
 
         ExportPreviewDetail detail = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -810,7 +811,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
@@ -840,7 +841,7 @@ class ExportPreviewServiceTests {
         UUID generatedByUserId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "75")),
@@ -879,7 +880,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "75")),
@@ -913,7 +914,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -947,7 +948,7 @@ class ExportPreviewServiceTests {
         UUID openedByUserId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "75")),
@@ -996,7 +997,7 @@ class ExportPreviewServiceTests {
         UUID verifiedByUserId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -1049,7 +1050,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -1072,7 +1073,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -1107,7 +1108,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.summaryTaskId, repository.approvedSourceEntityId, "actual_finish", "2026-01-01T12:00:00Z")),
@@ -1126,7 +1127,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -1151,7 +1152,7 @@ class ExportPreviewServiceTests {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -1171,7 +1172,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.acceptedSnapshot = false;
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -1191,7 +1192,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.failSealingWithIntegrityViolation = true;
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -1213,7 +1214,7 @@ class ExportPreviewServiceTests {
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
         repository.failLineCreation = true;
         CapturingAuditEventRecorder audit = new CapturingAuditEventRecorder();
-        ExportPreviewService service = new ExportPreviewService(repository, audit);
+        ExportPreviewService service = new ExportPreviewService(repository, audit, new RecordingExportBatchProgressBinding());
 
         assertThatThrownBy(() -> service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
@@ -1230,7 +1231,7 @@ class ExportPreviewServiceTests {
     private void assertTaskDriftBlocksApproval(Consumer<FakeExportPreviewRepository> drift) {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),
@@ -1249,7 +1250,7 @@ class ExportPreviewServiceTests {
     private void assertTamperedLineBlocksApproval(Consumer<FakeExportPreviewRepository> tamper) {
         UUID projectId = UUID.randomUUID();
         FakeExportPreviewRepository repository = new FakeExportPreviewRepository(projectId);
-        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder());
+        ExportPreviewService service = new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding());
         ExportPreviewDetail created = service.createPreview(projectId, new ExportPreviewCreateRequest(
                 repository.projectSnapshotId,
                 List.of(line(repository.leafTaskId, repository.approvedSourceEntityId, "percent_complete", "50")),

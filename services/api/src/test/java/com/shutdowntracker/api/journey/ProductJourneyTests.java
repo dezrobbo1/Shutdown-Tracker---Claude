@@ -288,6 +288,18 @@ class ProductJourneyTests {
             assertThat(line.path("leafTask").asBoolean()).isTrue();
         }
 
+        //     Creating it is also what binds the update to the batch. `export_batch_id` was carried
+        //     unwritten from V009, so the audit could not say which batch had carried which
+        //     approved field change, and the `export_batch_id IS NULL` clause in the export queue
+        //     decided nothing. Two candidates were built from this one update, and it is claimed
+        //     once — a shortfall against what the batch was built from is refused, not absorbed.
+        assertThat(ids(json(get("/api/projects/{projectId}/task-progress/export-queue", projectId)
+                .headers(as(plannerId, "planner", "Journey Planner")))))
+                .describedAs("a claimed update cannot be swept into a second batch")
+                .isEmpty();
+        assertThat(exportStateOf(progressUpdateId)).isEqualTo("in_export_preview");
+        assertThat(exportBatchIdOf(progressUpdateId)).isEqualTo(exportBatchId);
+
         // 13. Approving the batch, then generating the artifact from it.
         JsonNode approvedBatch = json(post(
                 "/api/projects/{projectId}/export-preview/{exportBatchId}/approve", projectId, exportBatchId)
@@ -305,6 +317,14 @@ class ProductJourneyTests {
         assertThat(generated.path("workerResponse").path("artifactSummary").path("exportedFieldCount").asInt())
                 .isEqualTo(2);
         String generatedHash = generated.path("workerResponse").path("exportFileHash").asText();
+
+        //     The artifact exists, so the update it carried has travelled. `export_batch_id` was
+        //     carried unwritten from V009, so the audit could not say which batch carried which
+        //     approved field change; this is that answer. Recorded at generation rather than at
+        //     verification, because verification is the batch's fact and a generated batch nobody
+        //     opens still carried this value.
+        assertThat(exportStateOf(progressUpdateId)).isEqualTo("exported");
+        assertThat(exportBatchIdOf(progressUpdateId)).isEqualTo(exportBatchId);
 
         // 14. Downloading it is the step that had no door. The bytes must be the ones generated,
         //     or the file a planner opens in Microsoft Project is not the one this batch approved.
@@ -331,6 +351,13 @@ class ProductJourneyTests {
                 .content("{\"reason\":\"Opened as a complete schedule.\"}")
                 .headers(as(plannerId, "planner", "Journey Planner")));
         assertThat(verified.path("batch").path("status").asText()).isEqualTo("VERIFIED");
+
+        //     The update it carried is untouched by that. How far the batch got is the batch's own
+        //     status, read through `export_batch_id`, and mirroring it onto the row would be the
+        //     duplication V015 removed. The batch id stays set: which batch carried which field
+        //     change outlives the batch finishing.
+        assertThat(exportStateOf(progressUpdateId)).isEqualTo("exported");
+        assertThat(exportBatchIdOf(progressUpdateId)).isEqualTo(exportBatchId);
 
         // 16. The candidate comes back, bound to the batch whose artifact it was calculated from.
         //     Nothing recalculated it here — this is the downloaded artifact handed straight back —
@@ -433,5 +460,22 @@ class ProductJourneyTests {
         List<UUID> ids = new ArrayList<>();
         array.forEach(node -> ids.add(uuid(node.path("id"))));
         return ids;
+    }
+
+    /**
+     * Read from the column rather than from a response, because no endpoint returns it.
+     *
+     * <p>A claimed update has left every queue by design, so the only place the walk can ask what
+     * became of it is the row itself. That is the fact the audit needs and the reason these two
+     * columns exist.
+     */
+    private static String exportStateOf(UUID progressUpdateId) {
+        return EmbeddedDatabase.jdbcTemplate().queryForObject(
+                "SELECT export_state::text FROM task_progress_updates WHERE id = ?", String.class, progressUpdateId);
+    }
+
+    private static UUID exportBatchIdOf(UUID progressUpdateId) {
+        return EmbeddedDatabase.jdbcTemplate().queryForObject(
+                "SELECT export_batch_id FROM task_progress_updates WHERE id = ?", UUID.class, progressUpdateId);
     }
 }

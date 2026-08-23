@@ -214,9 +214,11 @@ class TaskProgressServiceDatabaseTests extends AbstractDatabaseTest {
     }
 
     /**
-     * Nothing writes {@code export_batch_id} yet, so this sets it by hand. The clause exists now so
-     * the predicate is stated once, in one place, rather than being added later beside a list that
-     * has already started offering the same update twice.
+     * The queue's side of the batch binding, set by hand so this stays a test of the queue.
+     *
+     * <p>What actually writes {@code export_batch_id} is an export preview claiming the updates it
+     * was built from; that is proved end to end in {@link TaskProgressExportBindingTests}. Here the
+     * column is set directly, so a change to the claim cannot quietly take this assertion with it.
      */
     @Test
     void anUpdateAlreadyCarriedByABatchIsNotOfferedAgain() {

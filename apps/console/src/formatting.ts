@@ -45,12 +45,8 @@ export const plannerReviewStateLabels: Record<PlannerReviewState, string> = {
 export const exportStateLabels: Record<ProgressExportState, string> = {
   NOT_ELIGIBLE: "Not export eligible",
   ELIGIBLE: "Export eligible",
-  EXPORT_BLOCKED: "Export blocked",
-  APPROVED_FOR_EXPORT: "Approved for export",
   IN_EXPORT_PREVIEW: "In export preview",
-  ARTIFACT_GENERATED: "Artifact generated",
-  OPENED_IN_MICROSOFT_PROJECT: "Opened in Microsoft Project",
-  VERIFIED: "Verified",
+  EXPORTED: "Exported",
   SUPERSEDED: "Superseded"
 };
 

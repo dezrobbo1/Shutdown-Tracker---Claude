@@ -21,6 +21,7 @@ import com.shutdowntracker.api.exportpreview.ExportPreviewService;
 import com.shutdowntracker.api.exportpreview.JdbcExportPreviewRepository;
 import com.shutdowntracker.api.identity.ProjectRole;
 import com.shutdowntracker.api.support.AbstractDatabaseTest;
+import com.shutdowntracker.api.support.RecordingExportBatchProgressBinding;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -88,7 +89,7 @@ class CandidateScheduleRunServiceDatabaseTests extends AbstractDatabaseTest {
 
         repository = new JdbcCandidateScheduleRunRepository(named);
         candidateService = new ExportCandidateService(exportRepository, auditEventRecorder);
-        previewService = new ExportPreviewService(exportRepository, auditEventRecorder);
+        previewService = new ExportPreviewService(exportRepository, auditEventRecorder, new RecordingExportBatchProgressBinding());
         service = new CandidateScheduleRunService(
                 repository,
                 new LocalCandidateScheduleStorage(

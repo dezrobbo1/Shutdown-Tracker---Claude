@@ -6,6 +6,7 @@ import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
 import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.execution.ExportBatchProgressBinding;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -50,9 +51,24 @@ public class ExportPreviewService {
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
 
-    public ExportPreviewService(ExportPreviewRepository repository, AuditEventRecorder auditEventRecorder) {
+    /**
+     * The execution side of the same transaction.
+     *
+     * <p>An export batch is assembled here, but what it carries is a set of field updates that
+     * {@code execution} owns. Binding them to the batch has to happen in the transaction that
+     * creates it, or a preview could exist that its own updates do not know about — so the
+     * dependency points this way, and {@code execution} does not know export previews exist.
+     */
+    private final ExportBatchProgressBinding carriedUpdates;
+
+    public ExportPreviewService(
+            ExportPreviewRepository repository,
+            AuditEventRecorder auditEventRecorder,
+            ExportBatchProgressBinding carriedUpdates
+    ) {
         this.repository = repository;
         this.auditEventRecorder = auditEventRecorder;
+        this.carriedUpdates = carriedUpdates;
     }
 
     @Transactional
@@ -110,6 +126,11 @@ public class ExportPreviewService {
             );
         }
 
+        // The batch now carries these updates, and they leave the export queue. Done after sealing
+        // so the line set the claim matches against can no longer change under it, and inside this
+        // transaction so a preview cannot exist that its own updates do not point back at.
+        claimCarriedUpdates(requiredProjectId, batch.id());
+
         ExportPreviewDetail detail = getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
         auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
                 requiredProjectId,
@@ -127,6 +148,41 @@ public class ExportPreviewService {
         ));
 
         return detail;
+    }
+
+    /**
+     * Binds the field updates this batch was built from to it, and refuses if any could not be.
+     *
+     * <p>Both numbers come from the sealed line set. A candidate may in principle be sourced from
+     * something other than a task progress update, and one that is has no row here to claim; a line
+     * the batch cannot export does not carry its value anywhere either. Counting the candidates the
+     * caller passed instead would measure the expectation against a different thing from the
+     * result.
+     *
+     * <p>A shortfall means an update was superseded, was already claimed by another batch, or is
+     * only partly carried by this one. Continuing would produce a preview that silently carries
+     * fewer approved changes than it lists, or a row recording that a value travelled when it did
+     * not.
+     */
+    private void claimCarriedUpdates(UUID projectId, UUID exportBatchId) {
+        int expected = carriedUpdates.countClaimableUpdates(exportBatchId);
+        if (expected == 0) {
+            return;
+        }
+
+        // A shortfall, not an inequality: the claim matches only rows this batch's own lines name,
+        // so it can never take more than expected.
+        int claimed = carriedUpdates.claimForExportBatch(projectId, exportBatchId);
+        if (claimed < expected) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export preview could not claim every field update it was built from — expected "
+                            + expected + " and claimed " + claimed + ". An update was superseded, is "
+                            + "already carried by another batch, or has a reviewed value this preview "
+                            + "does not carry: an export batch takes every exportable value on an "
+                            + "update or none of them. Create a fresh export preview."
+            );
+        }
     }
 
     @Transactional(readOnly = true)
@@ -219,6 +275,12 @@ public class ExportPreviewService {
                         "Export batch rejection could not be recorded because the batch is no longer draft preview."
                 ));
 
+        // Approved field work that was never carried anywhere returns to the queue. Without this a
+        // rejected preview would strand it: the queue only offers updates no batch has claimed.
+        // An update superseded while this batch held it is unlinked too, without being made
+        // eligible again — see releaseFromExportBatch.
+        carriedUpdates.releaseFromExportBatch(requiredExportBatchId);
+
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), REJECTED_MESSAGE);
         recordExportBatchAudit(
                 requiredProjectId,
@@ -272,6 +334,14 @@ public class ExportPreviewService {
         } catch (DataIntegrityViolationException exception) {
             throw databaseIntegrityConflict("Export batch generation", exception);
         }
+
+        // The artifact exists, so the values it carries have travelled and the updates are no
+        // longer "in a preview". Recorded here rather than at verification because verification is
+        // the batch's fact, not the row's: a generated batch a planner never opens still carried
+        // these values, and how far the batch itself got is read from its status through
+        // export_batch_id. Their batch id stays set — which batch carried which field change is a
+        // question that outlives the batch finishing.
+        carriedUpdates.markExported(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), GENERATED_MESSAGE);
         recordExportBatchAudit(

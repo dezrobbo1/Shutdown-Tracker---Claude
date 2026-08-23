@@ -13,6 +13,7 @@ import com.shutdowntracker.api.exportpreview.handoff.ExportArtifactHandoffServic
 import com.shutdowntracker.api.exportpreview.handoff.ProjectExportArtifactJobClient;
 import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorage;
 import com.shutdowntracker.api.exportpreview.storage.ExportArtifactStorageLocation;
+import com.shutdowntracker.api.support.RecordingExportBatchProgressBinding;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
 import com.shutdowntracker.projectexport.contract.ProjectExportArtifactGenerationRequest;
@@ -262,7 +263,7 @@ class ExportArtifactHandoffServiceTests {
             AcceptedSourceFileRepository sourceFileRepository
     ) {
         return new ExportArtifactHandoffService(
-                new ExportPreviewService(repository, new CapturingAuditEventRecorder()),
+                new ExportPreviewService(repository, new CapturingAuditEventRecorder(), new RecordingExportBatchProgressBinding()),
                 client,
                 storage,
                 sourceFileRepository
