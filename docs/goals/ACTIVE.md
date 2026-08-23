@@ -71,14 +71,14 @@ Ordered. Each slice is one reviewed outcome on one branch, finished before the n
 A separate backlog, recorded by the repository-wide review in
 [2026-08-22-a-handover-that-had-aged.md](../sessions/2026-08-22-a-handover-that-had-aged.md) and
 restated as unchanged by
-[the entry after it](../sessions/2026-08-22-left-open-and-closed-the-same-hour.md). Items 2 to 9 of
-that list stand; item 1 closed as pull request
-[#23](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/23).
+[the entry after it](../sessions/2026-08-22-left-open-and-closed-the-same-hour.md).
 
-It is referenced rather than copied here, so the two lists cannot drift. **Item 5 of that list was
-Phase 1 slice 3 and is closed** as pull request
-[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27) — the same migration, taken
-once. Items 2 to 4 and 6 to 9 stand.
+**Open: items 2 to 4 and 6 to 9.** Item 1 closed as pull request
+[#23](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/23), and item 5 — which was Phase
+1 slice 3, the same migration tracked once — closed as pull request
+[#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27). The list is referenced rather
+than copied here so the two cannot drift, and the open set is stated once here for the same reason:
+a session picking work from two ranges that disagree can pick something already done.
 
 The items are ordered there by ratio of value to risk, and the first three are free: two
 unreferenced fixture example files, two `@ConditionalOnProperty` spike runners superseded by real
