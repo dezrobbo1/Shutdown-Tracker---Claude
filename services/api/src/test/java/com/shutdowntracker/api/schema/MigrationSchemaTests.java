@@ -13,6 +13,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Until this existed the migrations were only checked by a shell script that inspected
  * the SQL text, so nothing confirmed the schema could actually be created.
+ *
+ * <p>The expected list is read from {@code infra/migrations} rather than written down here. It was
+ * written down, and it fell a migration behind: the assertion then failed because a new migration
+ * existed at all, which is the opposite of what it is for.
  */
 class MigrationSchemaTests extends AbstractDatabaseTest {
 
@@ -23,21 +27,7 @@ class MigrationSchemaTests extends AbstractDatabaseTest {
 
         assertThat(applied)
                 .describedAs("every migration should apply in order")
-                .containsExactly(
-                        "V001__baseline_extensions_and_enums.sql",
-                        "V002__projects_snapshots_and_imports.sql",
-                        "V003__imported_project_entities.sql",
-                        "V004__audit_events.sql",
-                        "V005__approval_and_export_batches.sql",
-                        "V006__critical_watchlists_reporting.sql",
-                        "V007__enforce_export_candidate_integrity.sql",
-                        "V008__users_roles_and_memberships.sql",
-                        "V009__task_execution_and_progress.sql",
-                        "V010__problems_actions_evidence_handover.sql",
-                        "V011__import_profiles_and_operational_categories.sql",
-                        "V012__problem_offline_capture.sql",
-                        "V013__project_resource_links.sql",
-                        "V014__candidate_schedule_runs.sql");
+                .containsExactlyElementsOf(EmbeddedDatabase.migrationFileNames());
     }
 
     @Test

@@ -184,9 +184,9 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
      * replaced or blocked.
      *
      * <p>{@code export_batch_id IS NULL} keeps an update that a batch already carried out of the
-     * list, so the same field change cannot be previewed twice. Nothing writes that column yet, so
-     * today the clause matches every eligible row; it is written here because this is where the
-     * question belongs, and the tests exercise it against a hand-set batch id rather than assuming.
+     * list, so the same field change cannot be previewed twice. {@link #claimForExportBatch} writes
+     * that column when a preview is created and {@link #releaseFromExportBatch} clears it if the
+     * batch is rejected, so the clause now decides membership rather than describing an intention.
      */
     @Override
     public List<TaskProgressUpdateRecord> findExportQueue(UUID projectId) {
@@ -199,6 +199,67 @@ public class JdbcTaskProgressRepository implements TaskProgressRepository {
                  ORDER BY submitted_at
                 """,
                 new MapSqlParameterSource("projectId", projectId), this::map);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Guarded on {@code eligible} and an unset batch id rather than trusting the line set: a row
+     * that has been superseded since the preview was assembled, or already claimed by another
+     * batch, must not be swept into this one. The count the caller compares against the line count
+     * is how that disagreement becomes visible instead of silent.
+     */
+    @Override
+    public int claimForExportBatch(UUID projectId, UUID exportBatchId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE task_progress_updates
+                SET export_state = 'in_export_preview',
+                    export_batch_id = :exportBatchId
+                WHERE project_id = :projectId
+                  AND export_state = 'eligible'
+                  AND export_batch_id IS NULL
+                  AND id IN (
+                      SELECT line.source_entity_id
+                      FROM export_batch_lines line
+                      WHERE line.export_batch_id = :exportBatchId
+                        AND line.source_entity_type = 'task_progress_update'
+                  )
+                """,
+                new MapSqlParameterSource()
+                        .addValue("projectId", projectId)
+                        .addValue("exportBatchId", exportBatchId));
+    }
+
+    @Override
+    public int releaseFromExportBatch(UUID exportBatchId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE task_progress_updates
+                SET export_state = 'eligible',
+                    export_batch_id = NULL
+                WHERE export_batch_id = :exportBatchId
+                  AND export_state = 'in_export_preview'
+                """,
+                new MapSqlParameterSource("exportBatchId", exportBatchId));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code export_batch_id} is deliberately left set. It is the answer to which batch carried
+     * this update, and that question outlives the batch reaching its end.
+     */
+    @Override
+    public int markExported(UUID exportBatchId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE task_progress_updates
+                SET export_state = 'exported'
+                WHERE export_batch_id = :exportBatchId
+                  AND export_state = 'in_export_preview'
+                """,
+                new MapSqlParameterSource("exportBatchId", exportBatchId));
     }
 
     @Override

@@ -553,15 +553,21 @@ export type PlannerReviewState =
   | "PLANNER_APPROVED"
   | "PLANNER_REJECTED";
 
+/**
+ * Whether an approved value may travel to Microsoft Project, and whether it has.
+ *
+ * Five states, not nine. The four removed in V015 either mirrored the export batch's own status or
+ * duplicated a fact another field already owned, and none was ever written. How far the carrying
+ * batch got is the batch's status, reached through its id — deliberately not mirrored here.
+ *
+ * `EXPORTED` means a planner verified the batch that carried this value: the generated artifact
+ * opened in Microsoft Project as expected. It does not mean anything was recalculated or adopted.
+ */
 export type ProgressExportState =
   | "NOT_ELIGIBLE"
   | "ELIGIBLE"
-  | "EXPORT_BLOCKED"
-  | "APPROVED_FOR_EXPORT"
   | "IN_EXPORT_PREVIEW"
-  | "ARTIFACT_GENERATED"
-  | "OPENED_IN_MICROSOFT_PROJECT"
-  | "VERIFIED"
+  | "EXPORTED"
   | "SUPERSEDED";
 
 /**

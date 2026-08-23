@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface TaskProgressRepository {
+public interface TaskProgressRepository extends ExportBatchProgressBinding {
 
     TaskProgressUpdateRecord submit(UUID projectId, UUID submittedByUserId, TaskProgressSubmitRequest request);
 

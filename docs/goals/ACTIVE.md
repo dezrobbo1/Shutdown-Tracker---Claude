@@ -7,8 +7,12 @@ slices 1, 2 and 4 are merged — slice 1 as pull request
 [#12](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/12), slice 2 as the journey test,
 and slice 4 early as part of Phase 0.
 
-What remains is **Phase 1 slices 3 and 5, and all of Phase 2**, listed under Remaining work
-below.
+Slice 3 is **finished on `feat/batch-says-what-it-carried` and not yet merged**; see
+[the session entry](../sessions/2026-08-23-the-batch-says-what-it-carried.md). Update this line with
+its pull request number when it lands, rather than leaving the document to describe a younger
+repository again.
+
+What remains is **Phase 1 slice 5, and all of Phase 2**, listed under Remaining work below.
 
 This document was itself out of date between 2026-08-21 and 2026-08-22. Ten pull requests — #14
 through #24 — merged without it being updated, so it went on describing Phase 0 as upcoming work
@@ -40,15 +44,15 @@ Ordered. Each slice is one reviewed outcome on one branch, finished before the n
 
 ### Phase 1 — A working flow path
 
-- **Slice 3 — the batch says what it carried.** `export_state` and `export_batch_id` advance
-  through the batch lifecycle, so the audit can answer which batch carried which field update.
+- ~~**Slice 3 — the batch says what it carried.**~~ **Done, awaiting review.** `V015` retires the
+  six `ProgressExportState` values nothing ever wrote, leaving
+  `not_eligible -> eligible -> in_export_preview -> exported` plus `superseded`, and an export
+  preview now claims the updates it was built from, releases them if it is rejected, and marks them
+  exported when it is verified. This was also item 5 of the hygiene track below; it must not be
+  taken again there.
 
-  This is the same change as item 5 of the hygiene track below, and must not be taken twice.
-  `TaskProgressService` assigns only `not_eligible` and `eligible`, and `superseded` is written as
-  raw SQL, so six of the nine `ProgressExportState` values are never written at all. Retiring the
-  dead values and making the live ones advance are one migration. PostgreSQL cannot drop an enum
-  value by edit, and the partial index in `V009` is built on a value nothing writes, so this slice
-  needs a new migration and therefore the Docker Compose migration job.
+  The Docker Compose migration job still has to confirm `V015` — this machine has no Docker, so the
+  migration sequence and the export-integrity suite were driven against a local PostgreSQL instead.
 - **Slice 5 — the field evidence gate.** `CAPTURE_EVIDENCE` is never checked in the field app; the
   control is offered and the server refuses it. The capability exists in `packages/api-client` and
   is honoured by the console; `apps/mobile-pwa` does not reference capabilities at all.
@@ -153,9 +157,10 @@ bash scripts/db/validate-migrations.sh
 `mvn test` and the frontend checks need no Docker. `validate-migrations.sh` does, and states so when
 it is missing. Report any check that could not be run rather than implying it passed.
 
-The counts to expect on a green tree are **523 backend** — 448 in `services/api`, 75 in
+The counts to expect on a green tree are **531 backend** — 456 in `services/api`, 75 in
 `services/project-worker` — and **144 frontend**, being 73 console, 43 mobile-pwa and 28 api-client.
-A number below these means a test was lost, not that the suite got faster.
+A number below these means a test was lost, not that the suite got faster. The backend figure was
+523 when this document was last restated, before the journey test added two and slice 3 added six.
 
 Verify GitHub Actions on the branch head. A previously green run is not evidence for a later commit.
 

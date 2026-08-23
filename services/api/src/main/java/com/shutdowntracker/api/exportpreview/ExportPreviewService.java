@@ -6,6 +6,7 @@ import com.shutdowntracker.api.audit.AuditEventCategory;
 import com.shutdowntracker.api.audit.AuditEventCreateRequest;
 import com.shutdowntracker.api.audit.AuditEventRecorder;
 import com.shutdowntracker.api.audit.AuditEventTypes;
+import com.shutdowntracker.api.execution.ExportBatchProgressBinding;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -46,13 +47,30 @@ public class ExportPreviewService {
             + "and cannot progress. Create a fresh export preview under the current policy.";
     private static final String UNSEALED_BATCH_CONFLICT = "This export preview does not have a sealed line set "
             + "and cannot progress. Create a fresh export preview.";
+    /** The one candidate source that has a progress row to bind to the batch. */
+    private static final String TASK_PROGRESS_UPDATE_SOURCE = "task_progress_update";
 
     private final ExportPreviewRepository repository;
     private final AuditEventRecorder auditEventRecorder;
 
-    public ExportPreviewService(ExportPreviewRepository repository, AuditEventRecorder auditEventRecorder) {
+    /**
+     * The execution side of the same transaction.
+     *
+     * <p>An export batch is assembled here, but what it carries is a set of field updates that
+     * {@code execution} owns. Binding them to the batch has to happen in the transaction that
+     * creates it, or a preview could exist that its own updates do not know about — so the
+     * dependency points this way, and {@code execution} does not know export previews exist.
+     */
+    private final ExportBatchProgressBinding carriedUpdates;
+
+    public ExportPreviewService(
+            ExportPreviewRepository repository,
+            AuditEventRecorder auditEventRecorder,
+            ExportBatchProgressBinding carriedUpdates
+    ) {
         this.repository = repository;
         this.auditEventRecorder = auditEventRecorder;
+        this.carriedUpdates = carriedUpdates;
     }
 
     @Transactional
@@ -110,6 +128,11 @@ public class ExportPreviewService {
             );
         }
 
+        // The batch now carries these updates, and they leave the export queue. Done after sealing
+        // so the line set the claim matches against can no longer change under it, and inside this
+        // transaction so a preview cannot exist that its own updates do not point back at.
+        claimCarriedUpdates(requiredProjectId, batch.id(), candidates);
+
         ExportPreviewDetail detail = getPreview(requiredProjectId, batch.id(), CREATED_MESSAGE);
         auditEventRecorder.record(AuditEventCreateRequest.systemEvent(
                 requiredProjectId,
@@ -127,6 +150,41 @@ public class ExportPreviewService {
         ));
 
         return detail;
+    }
+
+    /**
+     * Binds the field updates this batch was built from to it, and refuses if any could not be.
+     *
+     * <p>Only candidates sourced from a task progress update are counted. A candidate may in
+     * principle come from elsewhere, and one that does has no row here to claim — so the
+     * expectation is derived from the candidates rather than from the line count, which would
+     * otherwise report a mismatch that is not one.
+     *
+     * <p>A shortfall means an update was superseded or claimed by another batch between the
+     * candidates being validated and the lines being sealed. Continuing would produce a preview
+     * that silently carries fewer approved changes than it lists.
+     */
+    private void claimCarriedUpdates(UUID projectId, UUID exportBatchId, List<ExportCandidateRecord> candidates) {
+        long expected = candidates.stream()
+                .filter(candidate -> TASK_PROGRESS_UPDATE_SOURCE.equals(candidate.sourceEntityType()))
+                .map(ExportCandidateRecord::sourceEntityId)
+                .distinct()
+                .count();
+        if (expected == 0) {
+            return;
+        }
+
+        // A shortfall, not an inequality: the claim matches only rows this batch's own lines name,
+        // and the lines were built from these candidates, so it can never take more than expected.
+        int claimed = carriedUpdates.claimForExportBatch(projectId, exportBatchId);
+        if (claimed < expected) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Export preview could not claim every field update it was built from — expected "
+                            + expected + " and claimed " + claimed + ". An update was superseded or "
+                            + "already carried by another batch. Create a fresh export preview."
+            );
+        }
     }
 
     @Transactional(readOnly = true)
@@ -218,6 +276,10 @@ public class ExportPreviewService {
                         HttpStatus.CONFLICT,
                         "Export batch rejection could not be recorded because the batch is no longer draft preview."
                 ));
+
+        // Approved field work that was never carried anywhere returns to the queue. Without this a
+        // rejected preview would strand it: the queue only offers updates no batch has claimed.
+        carriedUpdates.releaseFromExportBatch(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), REJECTED_MESSAGE);
         recordExportBatchAudit(
@@ -379,6 +441,11 @@ public class ExportPreviewService {
                         HttpStatus.CONFLICT,
                         "Export batch verification could not be recorded because the batch is no longer opened in Microsoft Project."
                 ));
+
+        // The batch's values reached Microsoft Project and a planner confirmed the artifact opened
+        // as expected, so the updates it carried are terminal. Their batch id stays set: which
+        // batch carried which field change is a question that outlives the batch finishing.
+        carriedUpdates.markExported(requiredExportBatchId);
 
         ExportPreviewDetail detail = getPreview(requiredProjectId, updated.id(), VERIFIED_MESSAGE);
         recordExportBatchAudit(

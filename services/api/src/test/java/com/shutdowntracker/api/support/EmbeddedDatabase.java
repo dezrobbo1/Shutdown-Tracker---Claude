@@ -5,6 +5,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import javax.sql.DataSource;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.flywaydb.core.Flyway;
@@ -136,6 +137,25 @@ public final class EmbeddedDatabase {
             return;
         }
         template.execute("TRUNCATE TABLE " + String.join(", ", tableNames) + " RESTART IDENTITY CASCADE");
+    }
+
+    /**
+     * The migration filenames on disk, in the order Flyway will apply them.
+     *
+     * <p>Derived rather than transcribed. The list this replaces was hand-maintained and named
+     * fourteen migrations while {@code infra/migrations} held fifteen, so the check that should
+     * have said "the new migration applies" said "a migration appeared" instead — the same failure
+     * the repository already fixed once in the migration validation script.
+     */
+    public static List<String> migrationFileNames() {
+        try (Stream<Path> files = Files.list(Path.of(migrationsDirectory()))) {
+            return files.map(file -> file.getFileName().toString())
+                    .filter(name -> name.startsWith("V") && name.endsWith(".sql"))
+                    .sorted()
+                    .toList();
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + migrationsDirectory(), e);
+        }
     }
 
     /** Table names created by the migrations, excluding Flyway's own bookkeeping table. */
