@@ -16,7 +16,13 @@ deferred elsewhere for its own reasons; and any server change — the server was
 `fieldSession.ts` has exported `fieldSessionAllows` for some time, and `App.tsx` already gated three
 controls with it — `SUBMIT_TASK_PROGRESS` on progress reporting, `SUBMIT_CRITICAL_UPDATE` on the
 Critical Update form, and `RAISE_PROBLEM` on raising a problem. What was true is the sentence before
-it: `CAPTURE_EVIDENCE` was never checked, and it was the only field capability left unchecked.
+it: `CAPTURE_EVIDENCE` was never checked, and it was the last of the four.
+
+Four is the whole list, and that was checked rather than assumed. The field app has exactly four
+write surfaces — progress, Critical Update, problem, evidence — and one more capability shows up on
+it only as a read: handover notes are counted on Today as "waiting on you", with no acknowledge
+control and no call to `RECORD_HANDOVER`. Nothing there needs a gate, so nothing there is missing
+one.
 
 This is not the first time — `ACTIVE.md` records its own drift through August, and
 [the entry that restated it](2026-08-22-a-goal-that-described-a-younger-repository.md) drew the
