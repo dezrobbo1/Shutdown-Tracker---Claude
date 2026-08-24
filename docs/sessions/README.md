@@ -112,3 +112,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-22 — One test that walks the whole thing](2026-08-22-one-test-that-walks-the-whole-thing.md)
 - [2026-08-23 — The batch says what it carried](2026-08-23-the-batch-says-what-it-carried.md)
 - [2026-08-23 — Running it on one machine](2026-08-23-running-it-on-one-machine.md)
+- [2026-08-24 — A control the server would refuse](2026-08-24-a-control-the-server-would-refuse.md)
