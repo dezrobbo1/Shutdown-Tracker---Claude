@@ -21,7 +21,7 @@ nobody has made yet rather than a defect:
 | Absent | Present instead |
 |---|---|
 | Spring Security — no dependency at all | `TrustedHeaderActorResolver`; authorization *is* enforced from stored membership |
-| Object storage | `LocalFileStore` only, backing four configured roots |
+| Object storage | Four configured roots, two local implementations: `LocalFileStore` for evidence, export artifacts and candidate schedules, and a separate `LocalSourceFileStorage` — its own hashing and its own filesystem writes — for source uploads |
 | Job queue | Synchronous HTTP to the worker, shared secret, disabled by default |
 | Service worker | A manifest and an IndexedDB mutation queue, and nothing that caches the shell |
 | Lint, format, coverage, SBOM, SAST | Four CI jobs, none of them a quality gate |
