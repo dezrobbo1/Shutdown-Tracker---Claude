@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isServerPath, strategyFor } from "./serviceWorkerPolicy";
+import { isServerPath, strategyFor, supersededAssetPaths } from "./serviceWorkerPolicy";
 import type { RequestFacts } from "./serviceWorkerPolicy";
 
 const origin = "https://dez.tsenior.uk";
@@ -100,5 +100,72 @@ describe("isServerPath", () => {
   it("does not match a path that merely starts with the same letters", () => {
     expect(isServerPath("/apiary")).toBe(false);
     expect(isServerPath("/mobile/api-client.js")).toBe(false);
+  });
+});
+
+
+/**
+ * What a release leaves behind.
+ *
+ * The bundles are the storage: a shell is a few hundred kilobytes, and nothing was removing the
+ * previous one. The risk in fixing that is deleting too much — the cache also holds the document
+ * and the unhashed files copied from `public/`, none of which appear in a build's shell manifest
+ * and all of which are still current.
+ */
+describe("superseded bundles are dropped, and nothing else is", () => {
+  const base = "/mobile/";
+  const shell = ["/mobile/", "/mobile/assets/index-NEW11111.js", "/mobile/assets/index-NEW22222.css"];
+
+  it("drops the bundles a previous release cached", () => {
+    const stored = [
+      "/mobile/",
+      "/mobile/assets/index-OLD11111.js",
+      "/mobile/assets/index-OLD22222.css",
+      "/mobile/assets/index-NEW11111.js",
+      "/mobile/assets/index-NEW22222.css"
+    ];
+
+    expect(supersededAssetPaths(stored, shell, base)).toEqual([
+      "/mobile/assets/index-OLD11111.js",
+      "/mobile/assets/index-OLD22222.css"
+    ]);
+  });
+
+  /**
+   * The document is the entry the offline start depends on, and it is not in the manifest under
+   * its own URL — the build lists it as the empty string, which becomes the base. Deleting it
+   * would defeat the whole worker on the next release.
+   */
+  it("never drops the document", () => {
+    expect(supersededAssetPaths(["/mobile/"], shell, base)).toEqual([]);
+    expect(supersededAssetPaths(["/mobile/"], ["/mobile/assets/index-NEW11111.js"], base)).toEqual([]);
+  });
+
+  /**
+   * `pwa.svg` and the manifest are copied verbatim by Vite, carry no content hash, and are cached
+   * at runtime rather than at install — so they are absent from every shell manifest. A rule that
+   * kept only what the manifest lists would delete them on every single release.
+   */
+  it("never drops the unhashed files copied from public/", () => {
+    const stored = ["/mobile/pwa.svg", "/mobile/manifest.webmanifest"];
+
+    expect(supersededAssetPaths(stored, shell, base)).toEqual([]);
+  });
+
+  it("leaves another app's assets on this origin alone", () => {
+    // The console's bundles sit at /assets/ and are not this worker's to delete. Its scope should
+    // never have put them here, and the rule does not rely on that.
+    expect(supersededAssetPaths(["/assets/index-CONSOLE1.js"], shell, base)).toEqual([]);
+  });
+
+  it("holds at the development base too, where every path sits under it", () => {
+    const devShell = ["/", "/assets/index-NEW11111.js"];
+    const stored = ["/", "/assets/index-OLD11111.js", "/assets/index-NEW11111.js", "/pwa.svg"];
+
+    expect(supersededAssetPaths(stored, devShell, "/")).toEqual(["/assets/index-OLD11111.js"]);
+  });
+
+  it("drops nothing when the release is the one already cached", () => {
+    expect(supersededAssetPaths(shell, shell, base)).toEqual([]);
   });
 });

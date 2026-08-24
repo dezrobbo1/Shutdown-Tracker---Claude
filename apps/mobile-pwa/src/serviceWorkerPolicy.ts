@@ -96,3 +96,28 @@ export function strategyFor(request: RequestFacts, origin: string, base: string)
 
   return "cache-first";
 }
+
+/**
+ * The cached asset entries a new release has superseded.
+ *
+ * Every bundle filename carries a content hash, so a new release asks for URLs the cache has
+ * never seen and the previous ones are never read again. That makes them harmless but not free:
+ * nothing removed them, and the cache name only changes when these *rules* change, not when the
+ * app does. A device that takes twenty releases would hold twenty bundles, and the quota eviction
+ * that eventually follows takes the whole origin's storage with it — including the shell this
+ * worker exists to keep. So each activation drops what the release it is activating replaced.
+ *
+ * Only `assets/` is considered. Two other things live in this cache and are current at every
+ * release: the document itself, and the files Vite copies verbatim from `public/` — `pwa.svg`
+ * and the manifest — which carry no hash, are not in the build's shell manifest, and would be
+ * deleted on every release by a rule that simply kept the manifest.
+ */
+export function supersededAssetPaths(
+  storedPaths: readonly string[],
+  shellPaths: readonly string[],
+  base: string
+): string[] {
+  const current = new Set(shellPaths);
+  const assetPrefix = `${base}assets/`;
+  return storedPaths.filter((path) => path.startsWith(assetPrefix) && !current.has(path));
+}

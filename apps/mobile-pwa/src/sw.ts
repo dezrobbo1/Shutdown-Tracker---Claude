@@ -1,4 +1,4 @@
-import { strategyFor } from "./serviceWorkerPolicy";
+import { strategyFor, supersededAssetPaths } from "./serviceWorkerPolicy";
 
 /**
  * The field app's service worker.
@@ -74,6 +74,9 @@ self.addEventListener("activate", (event) => {
       // Drop anything a previous version of these rules left behind.
       const names = await caches.keys();
       await Promise.all(names.filter((name) => name !== cacheName).map((name) => caches.delete(name)));
+      // And, inside the cache these rules own, the bundles this release replaced. Install has
+      // already added the new ones, so what is superseded is known exactly here.
+      await dropSupersededAssets();
       await self.clients.claim();
     })()
   );
@@ -140,9 +143,52 @@ async function cacheFirst(request: Request): Promise<Response> {
   return response;
 }
 
+/**
+ * Stores a response, and never lets a failed store become a failed request.
+ *
+ * The Cache API rejects when storage is unavailable, restricted, or over quota, and both callers
+ * await it *after* the network has already answered. Left to throw, that rejection would be
+ * caught by `networkFirst` as though the request had failed — serving a stale document, or the
+ * "no offline copy" notice, to somebody who has a connection — and would reject outright in
+ * `cacheFirst`, breaking an asset load on a perfectly online page. Caching here is an
+ * optimisation for the next load; it is not part of answering this one.
+ */
 async function put(request: Request, response: Response): Promise<void> {
-  const cache = await caches.open(cacheName);
-  await cache.put(request, response);
+  try {
+    const cache = await caches.open(cacheName);
+    await cache.put(request, response);
+  } catch {
+    // Nothing to recover, and nothing a field user could act on: the response they asked for is
+    // already on its way to the page. The next load simply fetches it again.
+  }
+}
+
+/**
+ * Removes the content-hashed bundles that earlier releases left in this cache.
+ *
+ * Which entries those are is decided in `serviceWorkerPolicy.ts` with the rest of the caching
+ * rules, and asserted there.
+ */
+async function dropSupersededAssets(): Promise<void> {
+  try {
+    const cache = await caches.open(cacheName);
+    const stored = await cache.keys();
+    const superseded = new Set(
+      supersededAssetPaths(
+        stored.map((request) => new URL(request.url).pathname),
+        SHELL_ASSETS.map((asset) => base + asset),
+        base
+      )
+    );
+    await Promise.all(
+      stored
+        .filter((request) => superseded.has(new URL(request.url).pathname))
+        .map((request) => cache.delete(request))
+    );
+  } catch {
+    // A cache that cannot be read or written is not a reason to fail activation. The worker still
+    // serves what it has, which is the behaviour this whole file exists for.
+  }
 }
 
 function offlineShellMissing(): Response {
