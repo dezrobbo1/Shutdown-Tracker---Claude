@@ -40,6 +40,35 @@ export type RequestFacts = {
 /** Paths owned by the server. Never cached, at any base, under any strategy. */
 const serverPathPrefixes = ["/api/", "/actuator/"] as const;
 
+/**
+ * The caches this worker owns, and the one it is currently using.
+ *
+ * The version is bumped when these rules change, not when the app does. The app does not need
+ * it: every bundle filename carries a content hash, so a new build asks for URLs the cache has
+ * never seen. It exists so a change to *what* we cache can discard what an older worker stored
+ * under the old rules.
+ *
+ * The prefix is what makes that discarding safe. This origin serves the Master Console from `/`
+ * as well, and anything else it may grow later; a sweep of every cache name that is not ours
+ * would delete their storage from inside the field app's activation.
+ */
+export const shellCachePrefix = "shutdown-tracker-field-shell-";
+export const shellCacheName = `${shellCachePrefix}v1`;
+
+/** The caches of this app left by an older version of these rules. Never anybody else's. */
+export function supersededCacheNames(existingNames: readonly string[]): string[] {
+  return existingNames.filter((name) => name.startsWith(shellCachePrefix) && name !== shellCacheName);
+}
+
+/**
+ * Where the content-hashed build output lives, relative to the app's base.
+ *
+ * Cache-first is safe for exactly these files and no others, because their name changes whenever
+ * their bytes do. It is also exactly the set that activation prunes, and those two rules have to
+ * agree: cached forever and never cleaned is the combination that strands a file.
+ */
+const hashedAssetDirectory = "assets/";
+
 export function isServerPath(pathname: string): boolean {
   return serverPathPrefixes.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix));
 }
@@ -94,7 +123,16 @@ export function strategyFor(request: RequestFacts, origin: string, base: string)
     return "pass-through";
   }
 
-  return "cache-first";
+  if (url.pathname.startsWith(base + hashedAssetDirectory)) {
+    return "cache-first";
+  }
+
+  // Everything else under the base is a file Vite copied verbatim from `public/` — the manifest
+  // and the icon. They carry no hash, so their URL does not change when a release changes their
+  // bytes, and cache-first would serve the old ones for the life of the installation. Network
+  // first gives them the document's treatment: current when there is a connection, and the last
+  // copy when there is not.
+  return "network-first";
 }
 
 /**
@@ -118,6 +156,6 @@ export function supersededAssetPaths(
   base: string
 ): string[] {
   const current = new Set(shellPaths);
-  const assetPrefix = `${base}assets/`;
+  const assetPrefix = base + hashedAssetDirectory;
   return storedPaths.filter((path) => path.startsWith(assetPrefix) && !current.has(path));
 }

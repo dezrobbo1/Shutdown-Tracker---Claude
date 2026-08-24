@@ -1,4 +1,9 @@
-import { strategyFor, supersededAssetPaths } from "./serviceWorkerPolicy";
+import {
+  shellCacheName,
+  strategyFor,
+  supersededAssetPaths,
+  supersededCacheNames
+} from "./serviceWorkerPolicy";
 
 /**
  * The field app's service worker.
@@ -40,15 +45,6 @@ declare const self: {
  */
 declare const SHELL_ASSETS: readonly string[];
 
-/**
- * Bumped when the caching rules change, not when the app does.
- *
- * The app does not need it: every asset filename carries a content hash, so a new build asks for
- * URLs the cache has never seen and gets them from the network. This exists so that a change to
- * what we cache can discard what an older worker stored under the old rules.
- */
-const cacheName = "shutdown-tracker-field-shell-v1";
-
 /** The scope path the worker was registered at — `/mobile/` in deployment, `/` in development. */
 const base = new URL(self.registration.scope).pathname;
 
@@ -61,7 +57,7 @@ self.addEventListener("install", (event) => {
   // through the gate is enough.
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(cacheName);
+      const cache = await caches.open(shellCacheName);
       await cache.addAll(SHELL_ASSETS.map((asset) => base + asset));
       await self.skipWaiting();
     })()
@@ -71,9 +67,11 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      // Drop anything a previous version of these rules left behind.
+      // Drop what a previous version of these rules left behind — and only ours. The console is
+      // served from `/` on this same origin, so a sweep of every name that is not this one would
+      // delete another application's storage from inside the field app's activation.
       const names = await caches.keys();
-      await Promise.all(names.filter((name) => name !== cacheName).map((name) => caches.delete(name)));
+      await Promise.all(supersededCacheNames(names).map((name) => caches.delete(name)));
       // And, inside the cache these rules own, the bundles this release replaced. Install has
       // already added the new ones, so what is superseded is known exactly here.
       await dropSupersededAssets();
@@ -155,7 +153,7 @@ async function cacheFirst(request: Request): Promise<Response> {
  */
 async function put(request: Request, response: Response): Promise<void> {
   try {
-    const cache = await caches.open(cacheName);
+    const cache = await caches.open(shellCacheName);
     await cache.put(request, response);
   } catch {
     // Nothing to recover, and nothing a field user could act on: the response they asked for is
@@ -171,7 +169,7 @@ async function put(request: Request, response: Response): Promise<void> {
  */
 async function dropSupersededAssets(): Promise<void> {
   try {
-    const cache = await caches.open(cacheName);
+    const cache = await caches.open(shellCacheName);
     const stored = await cache.keys();
     const superseded = new Set(
       supersededAssetPaths(

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isServerPath, strategyFor, supersededAssetPaths } from "./serviceWorkerPolicy";
+import {
+  isServerPath,
+  shellCacheName,
+  strategyFor,
+  supersededAssetPaths,
+  supersededCacheNames
+} from "./serviceWorkerPolicy";
 import type { RequestFacts } from "./serviceWorkerPolicy";
 
 const origin = "https://dez.tsenior.uk";
@@ -25,7 +31,17 @@ describe("deployed under /mobile/", () => {
   it("serves hashed assets cache first, because their name changes when their bytes do", () => {
     expect(strategyFor(get(`${origin}/mobile/assets/index-Bx3w97wr.js`), origin, base)).toBe("cache-first");
     expect(strategyFor(get(`${origin}/mobile/assets/index-VJOn1hSj.css`), origin, base)).toBe("cache-first");
-    expect(strategyFor(get(`${origin}/mobile/pwa.svg`), origin, base)).toBe("cache-first");
+  });
+
+  /**
+   * The icon and the manifest are copied verbatim from `public/` and carry no hash, so their URL
+   * does not change when a release changes their bytes. Cache-first would serve the originals for
+   * the life of the installation — there is no second URL to ask for and nothing prunes them.
+   * They get the document's treatment instead: current online, last copy offline.
+   */
+  it("revalidates the unhashed files, which have no other way to change", () => {
+    expect(strategyFor(get(`${origin}/mobile/pwa.svg`), origin, base)).toBe("network-first");
+    expect(strategyFor(get(`${origin}/mobile/manifest.webmanifest`), origin, base)).toBe("network-first");
   });
 
   it("never caches an API read", () => {
@@ -167,5 +183,31 @@ describe("superseded bundles are dropped, and nothing else is", () => {
 
   it("drops nothing when the release is the one already cached", () => {
     expect(supersededAssetPaths(shell, shell, base)).toEqual([]);
+  });
+});
+
+
+/**
+ * Whose caches this worker may delete.
+ *
+ * The sweep exists so that changing these rules can discard what was stored under the old ones.
+ * It runs on an origin that also serves the Master Console from `/`, so its reach is the point:
+ * deleting by "every name that is not mine" would take another application's storage with it.
+ */
+describe("activation clears this app's old caches and nobody else's", () => {
+  it("drops earlier versions of these rules", () => {
+    const existing = ["shutdown-tracker-field-shell-v0", shellCacheName];
+
+    expect(supersededCacheNames(existing)).toEqual(["shutdown-tracker-field-shell-v0"]);
+  });
+
+  it("keeps the cache currently in use", () => {
+    expect(supersededCacheNames([shellCacheName])).toEqual([]);
+  });
+
+  it("leaves caches belonging to anything else on this origin alone", () => {
+    const existing = ["shutdown-tracker-console-shell-v1", "workbox-precache-v2", "some-other-app"];
+
+    expect(supersededCacheNames(existing)).toEqual([]);
   });
 });
