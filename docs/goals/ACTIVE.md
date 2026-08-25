@@ -172,7 +172,7 @@ bash scripts/db/validate-migrations.sh
 it is missing. Report any check that could not be run rather than implying it passed.
 
 The counts to expect on a green tree are **538 backend** — 463 in `services/api`, 75 in
-`services/project-worker` — and **158 frontend**, being 81 console, 49 mobile-pwa and 28 api-client.
+`services/project-worker` — and **159 frontend**, being 82 console, 49 mobile-pwa and 28 api-client.
 A number below these means a test was lost, not that the suite got faster. The backend figure was
 535 before the trial added two database tests for the Project fields and one for the seeded
 administrator, and the console figure was 73 before the trial added the resource-group and

@@ -77,7 +77,7 @@ mirrors diverging, and it caught the change in both.
   new: `ImportReviewProjectFieldsDatabaseTests`, which persists a parsed schedule to a real
   PostgreSQL and reads duration and resource group back out through `->>`, and one asserting the
   seeded administrator exists.
-- `npm test` — **158 passing**: 81 console, 49 mobile-pwa, 28 api-client. Eight are new, covering
+- `npm test` — **159 passing**: 82 console, 49 mobile-pwa, 28 api-client. Nine are new, covering
   group indexing (several resources of one group collapsing to one, several distinct groups sorted,
   a resource matched only by external uid, ungrouped and unassigned tasks contributing nothing), the
   filter options, and the two column-legend affordances.
@@ -90,9 +90,15 @@ mirrors diverging, and it caught the change in both.
 migration was added, and `MigrationSchemaTests` applies all fifteen through Flyway against embedded
 PostgreSQL in the Maven run.
 
-**Not done:** the trial itself. Nothing here was driven through a browser. The chain was walked by
-hand on 2026-08-21 as seeded identities over HTTP, and that walk is not evidence for this one: it
-predates both the widened task section and the single-actor capabilities.
+**Driven through a browser, on the review deployment.** Headless Chromium against
+`http://127.0.0.1` after deploying this branch: the console reports itself as *Review Administrator
+· Administrator*; all ten columns render against the real 465-task schedule; the resource-group
+filter offers the schedule's actual crews (SRG TENDER, W5E1, WCG-VEOLIA and seven more) and narrows
+465 leaf tasks to 105; no page errors, no failed requests.
+
+**Still not done:** the round trip itself. Nothing was imported, reviewed, exported or returned
+through the interface in this session — only the task section was exercised. The 2026-08-21 walk is
+not evidence for it: it predates both the widened task section and the single-actor capabilities.
 
 ## Corrections
 
@@ -118,6 +124,24 @@ review progress. Nobody could have walked the trial on it.
 An administrator is now seeded, deliberately as a fifth identity rather than by widening the
 planner's, so the single-actor trial and the four-eyes journey can both be walked on one deployment
 without either pretending to be the other.
+
+## Found by deploying and looking at it
+
+Two defects that only a browser against real data would have shown, both in the surface this trial
+is driven from.
+
+**The three columns that matter were off-screen.** The zone splits its width evenly between the task
+list and the progress panel, which was fine for a four-column table and wrong for a ten-column one:
+the table clipped at *Planned start*, so actual start, actual finish and percent — the writable
+three, the entire point of the split — were reachable only by horizontal scrolling. The task zone
+now gives the list three quarters of the width and the columns are sized to fit inside it.
+
+**The count lied.** The chip beside the heading reported every matching task while the table rendered
+at most two hundred of them, so the review schedule showed *"465 shown"* above 200 rows. A
+coordinator scrolling to the end had no way to know the task they wanted had been cut off. It now
+reads "200 of 465" and the list says so in words. The cap itself is unchanged and defensible; what
+was not defensible was leaving it silent — and this is exactly the failure mode `AGENTS.md` names,
+a surface that looks complete because nothing says otherwise.
 
 ## Left open
 

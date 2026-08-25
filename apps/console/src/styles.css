@@ -481,10 +481,22 @@ button {
    how somebody comes to type over a planned date and expect it to mean something. */
 .review-row.task-row {
   grid-template-columns:
-    minmax(90px, 0.6fr) minmax(200px, 1.8fr) minmax(80px, 0.5fr) minmax(120px, 0.9fr)
-    minmax(130px, 1fr) minmax(130px, 1fr)
-    minmax(130px, 1fr) minmax(130px, 1fr) minmax(80px, 0.5fr)
-    minmax(90px, 0.6fr);
+    minmax(58px, 0.5fr) minmax(132px, 2fr) minmax(80px, 0.5fr) minmax(88px, 0.7fr)
+    minmax(92px, 0.8fr) minmax(92px, 0.8fr)
+    minmax(92px, 0.8fr) minmax(92px, 0.8fr) minmax(80px, 0.5fr)
+    minmax(80px, 0.5fr);
+  gap: 8px;
+  padding: 0 10px;
+}
+
+/* Headers are uppercased and tracked out, so they run wider than the values beneath them and were
+   colliding with the next column. Wrapping beats truncating here: a clipped "PERCENT" and a clipped
+   "PLANNED FINISH" look identical at a glance. */
+.review-row.task-row.review-head span {
+  line-height: 1.15;
+  /* Wrap between words, never inside one: a header reading "DURATIO N" is worse than a wrapped one. */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .review-row.task-row .reported-cell {
@@ -505,7 +517,21 @@ button {
 }
 
 .task-table .review-row.task-row {
-  min-width: 1180px;
+  min-width: 986px;
+}
+
+/* The task section is the surface this console is driven from, so its list takes the room and the
+   progress panel gets what is left. At the default it used to be an even split, which pushed the
+   three writable columns off the right edge — the columns the whole table exists to distinguish
+   were the ones you could not see without scrolling. */
+.zone-grid.task-zone {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .zone-grid.task-zone {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* An ineligible export line stays visible. Hiding it would let a planner assume
