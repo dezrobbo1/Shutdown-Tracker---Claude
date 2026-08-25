@@ -22,7 +22,7 @@ import {
   newestAcceptedSnapshot
 } from "./useSnapshotTasks";
 import { describeUploadOutcome } from "./zones/ImportReviewZone";
-import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
+import { taskCountLabel, toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
 import {
   canApprove,
@@ -803,6 +803,18 @@ describe("every zone renders", () => {
 
     expect(html).toContain("never written back");
     expect(html).toContain("the only values an export carries");
+  });
+
+  /**
+   * The table renders at most 200 rows, and the count beside the heading used to report every
+   * matching task - so against the review deployment's 465 leaf tasks it said "465 shown" above a
+   * table holding 200. A coordinator who scrolled to the end had no way to know the task they were
+   * looking for had been cut off.
+   */
+  it("never claims more task rows than the table actually renders", () => {
+    expect(taskCountLabel(12)).toBe("12 shown");
+    expect(taskCountLabel(200)).toBe("200 shown");
+    expect(taskCountLabel(465)).toBe("200 of 465");
   });
 
   it("offers the resource group filter even before a schedule has loaded", () => {

@@ -18,6 +18,22 @@ import { useAsyncResource } from "../useAsyncResource";
 import { allResourceGroups, leafTasks, useSnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
 
+/**
+ * How many task rows are rendered at once.
+ *
+ * A real shutdown schedule carries hundreds of leaf tasks — the review deployment's has 465 — and
+ * rendering all of them costs more than it is worth when the filters exist. The cap is only safe
+ * because it is *stated*: the count beside the heading used to report every matching task while the
+ * table rendered two hundred, so a coordinator scrolling to the end had no way to know the work
+ * they were looking for had been cut off.
+ */
+const TASK_ROW_LIMIT = 200;
+
+/** The count beside the heading, which must never claim more rows than the table renders. */
+export function taskCountLabel(matching: number) {
+  return matching > TASK_ROW_LIMIT ? `${TASK_ROW_LIMIT} of ${matching}` : `${matching} shown`;
+}
+
 const submittableStates: TaskExecutionState[] = [
   "READY",
   "IN_PROGRESS",
@@ -86,10 +102,10 @@ export function ExecutionZone({ session, client }: ZoneProps) {
       : null;
 
   return (
-    <div className="zone-grid">
+    <div className="zone-grid task-zone">
       <article className="work-panel">
         <PanelHeading eyebrow="Live work" title="Leaf tasks">
-          <StatusChip label={`${visibleTasks.length} shown`} tone="blue" />
+          <StatusChip label={taskCountLabel(visibleTasks.length)} tone="blue" />
         </PanelHeading>
         <BoundaryNote>
           Reporting is against leaf tasks only. Summary rows are shown for context in Import
@@ -126,6 +142,13 @@ export function ExecutionZone({ session, client }: ZoneProps) {
           </select>
         </label>
 
+        {visibleTasks.length > TASK_ROW_LIMIT ? (
+          <BoundaryNote>
+            Showing the first {TASK_ROW_LIMIT} of {visibleTasks.length} matching tasks. Narrow the
+            filter or pick a resource group to reach the rest.
+          </BoundaryNote>
+        ) : null}
+
         <ResourceView
           resource={tasks}
           emptyWhen={(value) => value.tasks.length === 0}
@@ -154,7 +177,7 @@ export function ExecutionZone({ session, client }: ZoneProps) {
                   </span>
                   <span role="columnheader">Blocker</span>
                 </div>
-                {visibleTasks.slice(0, 200).map((task) => (
+                {visibleTasks.slice(0, TASK_ROW_LIMIT).map((task) => (
                   <button
                     type="button"
                     className={
