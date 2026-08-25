@@ -38,6 +38,24 @@ class ReviewDemoIdentityServiceTests {
                 .containsOnly(UserStatus.ACTIVE);
     }
 
+    /**
+     * The console round-trip trial grants `admin` every step from submitting progress to returning a
+     * candidate. Those grants have no actor unless an administrator is seeded, and the deploy builds
+     * the console bundle against a seeded identity — so a missing administrator is not a quiet gap,
+     * it is a deployment that cannot walk the trial at all.
+     */
+    @Test
+    void seedsAnAdministratorForTheConsoleRoundTripTrial() {
+        FakeUserRepository users = new FakeUserRepository();
+        ReviewDemoIdentityService service = service(users);
+
+        List<ReviewDemoIdentity> identities = service.ensureReviewIdentities();
+
+        assertThat(identities).extracting(ReviewDemoIdentity::role)
+                .describedAs("one admin drives the whole round trip in the console trial")
+                .contains(ProjectRole.ADMIN);
+    }
+
     @Test
     void givesTheFieldUserAndTheSupervisorSeparateAccounts() {
         FakeUserRepository users = new FakeUserRepository();

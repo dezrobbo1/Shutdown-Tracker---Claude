@@ -43,12 +43,20 @@ public class ReviewDemoIdentityService {
     /**
      * The people needed to walk from a field update to a returned candidate schedule, in the order
      * the journey uses them.
+     *
+     * <p>The administrator is last and is not part of that journey. They exist for the console
+     * round-trip trial, which one person drives alone: the trial grants {@code admin} every step
+     * from submitting progress to returning a candidate, and without a seeded administrator there
+     * is no actor those grants apply to. Keeping them a separate identity rather than widening the
+     * planner's is what lets the trial be walked and the four-eyes journey above still be walked,
+     * on the same deployment, without either pretending to be the other.
      */
     private static final List<SeededRole> SEEDED_ROLES = List.of(
             new SeededRole(ProjectRole.FIELD_USER, "Review Field User"),
             new SeededRole(ProjectRole.SUPERVISOR, "Review Supervisor"),
             new SeededRole(ProjectRole.PLANNER, "Review Planner"),
-            new SeededRole(ProjectRole.VIEWER, "Review Viewer"));
+            new SeededRole(ProjectRole.VIEWER, "Review Viewer"),
+            new SeededRole(ProjectRole.ADMIN, "Review Administrator"));
 
     private final ReviewProjectBootstrapService reviewProjectBootstrapService;
     private final UserRepository userRepository;

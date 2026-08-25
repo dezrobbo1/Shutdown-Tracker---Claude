@@ -73,9 +73,10 @@ mirrors diverging, and it caught the change in both.
 
 ## Verified
 
-- `mvn test` — **537 passing**, 462 in `services/api` and 75 in `services/project-worker`. Two are
+- `mvn test` — **538 passing**, 463 in `services/api` and 75 in `services/project-worker`. Three are
   new: `ImportReviewProjectFieldsDatabaseTests`, which persists a parsed schedule to a real
-  PostgreSQL and reads duration and resource group back out through `->>`.
+  PostgreSQL and reads duration and resource group back out through `->>`, and one asserting the
+  seeded administrator exists.
 - `npm test` — **158 passing**: 81 console, 49 mobile-pwa, 28 api-client. Eight are new, covering
   group indexing (several resources of one group collapsing to one, several distinct groups sorted,
   a resource matched only by external uid, ungrouped and unassigned tasks contributing nothing), the
@@ -104,6 +105,19 @@ and `milestone` for a task.
 request #34 on 2026-08-24. That is the second time the document has lagged its own merges — the
 first is recorded in the 2026-08-22 entry. Its frontend test counts were also wrong in a way nobody
 had noticed: it claimed 43 mobile-pwa tests against an actual 49.
+
+## Found while deploying
+
+**The trial had no actor.** The capability grants landed with nothing to apply them to: the review
+identity seeder creates a field user, a supervisor, a planner and a viewer, and no administrator.
+The deploy script then builds the console bundle against a *seeded* identity resolved from the
+database, so the gap was not cosmetic — a redeploy would have produced a console acting as the
+planner, which is the role that already held the export capabilities and still cannot submit or
+review progress. Nobody could have walked the trial on it.
+
+An administrator is now seeded, deliberately as a fifth identity rather than by widening the
+planner's, so the single-actor trial and the four-eyes journey can both be walked on one deployment
+without either pretending to be the other.
 
 ## Left open
 
