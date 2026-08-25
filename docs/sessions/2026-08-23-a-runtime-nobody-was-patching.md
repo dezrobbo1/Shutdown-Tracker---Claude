@@ -24,7 +24,7 @@ nobody has made yet rather than a defect:
 | Object storage | Four configured roots, two local implementations: `LocalFileStore` for evidence, export artifacts and candidate schedules, and a separate `LocalSourceFileStorage` — its own hashing and its own filesystem writes — for source uploads |
 | Job queue | Synchronous HTTP to the worker, shared secret, disabled by default |
 | Service worker | A manifest and an IndexedDB mutation queue, and nothing that caches the shell |
-| Lint, format, coverage, SBOM, SAST | Four CI jobs, none of them a quality gate |
+| Lint, format, coverage, SBOM, SAST | Four CI jobs — tests, frontend build, migration validation, Docker build. `main` carries no branch protection, so none of them gates a merge either |
 | Runtime deployment | Two Dockerfiles and a compose file marked "migration validation only" |
 
 The authentication seam is worth recording as *fine*, so nobody redesigns it: because the actor
@@ -101,15 +101,27 @@ versioning, and MinIO's situation escalated twice in nine months.
 
 Two upgrade risks were live and both closed clean. **Flyway moved 10.10.0 to 11.7.2** and validated
 all fifteen migrations, applying them to a real PostgreSQL 16.2 and reaching v015. **3.5 parses
-booleans strictly** — every boolean across the seven `application*.yml` files in both services was
-already a literal `true` or `false`. Jackson stayed on 2.x (2.17.1 to 2.21.4), so no import moved.
+booleans strictly** — and every boolean across the seven `application*.yml` files in both services
+was already a literal `true` or `false`. Five of them are literals only as *fallbacks*:
+`${SHUTDOWN_TRACKER_*_ENABLED:…}` placeholders, four in the API and one in the worker, whose real
+value comes from outside the repository. So the file check alone does not close the risk. The
+deployment was checked as well and does not supply them: both systemd units pass those properties as
+command-line arguments with literal `true`/`false`, and set no `SHUTDOWN_TRACKER_*_ENABLED`
+environment variable at all. No permissive spelling — `yes`, `on`, `1` — reaches the strict
+converter on this deployment. Another one that sets those variables would still be exposed, and
+nothing in the repository would catch it. Jackson stayed on 2.x (2.17.1 to 2.21.4), so no import
+moved.
 
 The manifest was verified by building with `--base=/mobile/` and with the default base, then
 resolving each URL against where the manifest lands.
 
 CI is green on both pull requests, four jobs each — including **Migration and export-integrity
-validation**, the Docker job this machine cannot run, which confirms the Flyway 11.7.2 sequence
-through the containerised path and not only the embedded one.
+validation**, the Docker job this machine cannot run. What that job confirms is narrower than its
+name suggests: `scripts/db/validate-migrations.sh` applies each migration to a containerised
+PostgreSQL with `psql --single-transaction` and then checks the resulting schema. It never invokes
+Flyway. The Flyway 11.7.2 sequence is exercised by `MigrationSchemaTests` in the Maven job, against
+embedded PostgreSQL — so the upgrade is validated on one path, not two, and no CI job runs Flyway
+inside a container.
 
 ## Corrections
 
@@ -129,4 +141,6 @@ goal's queue.
   properly — and what installs is a shell that does not load offline. Only mutations survive a signal
   loss. "Installable" currently promises more than it delivers, and that is the substance of the
   unresearched offline decision rather than a bug to fix.
-- Neither pull request was merged.
+- ~~Neither pull request was merged.~~ Both have since landed on `main`: #30 as `5fc9f7b` and
+  #31 as `f578833`. The service-worker item above is still open — `main` has no service worker, and
+  the work is in flight as #33.
