@@ -123,6 +123,13 @@ export type ImportReviewTaskRow = {
   percentComplete: number | null;
   physicalPercentComplete: number | null;
   notes: string | null;
+  /**
+   * Duration as Microsoft Project renders it — "5 days" — not a number.
+   *
+   * Display and round-trip context only. Sorting or filtering by it would need the value and unit
+   * stored apart, which the importer does not do, so neither is offered.
+   */
+  durationText: string | null;
 };
 
 /**
@@ -206,6 +213,13 @@ export type ImportReviewResourceRow = {
   externalUid: string | null;
   name: string | null;
   resourceType: string | null;
+  /**
+   * Microsoft Project's resource Group field — the discipline, crew, or contractor.
+   *
+   * A task reaches this through its assignments, so a task with several resources can carry
+   * several groups.
+   */
+  resourceGroup: string | null;
 };
 
 export type ImportReviewAssignmentRow = {

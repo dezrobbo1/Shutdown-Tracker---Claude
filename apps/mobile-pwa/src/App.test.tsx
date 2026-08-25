@@ -829,7 +829,8 @@ describe("my work says which kind of empty it is", () => {
       actualFinish: null,
       percentComplete: null,
       physicalPercentComplete: null,
-      notes: null
+      notes: null,
+      durationText: null
     };
   }
 

@@ -115,3 +115,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-23 — A runtime nobody was patching](2026-08-23-a-runtime-nobody-was-patching.md)
 - [2026-08-24 — A control the server would refuse](2026-08-24-a-control-the-server-would-refuse.md)
 - [2026-08-25 — A job that never ran Flyway](2026-08-25-a-job-that-never-ran-flyway.md)
+- [2026-08-25 — Back to one person and seven columns](2026-08-25-back-to-one-person-and-seven-columns.md)
