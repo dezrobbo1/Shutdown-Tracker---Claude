@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { ShutdownTrackerApiError } from "@shutdown-tracker/api-client";
+import { ShutdownTrackerApiError, capabilityAllows } from "@shutdown-tracker/api-client";
 import { isStatusClass } from "@shutdown-tracker/design-tokens";
 import type {
   CriticalUpdateSubmitRequest,
@@ -11,9 +11,12 @@ import type {
 import type { AssignedWorkView, ImportReviewTaskRow } from "@shutdown-tracker/api-client";
 import {
   App,
+  EvidenceScreen,
   WorkList,
   captureFieldEvidence,
   describeRaiseFailure,
+  evidenceCaptureDisabled,
+  evidenceCaptureNotice,
   mobileChipTone,
   queuedItemDetail,
   toInstant,
@@ -475,6 +478,98 @@ describe("field evidence capture", () => {
     await expect(captureFieldEvidence(client as never, "p1", "task-1", photo, "")).rejects.toBeInstanceOf(
       ShutdownTrackerApiError
     );
+  });
+});
+
+/**
+ * The field evidence gate.
+ *
+ * `CAPTURE_EVIDENCE` is enforced by the server and honoured by the console, and until now was
+ * never checked here: the field app offered a photo control to every role and let the server
+ * refuse it. Reading evidence is a separate permission and stays open, so the gate has to be
+ * narrower than the screen.
+ */
+describe("the field app checks who may capture evidence", () => {
+  it("holds the same roles the server accepts evidence from", () => {
+    for (const role of ["field_user", "contractor", "supervisor", "inspector"] as const) {
+      expect(capabilityAllows("CAPTURE_EVIDENCE", role)).toBe(true);
+    }
+    for (const role of ["coordinator", "shutdown_control", "planner", "viewer"] as const) {
+      expect(capabilityAllows("CAPTURE_EVIDENCE", role)).toBe(false);
+    }
+
+    // Why the screen cannot infer capture from a reader simply being on the field app: a
+    // coordinator reports progress and raises problems here without holding this capability.
+    expect(capabilityAllows("SUBMIT_TASK_PROGRESS", "coordinator")).toBe(true);
+    expect(capabilityAllows("RAISE_PROBLEM", "coordinator")).toBe(true);
+  });
+
+  /**
+   * The expression the Evidence screen is handed. A coordinator is the case that motivates the
+   * slice: a real field identity, at home on this app, holding everything around evidence and
+   * not evidence itself.
+   */
+  it("denies a coordinator's own session the capability, while it reports progress", () => {
+    const session = buildFieldSession(
+      { VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1", VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1" },
+      { userId: "user-1", role: "coordinator", displayName: "Ali Coordinator", projectId: "project-1" }
+    );
+
+    expect(session.actor?.role).toBe("coordinator");
+    expect(fieldSessionAllows(session, "CAPTURE_EVIDENCE")).toBe(false);
+    expect(fieldSessionAllows(session, "SUBMIT_TASK_PROGRESS")).toBe(true);
+  });
+
+  it("refuses the send control on the permission alone", () => {
+    // Every passing reason to be disabled is held open, so only the capability decides.
+    const ready = { live: true, online: true, capturing: false, hasFile: true };
+
+    expect(evidenceCaptureDisabled({ ...ready, canCapture: true })).toBe(false);
+    expect(evidenceCaptureDisabled({ ...ready, canCapture: false })).toBe(true);
+  });
+
+  it("keeps refusing it for the reasons that were already there", () => {
+    const allowed = { canCapture: true, live: true, online: true, capturing: false, hasFile: true };
+
+    expect(evidenceCaptureDisabled({ ...allowed, online: false })).toBe(true);
+    expect(evidenceCaptureDisabled({ ...allowed, live: false })).toBe(true);
+    expect(evidenceCaptureDisabled({ ...allowed, capturing: true })).toBe(true);
+    expect(evidenceCaptureDisabled({ ...allowed, hasFile: false })).toBe(true);
+  });
+
+  /**
+   * Two refusals that must not read alike. Being offline passes, and the copy says to capture it
+   * again later; not holding the capability does not pass, and telling that reader to come back
+   * when they have a connection would be false.
+   */
+  it("says which of the two refusals it is", () => {
+    const role = "field, contractor, supervisor, or inspector";
+
+    expect(evidenceCaptureNotice(false, true)).toContain(role);
+    expect(evidenceCaptureNotice(false, false)).toContain(role);
+    expect(evidenceCaptureNotice(false, false)).not.toContain("back on");
+
+    expect(evidenceCaptureNotice(true, false)).toContain("back on");
+    expect(evidenceCaptureNotice(true, false)).not.toContain(role);
+    expect(evidenceCaptureNotice(true, true)).toContain("needs a connection");
+  });
+
+  it("leaves the evidence a role cannot add to still readable", () => {
+    const html = renderToString(
+      <EvidenceScreen
+        tasks={[]}
+        live
+        online
+        canCapture={false}
+        loadEvidence={async () => []}
+        captureEvidence={async () => undefined}
+      />
+    );
+
+    expect(html).toContain("field, contractor, supervisor, or inspector");
+    // The picker is a read and stays. Hiding it would leave the screen with nothing on it for a
+    // reader whose whole business here is looking at what somebody else recorded.
+    expect(html).toContain("Choose a task");
   });
 });
 

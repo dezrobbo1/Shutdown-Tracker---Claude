@@ -323,6 +323,7 @@ export function App() {
             tasks={tasks}
             live={session.live}
             online={queue.state.online}
+            canCapture={fieldSessionAllows(session, "CAPTURE_EVIDENCE")}
             loadEvidence={(taskId) => client.evidence.listForTask(session.projectId, taskId)}
             captureEvidence={(taskId, file, caption) =>
               captureFieldEvidence(client, session.projectId, taskId, file, caption)
@@ -1142,17 +1143,26 @@ type FieldApiClient = ReturnType<typeof createFieldApiClient>;
  * JSON reports; a photo is megabytes, and a queue that fills a phone's storage and then fails to
  * send is worse than one that never accepted the photo. Offline evidence capture is its own piece
  * of work, with its own eviction and retry rules.
+ *
+ * Reading evidence and capturing it are separate permissions, and this screen keeps them separate.
+ * The server lists evidence to anybody holding `VIEW_PROJECT` and accepts it only from
+ * `CAPTURE_EVIDENCE`, so a coordinator or shutdown control reads the list and cannot add to it.
+ * The capture controls are disabled rather than hidden, which is the console's rule for the same
+ * decision: hiding a control leaves somebody hunting for one that is not there, where a disabled
+ * control that says why makes it obvious the step belongs to another role.
  */
-function EvidenceScreen({
+export function EvidenceScreen({
   tasks,
   live,
   online,
+  canCapture,
   loadEvidence,
   captureEvidence
 }: {
   tasks: ImportReviewTaskRow[];
   live: boolean;
   online: boolean;
+  canCapture: boolean;
   loadEvidence: (taskId: string) => Promise<EvidenceRecord[]>;
   captureEvidence: (taskId: string, file: File, caption: string) => Promise<void>;
 }) {
@@ -1167,7 +1177,7 @@ function EvidenceScreen({
   );
 
   const send = async () => {
-    if (taskId === "" || file === null) {
+    if (taskId === "" || file === null || !canCapture) {
       return;
     }
     setCapturing(true);
@@ -1220,11 +1230,7 @@ function EvidenceScreen({
 
   return (
     <section className="evidence-list" aria-label="Evidence">
-      <p className="boundary-copy">
-        {online
-          ? "A photo is sent as you take it. It is not queued, so it needs a connection."
-          : "Offline. Evidence needs a connection to send, so capture it again when you are back on."}
-      </p>
+      <p className="boundary-copy">{evidenceCaptureNotice(canCapture, online)}</p>
       <label className="wide-field">
         <span>Task</span>
         <select value={taskId} onChange={(event) => void choose(event.target.value)}>
@@ -1246,6 +1252,7 @@ function EvidenceScreen({
               accept="image/*"
               capture="environment"
               aria-label="Evidence photo"
+              disabled={!canCapture}
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
@@ -1253,11 +1260,22 @@ function EvidenceScreen({
             <span>What it shows</span>
             <input
               value={caption}
+              disabled={!canCapture}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="Blanking plate fitted"
             />
           </label>
-          <button type="button" disabled={!live || !online || capturing || file === null} onClick={() => void send()}>
+          <button
+            type="button"
+            disabled={evidenceCaptureDisabled({
+              canCapture,
+              live,
+              online,
+              capturing,
+              hasFile: file !== null
+            })}
+            onClick={() => void send()}
+          >
             {capturing ? "Sending…" : "Send evidence"}
           </button>
           {captureMessage ? <p className="boundary-copy">{captureMessage}</p> : null}
@@ -1276,6 +1294,42 @@ function EvidenceScreen({
         </article>
       ))}
     </section>
+  );
+}
+
+/**
+ * What the Evidence screen says about capturing, above the list.
+ *
+ * A reader whose role cannot capture is told that, rather than being told how capture behaves
+ * without a connection. The offline rule is advice for using a control they will find disabled,
+ * and the screen has something for them either way: the evidence already recorded is a read.
+ */
+export function evidenceCaptureNotice(canCapture: boolean, online: boolean) {
+  if (!canCapture) {
+    return "Capturing evidence is a field, contractor, supervisor, or inspector responsibility. You can still read what has been recorded.";
+  }
+  return online
+    ? "A photo is sent as you take it. It is not queued, so it needs a connection."
+    : "Offline. Evidence needs a connection to send, so capture it again when you are back on.";
+}
+
+/**
+ * Whether the send control is inert.
+ *
+ * Four of these are passing states — no file chosen yet, a send already in flight, no project on
+ * the device, no connection — and the fifth is a permission that will not change while the screen
+ * is open. They are one expression because the button has one disabled state, and holding the
+ * other four open in a test leaves the permission deciding it alone.
+ */
+export function evidenceCaptureDisabled(state: {
+  canCapture: boolean;
+  live: boolean;
+  online: boolean;
+  capturing: boolean;
+  hasFile: boolean;
+}) {
+  return (
+    !state.canCapture || !state.live || !state.online || state.capturing || !state.hasFile
   );
 }
 
