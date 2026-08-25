@@ -473,6 +473,41 @@ button {
   font-size: 0.9rem;
 }
 
+/* The task section carries the Microsoft Project columns a shutdown coordinator filters on, so
+   it overrides the four-column review grid rather than widening it for every zone.
+
+   The last three data columns are the only writable ones. They are shaded and separated by a rule
+   because the rest of the row is Project's calculation: a table that looks uniformly editable is
+   how somebody comes to type over a planned date and expect it to mean something. */
+.review-row.task-row {
+  grid-template-columns:
+    minmax(90px, 0.6fr) minmax(200px, 1.8fr) minmax(80px, 0.5fr) minmax(120px, 0.9fr)
+    minmax(130px, 1fr) minmax(130px, 1fr)
+    minmax(130px, 1fr) minmax(130px, 1fr) minmax(80px, 0.5fr)
+    minmax(90px, 0.6fr);
+}
+
+.review-row.task-row .reported-cell {
+  background: var(--surface-header);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  margin: 0 -1px;
+}
+
+.review-row.task-row .reported-cell:first-of-type {
+  border-left: 2px solid var(--rule-soft);
+}
+
+.task-table {
+  overflow-x: auto;
+}
+
+.task-table .review-row.task-row {
+  min-width: 1180px;
+}
+
 /* An ineligible export line stays visible. Hiding it would let a planner assume
    everything reviewed made it into the batch. */
 .review-row.ineligible {

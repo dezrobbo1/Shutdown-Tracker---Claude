@@ -10,10 +10,18 @@ import java.util.Set;
  * endpoints only; capabilities for execution, problems, evidence, and handover follow
  * when those endpoints exist, rather than being declared here before they mean anything.
  *
- * <p>Two rules from the product docs are deliberately visible in the grants below. Export
- * approval is planner-owned — an admin can administer access but is not a routine export
- * approver. And no capability is granted by Operational Category membership: classifying
- * work never confers authority over it.
+ * <p>One rule from the product docs is deliberately visible in the grants below: no capability
+ * is granted by Operational Category membership, because classifying work never confers
+ * authority over it.
+ *
+ * <p><strong>A second rule is currently suspended.</strong> Export approval is planner-owned, and
+ * an admin is meant to administer access without being a routine export approver — separating who
+ * runs the project from who decides what goes back to Microsoft Project. The console round-trip
+ * trial is driven by a single admin, so {@code ADMIN} is granted the execution, review, and export
+ * capabilities below. This is a deliberate trial relaxation, not an oversight: the three review
+ * stages still exist and are still walked in order, but one person now walks all of them, so the
+ * four-eyes property does not hold while the trial runs. Restoring it means removing {@code ADMIN}
+ * from the grants marked "trial" and giving the trial a second actor.
  */
 public enum Capability {
 
@@ -33,32 +41,47 @@ public enum Capability {
     // somebody may do: a link narrows a work list and confers no authority, so the capabilities
     // below are unchanged by whether the actor holds one.
     MANAGE_RESOURCE_LINK(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    RECORD_APPROVAL(ProjectRole.PLANNER),
-    CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER),
-    APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),
-    GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER),
-    RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER),
+    // trial: admin walks the export handoff alone.
+    RECORD_APPROVAL(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    // trial: admin walks the export handoff alone.
+    CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    // trial: admin walks the export handoff alone.
+    APPROVE_EXPORT_BATCH(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    // trial: admin walks the export handoff alone.
+    GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    // trial: admin walks the export handoff alone.
+    RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER, ProjectRole.ADMIN),
     // Bringing back the schedule Microsoft Project calculated, and reading one back. Planner-only,
     // like every other capability in the export handoff: the planner is who runs Project against
     // the candidate and who reviews what it produced. Reading the returned file is gated on the
     // same capability rather than on VIEW_PROJECT, because a full recalculated schedule is not the
     // same kind of thing as a task list, and only somebody reviewing a candidate needs the bytes.
-    RETURN_CANDIDATE_SCHEDULE(ProjectRole.PLANNER),
+    // trial: admin walks the export handoff alone.
+    RETURN_CANDIDATE_SCHEDULE(ProjectRole.PLANNER, ProjectRole.ADMIN),
 
     // Execution. Field users and contractors submit for their own assigned work. The grant
     // stays by role even though project_resource_links now models who holds which resource,
     // because that link is relevance and this is permission. Narrowing the grant to it would
     // stop a supervisor reporting on behalf of a crew that has none, and would quietly turn
     // Project resource data into an authorization source, which AGENTS.md forbids.
+    //
+    // trial: admin records progress in the console because there is no field app in the trial.
     SUBMIT_TASK_PROGRESS(
             ProjectRole.FIELD_USER,
             ProjectRole.CONTRACTOR,
             ProjectRole.SUPERVISOR,
-            ProjectRole.COORDINATOR),
+            ProjectRole.COORDINATOR,
+            ProjectRole.ADMIN),
     // Supervisor review confirms operational validity. It is not export approval, which
-    // is why it does not include the planner-only export capabilities above.
-    REVIEW_TASK_PROGRESS(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
-    PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER),
+    // is why it does not include the export capabilities above.
+    //
+    // trial: admin walks both review stages alone.
+    REVIEW_TASK_PROGRESS(
+            ProjectRole.SUPERVISOR,
+            ProjectRole.COORDINATOR,
+            ProjectRole.SHUTDOWN_CONTROL,
+            ProjectRole.ADMIN),
+    PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER, ProjectRole.ADMIN),
 
     // Operational records. Anyone doing the work can raise a problem or capture evidence;
     // deciding what happens to a problem is a coordination responsibility.

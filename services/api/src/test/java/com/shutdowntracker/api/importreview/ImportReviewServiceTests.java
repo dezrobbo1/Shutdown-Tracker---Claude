@@ -165,7 +165,8 @@ class ImportReviewServiceTests {
                             null,
                             BigDecimal.ZERO,
                             null,
-                            null
+                            null,
+                            "1 day"
                     ),
                     new ImportReviewTaskRow(
                             UUID.randomUUID(),
@@ -184,7 +185,8 @@ class ImportReviewServiceTests {
                             null,
                             BigDecimal.ZERO,
                             null,
-                            null
+                            null,
+                            "4 hrs"
                     )
             );
         }
@@ -195,7 +197,8 @@ class ImportReviewServiceTests {
                     UUID.randomUUID(),
                     "SYN-RES-1",
                     "Synthetic Resource",
-                    "work"
+                    "work",
+                    "Mechanical"
             ));
         }
 

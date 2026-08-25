@@ -68,11 +68,17 @@ export type Capability =
 /**
  * The roles allowed each capability.
  *
- * Two product rules are visible here and must stay visible. Export approval is planner-owned
- * and deliberately excludes `admin`: administering access is not the same as approving what
- * goes back to Microsoft Project. And supervisor acceptance appears under
+ * One product rule is visible here and must stay visible: supervisor acceptance appears under
  * `REVIEW_TASK_PROGRESS` only — it never grants an export capability, because confirming that
  * work happened is not the same as approving a schedule change.
+ *
+ * A second rule is currently SUSPENDED. Export approval is planner-owned and deliberately
+ * excluded `admin`, because administering access is not the same as approving what goes back to
+ * Microsoft Project. The console round-trip trial is driven by one admin, so `admin` now holds the
+ * execution, review and export capabilities marked `trial:` below. The three review stages still
+ * exist and are still walked in order — but one person walks all of them, so the four-eyes property
+ * does not hold while the trial runs. Restoring it means removing `admin` from those grants and
+ * giving the trial a second actor. This mirrors `Capability.java`; the two must not diverge.
  */
 const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   UPLOAD_SOURCE_FILE: ["planner", "admin"],
@@ -82,15 +88,24 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   RECONCILE_TASK_LINEAGE: ["planner"],
   MANAGE_IMPORT_PROFILE: ["planner"],
   MANAGE_RESOURCE_LINK: ["planner", "admin"],
-  RECORD_APPROVAL: ["planner"],
-  CREATE_EXPORT_PREVIEW: ["planner"],
-  APPROVE_EXPORT_BATCH: ["planner"],
-  GENERATE_EXPORT_ARTIFACT: ["planner"],
-  RECORD_EXPORT_VERIFICATION: ["planner"],
-  RETURN_CANDIDATE_SCHEDULE: ["planner"],
-  SUBMIT_TASK_PROGRESS: ["field_user", "contractor", "supervisor", "coordinator"],
-  REVIEW_TASK_PROGRESS: ["supervisor", "coordinator", "shutdown_control"],
-  PLANNER_REVIEW_TASK_PROGRESS: ["planner"],
+  // trial: one admin walks the whole round trip.
+  RECORD_APPROVAL: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  CREATE_EXPORT_PREVIEW: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  APPROVE_EXPORT_BATCH: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  GENERATE_EXPORT_ARTIFACT: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  RECORD_EXPORT_VERIFICATION: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  RETURN_CANDIDATE_SCHEDULE: ["planner", "admin"],
+  // trial: one admin walks the whole round trip.
+  SUBMIT_TASK_PROGRESS: ["field_user", "contractor", "supervisor", "coordinator", "admin"],
+  // trial: one admin walks the whole round trip.
+  REVIEW_TASK_PROGRESS: ["supervisor", "coordinator", "shutdown_control", "admin"],
+  // trial: one admin walks the whole round trip.
+  PLANNER_REVIEW_TASK_PROGRESS: ["planner", "admin"],
   RAISE_PROBLEM: [
     "field_user",
     "contractor",
