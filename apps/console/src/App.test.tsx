@@ -792,6 +792,27 @@ describe("every zone renders", () => {
     });
   }
 
+  /**
+   * The task section's two column groups mean different things: everything left of the shaded
+   * columns is Microsoft Project's, and only the shaded three are ever written back. If that stops
+   * being said on the surface, the table becomes a uniformly editable-looking grid and the
+   * distinction survives only in a document nobody has open.
+   */
+  it("says which task columns are Project's and which are the ones that go back", () => {
+    const html = renderToString(<ExecutionZone session={session} client={client} />);
+
+    expect(html).toContain("never written back");
+    expect(html).toContain("the only values an export carries");
+  });
+
+  it("offers the resource group filter even before a schedule has loaded", () => {
+    const html = renderToString(<ExecutionZone session={session} client={client} />);
+
+    expect(html).toContain("Resource group");
+    // Says why it is empty rather than presenting an empty dropdown as a choice.
+    expect(html).toContain("No groups in this schedule");
+  });
+
   it("shows the product boundary where someone might expect a recalculation", () => {
     const html = renderToString(<ExportZone session={session} client={client} />);
 
