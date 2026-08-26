@@ -66,19 +66,16 @@ export type Capability =
   | "VIEW_PROJECT";
 
 /**
- * The roles allowed each capability.
+ * The roles the permission matrix grants each capability, before the super user rule below.
  *
  * One product rule is visible here and must stay visible: supervisor acceptance appears under
  * `REVIEW_TASK_PROGRESS` only — it never grants an export capability, because confirming that
  * work happened is not the same as approving a schedule change.
  *
- * A second rule is currently SUSPENDED. Export approval is planner-owned and deliberately
- * excluded `admin`, because administering access is not the same as approving what goes back to
- * Microsoft Project. The console round-trip trial is driven by one admin, so `admin` now holds the
- * execution, review and export capabilities marked `trial:` below. The three review stages still
- * exist and are still walked in order — but one person walks all of them, so the four-eyes property
- * does not hold while the trial runs. Restoring it means removing `admin` from those grants and
- * giving the trial a second actor. This mirrors `Capability.java`; the two must not diverge.
+ * A second rule is SUSPENDED for the console round-trip trial: see `superUserRole`. These lists
+ * are the model that returns when it ends, so they are left as the matrix writes them rather than
+ * edited to hand the trial's one actor what it needs. This mirrors `Capability.java`; the two must
+ * not diverge, and `CapabilityClientParityTests` fails if they do.
  */
 const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   UPLOAD_SOURCE_FILE: ["planner", "admin"],
@@ -88,24 +85,15 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   RECONCILE_TASK_LINEAGE: ["planner"],
   MANAGE_IMPORT_PROFILE: ["planner"],
   MANAGE_RESOURCE_LINK: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  RECORD_APPROVAL: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  CREATE_EXPORT_PREVIEW: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  APPROVE_EXPORT_BATCH: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  GENERATE_EXPORT_ARTIFACT: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  RECORD_EXPORT_VERIFICATION: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  RETURN_CANDIDATE_SCHEDULE: ["planner", "admin"],
-  // trial: one admin walks the whole round trip.
-  SUBMIT_TASK_PROGRESS: ["field_user", "contractor", "supervisor", "coordinator", "admin"],
-  // trial: one admin walks the whole round trip.
-  REVIEW_TASK_PROGRESS: ["supervisor", "coordinator", "shutdown_control", "admin"],
-  // trial: one admin walks the whole round trip.
-  PLANNER_REVIEW_TASK_PROGRESS: ["planner", "admin"],
+  RECORD_APPROVAL: ["planner"],
+  CREATE_EXPORT_PREVIEW: ["planner"],
+  APPROVE_EXPORT_BATCH: ["planner"],
+  GENERATE_EXPORT_ARTIFACT: ["planner"],
+  RECORD_EXPORT_VERIFICATION: ["planner"],
+  RETURN_CANDIDATE_SCHEDULE: ["planner"],
+  SUBMIT_TASK_PROGRESS: ["field_user", "contractor", "supervisor", "coordinator"],
+  REVIEW_TASK_PROGRESS: ["supervisor", "coordinator", "shutdown_control"],
+  PLANNER_REVIEW_TASK_PROGRESS: ["planner"],
   RAISE_PROBLEM: [
     "field_user",
     "contractor",
@@ -141,11 +129,43 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
   ]
 };
 
+/** Every capability, in declaration order. Exhaustive by construction: the record is typed. */
+export const capabilities = Object.keys(capabilityRoles) as Capability[];
+
+/**
+ * The role that holds every capability, whatever the grants above say.
+ *
+ * The console round-trip trial is driven by one person, so `admin` is a super user for the
+ * duration. Separation of duty is what this suspends: export approval is planner-owned precisely
+ * because administering access is not the same as deciding what returns to Microsoft Project, and
+ * the three review stages exist so that more than one person walks them. They are still walked in
+ * order — by one person, so the four-eyes property does not hold while the trial runs.
+ *
+ * One rule in one place, rather than `admin` appended to twenty-four grant lists: written that way
+ * it would be indistinguishable from a considered decision per capability, a new capability would
+ * silently omit the super user, and ending the trial would be twenty-four edits a reviewer has to
+ * check are all of them. Mirrors `Capability.SUPER_USER`.
+ */
+export const superUserRole: ProjectRole = "admin";
+
 export function capabilityAllows(capability: Capability, role: ProjectRole) {
-  return capabilityRoles[capability].includes(role);
+  return role === superUserRole || capabilityRoles[capability].includes(role);
 }
 
+/**
+ * Every role that may perform this capability, the super user included.
+ *
+ * Answers the same question `capabilityAllows` does, and must not answer it differently: a caller
+ * listing who may act and a caller asking about one role would otherwise disagree about the super
+ * user.
+ */
 export function rolesAllowedFor(capability: Capability): readonly ProjectRole[] {
+  const declared = capabilityRoles[capability];
+  return declared.includes(superUserRole) ? declared : [...declared, superUserRole];
+}
+
+/** The roles the permission matrix grants, before the super user rule. */
+export function rolesDeclaredFor(capability: Capability): readonly ProjectRole[] {
   return capabilityRoles[capability];
 }
 

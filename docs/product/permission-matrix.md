@@ -18,6 +18,23 @@ Project-derived Operational Category membership is not a permission level. It ma
 
 The same holds for the link between a Microsoft Project resource and a Shutdown Tracker user. It decides which work a person is shown and nothing else: holding one grants no capability, and holding none takes none away. See [Field identity and assigned work](field-identity-and-assigned-work.md).
 
+## Suspended for the console round-trip trial
+
+**The Admin role currently holds every capability this service implements.** The console
+round-trip trial is driven by one person — schedule in, work tracked against it, candidate back —
+and no one role in the matrix below can walk that alone. Rather than widen the grants to suit it,
+the implementation carries a single super user rule: `Capability.SUPER_USER` in the API and
+`superUserRole` in `packages/api-client`, both naming `admin`.
+
+What this suspends is separation of duty, and it is worth being exact about which part. The three
+review stages — supervisor review, planner review, export approval — still exist and are still
+walked in order. One person now walks all three, so the four-eyes property does not hold. Export
+approval is still described below as planner-owned because that is the model this document
+defines and the model that returns; the trial does not amend it.
+
+Ending the trial is removing that one rule and giving the trial a second actor. Nothing in the
+matrix below was edited for it, so nothing has to be reconstructed.
+
 ## Project, Import, and Operational Mapping
 
 | Capability | Admin | Planner | Shutdown Control | Coordinator | Supervisor | Field User | Contractor | Inspector | Viewer / Management |

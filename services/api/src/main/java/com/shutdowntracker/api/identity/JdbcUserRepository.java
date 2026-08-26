@@ -110,6 +110,39 @@ public class JdbcUserRepository implements UserRepository {
                 this::mapMembership).stream().findFirst();
     }
 
+    @Override
+    public void revokeMembership(UUID membershipId, UUID revokedByUserId) {
+        // Guarded on `active` so a second run cannot move revoked_at forward on a membership that
+        // was already withdrawn, which would misdate when the access actually ended.
+        jdbcTemplate.update(
+                """
+                UPDATE project_memberships
+                   SET active = false,
+                       revoked_at = now(),
+                       revoked_by_user_id = :revokedByUserId
+                 WHERE id = :id
+                   AND active
+                """,
+                new MapSqlParameterSource()
+                        .addValue("id", membershipId)
+                        .addValue("revokedByUserId", revokedByUserId));
+    }
+
+    @Override
+    public void updateStatus(UUID userId, UserStatus status) {
+        jdbcTemplate.update(
+                """
+                UPDATE users
+                   SET status = CAST(:status AS user_status),
+                       updated_at = now()
+                 WHERE id = :id
+                   AND status IS DISTINCT FROM CAST(:status AS user_status)
+                """,
+                new MapSqlParameterSource()
+                        .addValue("id", userId)
+                        .addValue("status", status.databaseValue()));
+    }
+
     private UserRecord mapUser(ResultSet rs, int rowNum) throws SQLException {
         return new UserRecord(
                 rs.getObject("id", UUID.class),

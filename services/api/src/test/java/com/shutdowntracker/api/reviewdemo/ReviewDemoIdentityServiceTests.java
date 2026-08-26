@@ -24,50 +24,94 @@ import org.junit.jupiter.api.Test;
 class ReviewDemoIdentityServiceTests {
 
     @Test
-    void seedsOneActiveIdentityPerJourneyRole() {
+    void seedsTheSuperUserAndNobodyElse() {
         FakeUserRepository users = new FakeUserRepository();
         ReviewDemoIdentityService service = service(users);
 
         List<ReviewDemoIdentity> identities = service.ensureReviewIdentities();
 
         assertThat(identities).extracting(ReviewDemoIdentity::role)
-                .describedAs("the journey needs a submitter, a reviewer and a planner as three people")
-                .contains(ProjectRole.FIELD_USER, ProjectRole.SUPERVISOR, ProjectRole.PLANNER);
+                .describedAs("the trial is walked by one person, so there is one person to be")
+                .containsExactly(ProjectRole.ADMIN);
         assertThat(users.created).extracting(UserCreateRequest::status)
                 .describedAs("users.status defaults to invited, and an invited user is refused by canAct()")
                 .containsOnly(UserStatus.ACTIVE);
     }
 
     /**
-     * The console round-trip trial grants `admin` every step from submitting progress to returning a
-     * candidate. Those grants have no actor unless an administrator is seeded, and the deploy builds
-     * the console bundle against a seeded identity — so a missing administrator is not a quiet gap,
-     * it is a deployment that cannot walk the trial at all.
+     * A deployment seeded by an earlier build already has a field user, a supervisor, a planner and
+     * a viewer, all active. Leaving them is what let the console go on acting as a planner across
+     * redeploys, and a console offering four people is the confusion the trial exists to remove.
      */
     @Test
-    void seedsAnAdministratorForTheConsoleRoundTripTrial() {
+    void retiresTheIdentitiesAnEarlierBuildSeeded() {
         FakeUserRepository users = new FakeUserRepository();
         ReviewDemoIdentityService service = service(users);
+        UUID projectId = service.ensureReviewIdentities().get(0).projectId();
+        seedAsAnEarlierBuild(users, projectId);
 
-        List<ReviewDemoIdentity> identities = service.ensureReviewIdentities();
+        service.ensureReviewIdentities();
 
-        assertThat(identities).extracting(ReviewDemoIdentity::role)
-                .describedAs("one admin drives the whole round trip in the console trial")
-                .contains(ProjectRole.ADMIN);
+        for (ProjectRole role : RETIRED) {
+            UserRecord retired = users.findByEmail(role.databaseValue() + "@review.invalid").orElseThrow();
+            assertThat(retired.status().canAct())
+                    .describedAs("%s must not be able to act", role)
+                    .isFalse();
+            assertThat(users.findActiveMembership(projectId, retired.id()))
+                    .describedAs("%s must not still look entitled on the project", role)
+                    .isEmpty();
+        }
     }
 
     @Test
-    void givesTheFieldUserAndTheSupervisorSeparateAccounts() {
+    void leavesTheSuperUserActiveWhileRetiringTheRest() {
         FakeUserRepository users = new FakeUserRepository();
+        ReviewDemoIdentityService service = service(users);
+        UUID projectId = service.ensureReviewIdentities().get(0).projectId();
+        seedAsAnEarlierBuild(users, projectId);
 
-        List<ReviewDemoIdentity> identities = service(users).ensureReviewIdentities();
+        List<ReviewDemoIdentity> identities = service.ensureReviewIdentities();
 
-        UUID fieldUserId = idOf(identities, ProjectRole.FIELD_USER);
-        UUID supervisorId = idOf(identities, ProjectRole.SUPERVISOR);
-        assertThat(fieldUserId)
-                .describedAs("a supervisor can submit progress, so one shared account would defeat "
-                        + "the two-person review the seeder exists to let somebody exercise")
-                .isNotEqualTo(supervisorId);
+        assertThat(identities).singleElement()
+                .extracting(ReviewDemoIdentity::role)
+                .isEqualTo(ProjectRole.ADMIN);
+        UUID superUserId = identities.get(0).id();
+        assertThat(users.findById(superUserId).orElseThrow().status()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(users.findActiveMembership(projectId, superUserId)).isPresent();
+    }
+
+    /**
+     * Retirement is reversible in the schema and irreversible in fact: the audit trail references
+     * these people, so deleting them would either cascade through it or fail on a foreign key.
+     */
+    @Test
+    void retiresRatherThanDeletesSoTheAuditTrailStillNamesSomebody() {
+        FakeUserRepository users = new FakeUserRepository();
+        ReviewDemoIdentityService service = service(users);
+        seedAsAnEarlierBuild(users, service.ensureReviewIdentities().get(0).projectId());
+
+        service.ensureReviewIdentities();
+
+        assertThat(users.findByEmail("planner@review.invalid"))
+                .describedAs("the account is still there to attribute past work to")
+                .isPresent();
+    }
+
+    @Test
+    void touchesOnlyTheAccountsThisSeederCreated() {
+        FakeUserRepository users = new FakeUserRepository();
+        ReviewDemoIdentityService service = service(users);
+        UUID projectId = service.ensureReviewIdentities().get(0).projectId();
+        UserRecord realPlanner = users.create(new UserCreateRequest(
+                "someone@example.com", "A Real Planner", UserStatus.ACTIVE, null, Map.of()));
+        users.grantMembership(projectId, realPlanner.id(), ProjectRole.PLANNER, null, Map.of());
+
+        service.ensureReviewIdentities();
+
+        assertThat(users.findById(realPlanner.id()).orElseThrow().status())
+                .describedAs("a real user who happens to hold a retired role is not this seeder's business")
+                .isEqualTo(UserStatus.ACTIVE);
+        assertThat(users.findActiveMembership(projectId, realPlanner.id())).isPresent();
     }
 
     @Test
@@ -124,12 +168,20 @@ class ReviewDemoIdentityServiceTests {
                 .allSatisfy(email -> assertThat(email).endsWith("@review.invalid"));
     }
 
-    private static UUID idOf(List<ReviewDemoIdentity> identities, ProjectRole role) {
-        return identities.stream()
-                .filter(identity -> identity.role() == role)
-                .findFirst()
-                .orElseThrow()
-                .id();
+    private static final List<ProjectRole> RETIRED = List.of(
+            ProjectRole.FIELD_USER, ProjectRole.SUPERVISOR, ProjectRole.PLANNER, ProjectRole.VIEWER);
+
+    /** The identities an earlier build seeded alongside the administrator, so retirement has work. */
+    private void seedAsAnEarlierBuild(FakeUserRepository users, UUID projectId) {
+        for (ProjectRole role : RETIRED) {
+            UserRecord user = users.create(new UserCreateRequest(
+                    role.databaseValue() + "@review.invalid",
+                    "Review " + role.databaseValue(),
+                    UserStatus.ACTIVE,
+                    null,
+                    Map.of("synthetic", true)));
+            users.grantMembership(projectId, user.id(), role, null, Map.of("synthetic", true));
+        }
     }
 
     private ReviewDemoIdentityService service(FakeUserRepository users) {
@@ -168,6 +220,7 @@ class ReviewDemoIdentityServiceTests {
         private final List<UserCreateRequest> created = new ArrayList<>();
         private final List<Grant> granted = new ArrayList<>();
         private final List<Map<String, Object>> grantedMetadata = new ArrayList<>();
+
 
         @Override
         public UserRecord create(UserCreateRequest request) {
@@ -211,6 +264,18 @@ class ReviewDemoIdentityServiceTests {
         @Override
         public Optional<ProjectMembershipRecord> findActiveMembership(UUID projectId, UUID userId) {
             return Optional.ofNullable(membershipsByKey.get(projectId + ":" + userId));
+        }
+
+        @Override
+        public void revokeMembership(UUID membershipId, UUID revokedByUserId) {
+            membershipsByKey.values().removeIf(membership -> membership.id().equals(membershipId));
+        }
+
+        @Override
+        public void updateStatus(UUID userId, UserStatus status) {
+            usersByEmail.replaceAll((email, user) -> user.id().equals(userId)
+                    ? new UserRecord(user.id(), user.email(), user.displayName(), status, user.externalSubject())
+                    : user);
         }
     }
 }

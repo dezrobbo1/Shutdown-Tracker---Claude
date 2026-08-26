@@ -1,16 +1,13 @@
 import { createShutdownTrackerApiClient } from "@shutdown-tracker/api-client";
 import type { ShutdownTrackerApiClientOptions } from "@shutdown-tracker/api-client";
-import { buildConsoleSession, readStoredIdentity, sessionHeaders } from "./session";
+import { buildConsoleSession, sessionHeaders } from "./session";
 import type { ConsoleSession } from "./session";
 
 export type ConsoleApiClient = ReturnType<typeof createShutdownTrackerApiClient>;
 
 export const consoleBaseUrl = readBaseUrl(import.meta.env);
 
-export const initialConsoleSession = buildConsoleSession(
-  import.meta.env,
-  readStoredIdentity(typeof window === "undefined" ? undefined : window.localStorage)
-);
+export const initialConsoleSession = buildConsoleSession(import.meta.env);
 
 /**
  * An API client carrying the session's actor.

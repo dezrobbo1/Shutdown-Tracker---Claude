@@ -634,13 +634,12 @@ button {
   background: var(--surface);
 }
 
-.session-panel select {
-  width: 100%;
-  padding: 7px 8px;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-tight);
-  background: var(--surface-raised);
-  font: inherit;
+/* Who the console is, stated rather than chosen. The selector that used to sit here is gone with
+   the identities it offered: the trial has one super user. */
+.session-actor {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .session-note {
