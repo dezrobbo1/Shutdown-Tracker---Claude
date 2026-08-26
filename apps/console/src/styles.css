@@ -473,6 +473,67 @@ button {
   font-size: 0.9rem;
 }
 
+/* The task section carries the Microsoft Project columns a shutdown coordinator filters on, so
+   it overrides the four-column review grid rather than widening it for every zone.
+
+   The last three data columns are the only writable ones. They are shaded and separated by a rule
+   because the rest of the row is Project's calculation: a table that looks uniformly editable is
+   how somebody comes to type over a planned date and expect it to mean something. */
+.review-row.task-row {
+  grid-template-columns:
+    minmax(58px, 0.5fr) minmax(132px, 2fr) minmax(80px, 0.5fr) minmax(88px, 0.7fr)
+    minmax(92px, 0.8fr) minmax(92px, 0.8fr)
+    minmax(92px, 0.8fr) minmax(92px, 0.8fr) minmax(80px, 0.5fr)
+    minmax(80px, 0.5fr);
+  gap: 8px;
+  padding: 0 10px;
+}
+
+/* Headers are uppercased and tracked out, so they run wider than the values beneath them and were
+   colliding with the next column. Wrapping beats truncating here: a clipped "PERCENT" and a clipped
+   "PLANNED FINISH" look identical at a glance. */
+.review-row.task-row.review-head span {
+  line-height: 1.15;
+  /* Wrap between words, never inside one: a header reading "DURATIO N" is worse than a wrapped one. */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.review-row.task-row .reported-cell {
+  background: var(--surface-header);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  margin: 0 -1px;
+}
+
+.review-row.task-row .reported-cell:first-of-type {
+  border-left: 2px solid var(--rule-soft);
+}
+
+.task-table {
+  overflow-x: auto;
+}
+
+.task-table .review-row.task-row {
+  min-width: 986px;
+}
+
+/* The task section is the surface this console is driven from, so its list takes the room and the
+   progress panel gets what is left. At the default it used to be an even split, which pushed the
+   three writable columns off the right edge — the columns the whole table exists to distinguish
+   were the ones you could not see without scrolling. */
+.zone-grid.task-zone {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .zone-grid.task-zone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* An ineligible export line stays visible. Hiding it would let a planner assume
    everything reviewed made it into the batch. */
 .review-row.ineligible {

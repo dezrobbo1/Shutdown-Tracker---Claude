@@ -1,6 +1,7 @@
 package com.shutdowntracker.api.identity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import com.shutdowntracker.api.actor.Actor;
 import com.shutdowntracker.api.support.AbstractDatabaseTest;
@@ -12,6 +13,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProjectAuthorizationServiceTests extends AbstractDatabaseTest {
@@ -48,13 +50,29 @@ class ProjectAuthorizationServiceTests extends AbstractDatabaseTest {
                         assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 
+    /**
+     * Export approval was planner-owned and refused to an admin. The console round-trip trial is
+     * driven by one admin, so the refusal is suspended and the whole handoff is permitted to them.
+     * Restoring four-eyes means this test asserts a throw again.
+     */
     @Test
-    void refusesAnAdminApprovingAnExportBatch() {
+    void permitsTheTrialAdminTheWholeExportHandoff() {
         Actor admin = actorWithRole("admin@example.com", ProjectRole.ADMIN);
 
-        assertThatThrownBy(() -> service.requireCapability(projectId, admin, Capability.APPROVE_EXPORT_BATCH))
-                .describedAs("admin administers access; export approval stays planner-owned")
-                .isInstanceOf(ResponseStatusException.class);
+        for (Capability capability : List.of(
+                Capability.SUBMIT_TASK_PROGRESS,
+                Capability.REVIEW_TASK_PROGRESS,
+                Capability.PLANNER_REVIEW_TASK_PROGRESS,
+                Capability.RECORD_APPROVAL,
+                Capability.CREATE_EXPORT_PREVIEW,
+                Capability.APPROVE_EXPORT_BATCH,
+                Capability.GENERATE_EXPORT_ARTIFACT,
+                Capability.RECORD_EXPORT_VERIFICATION,
+                Capability.RETURN_CANDIDATE_SCHEDULE)) {
+            assertThatCode(() -> service.requireCapability(projectId, admin, capability))
+                    .describedAs("the trial admin walks %s alone", capability)
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Test

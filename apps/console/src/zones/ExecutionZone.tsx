@@ -15,8 +15,24 @@ import {
 } from "../components";
 import { executionStateLabels, formatDateTime, formatPercent } from "../formatting";
 import { useAsyncResource } from "../useAsyncResource";
-import { leafTasks, useSnapshotTasks } from "../useSnapshotTasks";
+import { allResourceGroups, leafTasks, useSnapshotTasks } from "../useSnapshotTasks";
 import type { ZoneProps } from "./ZoneProps";
+
+/**
+ * How many task rows are rendered at once.
+ *
+ * A real shutdown schedule carries hundreds of leaf tasks — the review deployment's has 465 — and
+ * rendering all of them costs more than it is worth when the filters exist. The cap is only safe
+ * because it is *stated*: the count beside the heading used to report every matching task while the
+ * table rendered two hundred, so a coordinator scrolling to the end had no way to know the work
+ * they were looking for had been cut off.
+ */
+const TASK_ROW_LIMIT = 200;
+
+/** The count beside the heading, which must never claim more rows than the table renders. */
+export function taskCountLabel(matching: number) {
+  return matching > TASK_ROW_LIMIT ? `${TASK_ROW_LIMIT} of ${matching}` : `${matching} shown`;
+}
 
 const submittableStates: TaskExecutionState[] = [
   "READY",
@@ -37,6 +53,7 @@ export function ExecutionZone({ session, client }: ZoneProps) {
   const projectId = session.projectId;
   const tasks = useSnapshotTasks(client, projectId, session.live);
   const [filter, setFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const problems = useAsyncResource<ProblemRecord[]>(
@@ -55,17 +72,29 @@ export function ExecutionZone({ session, client }: ZoneProps) {
     );
   }, [problems.state]);
 
+  const snapshot = tasks.state.status === "loaded" ? tasks.state.value : null;
+
+  const groupOptions = useMemo(
+    () => (snapshot === null ? [] : allResourceGroups(snapshot)),
+    [snapshot]
+  );
+
   const visibleTasks = useMemo(() => {
-    if (tasks.state.status !== "loaded") {
+    if (snapshot === null) {
       return [];
     }
-    const leaves = leafTasks(tasks.state.value);
+    const leaves = leafTasks(snapshot);
     const needle = filter.trim().toLowerCase();
-    if (needle.length === 0) {
-      return leaves;
-    }
-    return leaves.filter((task) => matchesFilter(task, needle));
-  }, [tasks.state, filter]);
+    return leaves.filter((task) => {
+      if (needle.length > 0 && !matchesFilter(task, needle)) {
+        return false;
+      }
+      if (groupFilter.length > 0) {
+        return (snapshot.groupsByTaskId.get(task.id) ?? []).includes(groupFilter);
+      }
+      return true;
+    });
+  }, [snapshot, filter, groupFilter]);
 
   const selectedTask =
     tasks.state.status === "loaded" && selectedTaskId !== null
@@ -73,14 +102,19 @@ export function ExecutionZone({ session, client }: ZoneProps) {
       : null;
 
   return (
-    <div className="zone-grid">
+    <div className="zone-grid task-zone">
       <article className="work-panel">
         <PanelHeading eyebrow="Live work" title="Leaf tasks">
-          <StatusChip label={`${visibleTasks.length} shown`} tone="blue" />
+          <StatusChip label={taskCountLabel(visibleTasks.length)} tone="blue" />
         </PanelHeading>
         <BoundaryNote>
           Reporting is against leaf tasks only. Summary rows are shown for context in Import
           review and are never export candidates.
+        </BoundaryNote>
+        <BoundaryNote>
+          Task, duration, resource group and the planned dates are what Microsoft Project says and
+          are never written back. The shaded columns — actual start, actual finish and percent —
+          are the execution input this product owns, and the only values an export carries.
         </BoundaryNote>
         <label className="wide-field">
           <span>Filter</span>
@@ -90,6 +124,30 @@ export function ExecutionZone({ session, client }: ZoneProps) {
             placeholder="Task name, WBS, or identifier"
           />
         </label>
+        <label className="wide-field">
+          <span>Resource group</span>
+          <select
+            value={groupFilter}
+            onChange={(event) => setGroupFilter(event.target.value)}
+            disabled={groupOptions.length === 0}
+          >
+            <option value="">
+              {groupOptions.length === 0 ? "No groups in this schedule" : "Every group"}
+            </option>
+            {groupOptions.map((group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {visibleTasks.length > TASK_ROW_LIMIT ? (
+          <BoundaryNote>
+            Showing the first {TASK_ROW_LIMIT} of {visibleTasks.length} matching tasks. Narrow the
+            filter or pick a resource group to reach the rest.
+          </BoundaryNote>
+        ) : null}
 
         <ResourceView
           resource={tasks}
@@ -100,17 +158,33 @@ export function ExecutionZone({ session, client }: ZoneProps) {
             visibleTasks.length === 0 ? (
               <BoundaryNote>No leaf tasks match that filter.</BoundaryNote>
             ) : (
-              <div className="review-table dense" role="table" aria-label="Leaf tasks">
-                <div className="review-row review-head" role="row">
+              <div className="review-table dense task-table" role="table" aria-label="Leaf tasks">
+                <div className="review-row task-row review-head" role="row">
                   <span role="columnheader">WBS</span>
                   <span role="columnheader">Task</span>
-                  <span role="columnheader">Imported percent</span>
+                  <span role="columnheader">Duration</span>
+                  <span role="columnheader">Resource group</span>
+                  <span role="columnheader">Planned start</span>
+                  <span role="columnheader">Planned finish</span>
+                  <span role="columnheader" className="reported-cell">
+                    Actual start
+                  </span>
+                  <span role="columnheader" className="reported-cell">
+                    Actual finish
+                  </span>
+                  <span role="columnheader" className="reported-cell">
+                    Percent
+                  </span>
                   <span role="columnheader">Blocker</span>
                 </div>
-                {visibleTasks.slice(0, 200).map((task) => (
+                {visibleTasks.slice(0, TASK_ROW_LIMIT).map((task) => (
                   <button
                     type="button"
-                    className={task.id === selectedTaskId ? "review-row selectable selected" : "review-row selectable"}
+                    className={
+                      task.id === selectedTaskId
+                        ? "review-row task-row selectable selected"
+                        : "review-row task-row selectable"
+                    }
                     role="row"
                     key={task.id}
                     onClick={() => setSelectedTaskId(task.id)}
@@ -118,7 +192,21 @@ export function ExecutionZone({ session, client }: ZoneProps) {
                   >
                     <span role="cell">{task.wbs ?? task.outlineNumber ?? task.externalId ?? "—"}</span>
                     <span role="cell">{task.name ?? "Unnamed task"}</span>
-                    <span role="cell">{formatPercent(task.percentComplete)}</span>
+                    <span role="cell">{task.durationText ?? "—"}</span>
+                    <span role="cell">
+                      {(snapshot?.groupsByTaskId.get(task.id) ?? []).join(", ") || "—"}
+                    </span>
+                    <span role="cell">{formatDateTime(task.plannedStart)}</span>
+                    <span role="cell">{formatDateTime(task.plannedFinish)}</span>
+                    <span role="cell" className="reported-cell">
+                      {formatDateTime(task.actualStart)}
+                    </span>
+                    <span role="cell" className="reported-cell">
+                      {formatDateTime(task.actualFinish)}
+                    </span>
+                    <span role="cell" className="reported-cell">
+                      {formatPercent(task.percentComplete)}
+                    </span>
                     <span role="cell">
                       {blockingTaskIds.has(task.id) ? <StatusChip label="Blocked" tone="red" /> : "—"}
                     </span>

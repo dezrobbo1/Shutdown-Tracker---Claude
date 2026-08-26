@@ -138,9 +138,11 @@ class ImportReviewControllerTests {
                         null,
                         BigDecimal.ZERO,
                         null,
-                        null
+                        null,
+                        "1 day"
                 )),
-                List.of(new ImportReviewResourceRow(UUID.randomUUID(), "SYN-RES-1", "Synthetic Resource", "work")),
+                List.of(new ImportReviewResourceRow(
+                        UUID.randomUUID(), "SYN-RES-1", "Synthetic Resource", "work", "Mechanical")),
                 List.of(new ImportReviewAssignmentRow(
                         UUID.randomUUID(),
                         "SYN-ASSIGN-1",

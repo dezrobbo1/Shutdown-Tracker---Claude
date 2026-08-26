@@ -147,7 +147,8 @@ public class JdbcProjectResourceLinkRepository implements ProjectResourceLinkRep
                        t.actual_finish,
                        t.percent_complete,
                        t.physical_percent_complete,
-                       t.notes
+                       t.notes,
+                       t.raw_data->>'durationText' AS duration_text
                 FROM imported_tasks t
                 WHERE t.project_id = :projectId
                   AND t.project_snapshot_id = :snapshotId
@@ -391,6 +392,7 @@ public class JdbcProjectResourceLinkRepository implements ProjectResourceLinkRep
                 rs.getObject("actual_finish", OffsetDateTime.class),
                 rs.getBigDecimal("percent_complete"),
                 rs.getBigDecimal("physical_percent_complete"),
-                rs.getString("notes"));
+                rs.getString("notes"),
+                rs.getString("duration_text"));
     }
 }

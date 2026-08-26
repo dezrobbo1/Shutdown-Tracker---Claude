@@ -117,7 +117,8 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
                        actual_finish,
                        percent_complete,
                        physical_percent_complete,
-                       notes
+                       notes,
+                       raw_data->>'durationText' AS duration_text
                 FROM imported_tasks
                 WHERE project_id = :projectId
                   AND project_snapshot_id = :snapshotId
@@ -134,7 +135,11 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
     @Override
     public List<ImportReviewResourceRow> listResources(UUID projectId, UUID snapshotId) {
         String sql = """
-                SELECT id, external_uid, name, resource_type
+                SELECT id,
+                       external_uid,
+                       name,
+                       resource_type,
+                       raw_data->>'group' AS resource_group
                 FROM imported_resources
                 WHERE project_id = :projectId
                   AND project_snapshot_id = :snapshotId
@@ -148,7 +153,8 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
                         rs.getObject("id", UUID.class),
                         rs.getString("external_uid"),
                         rs.getString("name"),
-                        rs.getString("resource_type")
+                        rs.getString("resource_type"),
+                        rs.getString("resource_group")
                 )
         );
     }
@@ -320,7 +326,8 @@ public class JdbcImportReviewRepository implements ImportReviewRepository {
                 rs.getObject("actual_finish", OffsetDateTime.class),
                 rs.getBigDecimal("percent_complete"),
                 rs.getBigDecimal("physical_percent_complete"),
-                rs.getString("notes")
+                rs.getString("notes"),
+                rs.getString("duration_text")
         );
     }
 }

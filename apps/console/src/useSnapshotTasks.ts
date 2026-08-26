@@ -20,12 +20,20 @@ export type SnapshotTasks = {
   snapshotId: string | null;
   tasks: ImportReviewTaskRow[];
   byId: Map<string, ImportReviewTaskRow>;
+  /**
+   * Microsoft Project resource groups reaching each task through its assignments.
+   *
+   * Resolved here rather than at the server because the snapshot detail already carries the
+   * resources and assignments; the console was fetching both and discarding them.
+   */
+  groupsByTaskId: Map<string, string[]>;
 };
 
 export const emptySnapshotTasks: SnapshotTasks = {
   snapshotId: null,
   tasks: [],
-  byId: new Map()
+  byId: new Map(),
+  groupsByTaskId: new Map()
 };
 
 export function useSnapshotTasks(
@@ -69,8 +77,80 @@ export function indexSnapshotTasks(detail: ImportReviewSnapshotDetail): Snapshot
   return {
     snapshotId: detail.snapshot.id,
     tasks: detail.tasks,
-    byId: new Map(detail.tasks.map((task) => [task.id, task]))
+    byId: new Map(detail.tasks.map((task) => [task.id, task])),
+    groupsByTaskId: indexResourceGroups(detail)
   };
+}
+
+/**
+ * Resource groups per task, distinct and sorted.
+ *
+ * A task usually draws several resources from one group, so the distinct set is what reads as
+ * useful — "Mechanical", not "Mechanical, Mechanical, Mechanical". A resource with no Group in
+ * Project contributes nothing rather than an empty entry, so a task whose resources are all
+ * ungrouped is indistinguishable from one with no resources at all: both simply have no group,
+ * which is what the column then shows.
+ *
+ * Assignments are matched by `importedResourceId` where the snapshot resolved it and by
+ * `resourceExternalUid` where it did not, because an assignment can name a resource the parse
+ * carried without a database row.
+ */
+export function indexResourceGroups(detail: ImportReviewSnapshotDetail): Map<string, string[]> {
+  const groupByResourceId = new Map<string, string>();
+  const groupByResourceUid = new Map<string, string>();
+  for (const resource of detail.resources) {
+    const group = resource.resourceGroup?.trim();
+    if (!group) {
+      continue;
+    }
+    groupByResourceId.set(resource.id, group);
+    if (resource.externalUid) {
+      groupByResourceUid.set(resource.externalUid, group);
+    }
+  }
+
+  const collected = new Map<string, Set<string>>();
+  for (const assignment of detail.assignments) {
+    if (!assignment.importedTaskId) {
+      continue;
+    }
+    const group =
+      (assignment.importedResourceId
+        ? groupByResourceId.get(assignment.importedResourceId)
+        : undefined) ??
+      (assignment.resourceExternalUid
+        ? groupByResourceUid.get(assignment.resourceExternalUid)
+        : undefined);
+    if (!group) {
+      continue;
+    }
+    const existing = collected.get(assignment.importedTaskId);
+    if (existing) {
+      existing.add(group);
+    } else {
+      collected.set(assignment.importedTaskId, new Set([group]));
+    }
+  }
+
+  return new Map(
+    [...collected].map(([taskId, groups]) => [taskId, [...groups].sort((a, b) => a.localeCompare(b))])
+  );
+}
+
+/** Every group present in the snapshot, sorted — the options a group filter offers. */
+export function allResourceGroups(tasks: SnapshotTasks): string[] {
+  const groups = new Set<string>();
+  for (const taskGroups of tasks.groupsByTaskId.values()) {
+    for (const group of taskGroups) {
+      groups.add(group);
+    }
+  }
+  return [...groups].sort((a, b) => a.localeCompare(b));
+}
+
+/** The groups on one task, or an empty list when Project gave its resources no Group. */
+export function taskResourceGroups(tasks: SnapshotTasks, taskId: string): string[] {
+  return tasks.groupsByTaskId.get(taskId) ?? [];
 }
 
 /**

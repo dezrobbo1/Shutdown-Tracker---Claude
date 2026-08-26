@@ -9,7 +9,12 @@ slice 3 as pull request
 [#27](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/27), and slice 4 early as part of
 Phase 0. Phase 1 is therefore one slice from done.
 
-What remains is **Phase 1 slice 5, and all of Phase 2**, listed under Remaining work below.
+Phase 1 is **complete**: slice 5, the field evidence gate, merged as pull request
+[#34](https://github.com/dezrobbo1/Shutdown-Tracker---Claude/pull/34) on 2026-08-24. This
+document did not record that until now, which is the second time it has lagged its own merges.
+
+**Phase 2 is deferred, and the goal has changed.** What remains is the console round-trip
+trial described below.
 
 This document was itself out of date between 2026-08-21 and 2026-08-22. Ten pull requests — #14
 through #24 — merged without it being updated, so it went on describing Phase 0 as upcoming work
@@ -31,29 +36,48 @@ recorded in [docs/sessions/2026-08-21-the-first-walk.md](../sessions/2026-08-21-
 That walk was taken over HTTP as the seeded identities, which proves the chain but not the console.
 
 So the residual claim is narrower than the one this goal was written against. It is no longer that
-the journey does not work; it is that **the journey has not been driven through the interface**, and
-that nothing fails when a link between two working steps is severed. Each remaining slice below
-addresses one of those two.
+the journey does not work; it is that **the journey has not been driven through the interface**.
+
+That is what the console round-trip trial now sets out to close, and it narrows the outcome above
+rather than replacing it: one admin instead of three roles, the console alone instead of both
+clients. The nine-to-three role work that the original wording implies is deferred, not dropped.
 
 ## Remaining work
 
 Ordered. Each slice is one reviewed outcome on one branch, finished before the next starts.
 
-### Phase 1 — A working flow path
+### The console round-trip trial
 
-- **Slice 5 — the field evidence gate.** `CAPTURE_EVIDENCE` is never checked in the field app; the
-  control is offered and the server refuses it. The capability exists in `packages/api-client` and
-  is honoured by the console; `apps/mobile-pwa` does not reference capabilities at all.
+Back to basics. Prove the one thing the product exists for — a schedule comes in from Microsoft
+Project, work is tracked against it, and it goes back — driven by **one admin in the console**, with
+the field app and the role model parked.
 
-### Phase 2 — Three role tiers
+- **Landed — the task section and the single actor.** The task section carries name, duration,
+  resource group, planned start and finish, actuals and percent, filterable by text and by resource
+  group, with the writable columns shaded apart from Project's. `admin` holds the nine capabilities
+  the round trip needs.
+- **Remaining — the trial itself.** Import a real schedule, track work against it through the task
+  box, walk the three review stages, generate the export, and return the candidate — as one admin,
+  through the interface. Record what was seen, including what the task section made obvious and what
+  it did not.
 
-- **Slice 6 — the contract.** ADR-012 records four roles, the capability mapping, the four-eyes
-  rule, and organisation/discipline as a membership attribute rather than a role. No ADR currently
-  mentions roles at all — `docs/adr` holds ADR-001 through ADR-011 — and this changes a documented
-  boundary, so the decision is written before the code.
+### Deferred, not abandoned — three role tiers
+
+Phase 2 stands as written and resumes after the trial. Its two slices were about to spend design
+effort on a role model the trial deliberately does without:
+
+- **Slice 6 — the contract.** An ADR recording the roles, the capability mapping, the four-eyes
+  rule, and organisation/discipline as a membership attribute rather than a role. **Do not number it
+  ADR-012**: that number is taken in `dezrobbo1/Shutdown-Tracker`, by an accepted ADR on trial
+  foundation and export deferral, and two meanings for one identifier is worse than a gap.
 - **Slice 7 — the tiers.** `control`, `supervisor`, `field`, and a read-only `viewer`, replacing
   nine roles. All nine are still declared, in `ProjectRole` and mirrored in
   `packages/api-client/src/identity.ts`.
+
+Before either starts, read `docs/product/user-tier-and-assignment-model.md` in the other repository.
+It already resolves direct-report scoping, the two assignment types, and that delegating work does
+not transfer responsibility. Re-deriving that here would duplicate settled design and drift from
+it.
 
 ### Raised during the walk, and not yet placed in a phase
 
@@ -147,11 +171,12 @@ bash scripts/db/validate-migrations.sh
 `mvn test` and the frontend checks need no Docker. `validate-migrations.sh` does, and states so when
 it is missing. Report any check that could not be run rather than implying it passed.
 
-The counts to expect on a green tree are **535 backend** — 460 in `services/api`, 75 in
-`services/project-worker` — and **144 frontend**, being 73 console, 43 mobile-pwa and 28 api-client.
+The counts to expect on a green tree are **538 backend** — 463 in `services/api`, 75 in
+`services/project-worker` — and **159 frontend**, being 82 console, 49 mobile-pwa and 28 api-client.
 A number below these means a test was lost, not that the suite got faster. The backend figure was
-523 when this document was last restated, before the journey test added two and slice 3 added
-ten.
+535 before the trial added two database tests for the Project fields and one for the seeded
+administrator, and the console figure was 73 before the trial added the resource-group and
+task-column cases.
 
 Verify GitHub Actions on the branch head. A previously green run is not evidence for a later commit.
 

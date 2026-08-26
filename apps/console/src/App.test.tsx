@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 import { capabilityAllows } from "@shutdown-tracker/api-client";
 import { statusClasses } from "@shutdown-tracker/design-tokens";
 import type {
+  ImportReviewAssignmentRow,
+  ImportReviewResourceRow,
+  ImportReviewSnapshotDetail,
   ImportReviewSnapshotSummary,
   ProjectSnapshotStatus,
   TaskProgressUpdateRecord
@@ -12,9 +15,14 @@ import { App } from "./App";
 import { buildConsoleSession, describeSession, resolveRole, sessionAllows } from "./session";
 import { consoleZones, parseRoute, parseZoneId, sectionById, zoneById, zoneHref } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
-import { newestAcceptedSnapshot } from "./useSnapshotTasks";
+import {
+  allResourceGroups,
+  indexResourceGroups,
+  indexSnapshotTasks,
+  newestAcceptedSnapshot
+} from "./useSnapshotTasks";
 import { describeUploadOutcome } from "./zones/ImportReviewZone";
-import { toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
+import { taskCountLabel, toOffsetDateTime, validateProgressInput } from "./zones/ExecutionZone";
 import { queueLabel, supervisorOutcomeMessage } from "./zones/ReviewQueueZone";
 import {
   canApprove,
@@ -234,10 +242,34 @@ describe("schedule intake", () => {
 });
 
 describe("capability gating mirrors the product rules", () => {
-  it("keeps export approval with the planner and away from the administrator", () => {
+  // The rule this used to assert - export approval is planner-owned and excludes admin - is
+  // suspended for the console round-trip trial, which one admin drives alone. The test is kept
+  // pointed at the suspension rather than deleted, so restoring four-eyes is a visible edit here
+  // rather than a silent re-grant, and so the exclusion of every OTHER role is still guarded.
+  it("lends export approval to the administrator for the trial, and to nobody else", () => {
     expect(capabilityAllows("APPROVE_EXPORT_BATCH", "planner")).toBe(true);
-    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "admin")).toBe(false);
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "admin")).toBe(true);
     expect(capabilityAllows("APPROVE_EXPORT_BATCH", "supervisor")).toBe(false);
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "coordinator")).toBe(false);
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "shutdown_control")).toBe(false);
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "field_user")).toBe(false);
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "viewer")).toBe(false);
+  });
+
+  it("gives the trial administrator every step of the round trip", () => {
+    for (const capability of [
+      "SUBMIT_TASK_PROGRESS",
+      "REVIEW_TASK_PROGRESS",
+      "PLANNER_REVIEW_TASK_PROGRESS",
+      "RECORD_APPROVAL",
+      "CREATE_EXPORT_PREVIEW",
+      "APPROVE_EXPORT_BATCH",
+      "GENERATE_EXPORT_ARTIFACT",
+      "RECORD_EXPORT_VERIFICATION",
+      "RETURN_CANDIDATE_SCHEDULE"
+    ] as const) {
+      expect(capabilityAllows(capability, "admin")).toBe(true);
+    }
   });
 
   it("does not let supervisor acceptance become export approval", () => {
@@ -454,6 +486,108 @@ describe("controlled export", () => {
     expect(newestAcceptedSnapshot([snapshot(1, "REJECTED"), snapshot(2, "PARSED")])).toBeUndefined();
   });
 
+  /**
+   * Resource group is the field a shutdown coordinator actually filters a task list by - the
+   * discipline or crew - and it reaches a task only through its assignments. The join is done in
+   * the console because the snapshot detail already carries resources and assignments; the point
+   * of these cases is that the join stays honest when the data is ragged, which real Project
+   * exports reliably are.
+   */
+  describe("resource groups", () => {
+    const detail = (over: Partial<ImportReviewSnapshotDetail>) =>
+      ({
+        snapshot: { id: "s1" },
+        tasks: [],
+        resources: [],
+        assignments: [],
+        extendedAttributes: [],
+        ...over
+      }) as unknown as ImportReviewSnapshotDetail;
+
+    const resource = (id: string, externalUid: string | null, resourceGroup: string | null) =>
+      ({ id, externalUid, name: id, resourceType: "work", resourceGroup }) as ImportReviewResourceRow;
+
+    const assignment = (
+      importedTaskId: string | null,
+      importedResourceId: string | null,
+      resourceExternalUid: string | null = null
+    ) =>
+      ({
+        id: `a-${importedTaskId}-${importedResourceId}`,
+        externalUid: null,
+        taskExternalUid: null,
+        resourceExternalUid,
+        importedTaskId,
+        importedResourceId
+      }) as ImportReviewAssignmentRow;
+
+    it("collapses several resources of one group to a single group", () => {
+      const groups = indexResourceGroups(
+        detail({
+          resources: [resource("r1", "R1", "Mechanical"), resource("r2", "R2", "Mechanical")],
+          assignments: [assignment("t1", "r1"), assignment("t1", "r2")]
+        })
+      );
+
+      expect(groups.get("t1")).toEqual(["Mechanical"]);
+    });
+
+    it("carries every distinct group a task draws on, sorted", () => {
+      const groups = indexResourceGroups(
+        detail({
+          resources: [
+            resource("r1", "R1", "Scaffolding"),
+            resource("r2", "R2", "Mechanical"),
+            resource("r3", "R3", "Electrical")
+          ],
+          assignments: [assignment("t1", "r1"), assignment("t1", "r2"), assignment("t1", "r3")]
+        })
+      );
+
+      expect(groups.get("t1")).toEqual(["Electrical", "Mechanical", "Scaffolding"]);
+    });
+
+    it("resolves a resource the snapshot matched only by external uid", () => {
+      const groups = indexResourceGroups(
+        detail({
+          resources: [resource("r1", "R1", "Mechanical")],
+          assignments: [assignment("t1", null, "R1")]
+        })
+      );
+
+      expect(groups.get("t1")).toEqual(["Mechanical"]);
+    });
+
+    /**
+     * A resource with no Group in Project must contribute nothing rather than an empty string,
+     * so a task whose resources are all ungrouped reads the same as a task with no resources —
+     * both simply have no group, which is what the column shows as an em dash.
+     */
+    it("gives no group to ungrouped resources, to unassigned tasks, and to blank groups", () => {
+      const groups = indexResourceGroups(
+        detail({
+          resources: [resource("r1", "R1", null), resource("r2", "R2", "   ")],
+          assignments: [assignment("t1", "r1"), assignment("t2", "r2"), assignment(null, "r1")]
+        })
+      );
+
+      expect(groups.get("t1")).toBeUndefined();
+      expect(groups.get("t2")).toBeUndefined();
+      expect(groups.size).toBe(0);
+    });
+
+    it("offers each group once as a filter option, however many tasks carry it", () => {
+      const tasks = indexSnapshotTasks(
+        detail({
+          resources: [resource("r1", "R1", "Mechanical"), resource("r2", "R2", "Electrical")],
+          assignments: [assignment("t1", "r1"), assignment("t2", "r1"), assignment("t2", "r2")]
+        })
+      );
+
+      expect(allResourceGroups(tasks)).toEqual(["Electrical", "Mechanical"]);
+    });
+  });
+
   it("enforces the export sequence so no step can be skipped", () => {
     expect(canApprove("DRAFT_PREVIEW")).toBe(true);
     expect(canApprove("APPROVED")).toBe(false);
@@ -489,7 +623,7 @@ describe("controlled export", () => {
     expect(canReturnCandidate("SUPERSEDED")).toBe(false);
   });
 
-  it("keeps returning a candidate with the planner, and says it is not adoption", () => {
+  it("keeps returning a candidate away from the supervisor, and says it is not adoption", () => {
     const asRole = (role: string) =>
       buildZoneSession(
         buildConsoleSession({
@@ -501,8 +635,9 @@ describe("controlled export", () => {
 
     expect(asRole("planner").canReturnCandidate).toBe(true);
     expect(asRole("supervisor").canReturnCandidate).toBe(false);
-    // An administrator administers access; they do not run Microsoft Project against a candidate.
-    expect(asRole("admin").canReturnCandidate).toBe(false);
+    // Ordinarily an administrator administers access and does not run Microsoft Project against a
+    // candidate. The trial has one admin driving the whole round trip, so they hold this for now.
+    expect(asRole("admin").canReturnCandidate).toBe(true);
 
     expect(candidateRunStateLabels.ACCEPTED).toBe("Accepted by planner");
     expect(candidateRunStateLabels.ACCEPTED).not.toContain("adopt");
@@ -656,6 +791,39 @@ describe("every zone renders", () => {
       expect(html).toContain("Configure a project and actor");
     });
   }
+
+  /**
+   * The task section's two column groups mean different things: everything left of the shaded
+   * columns is Microsoft Project's, and only the shaded three are ever written back. If that stops
+   * being said on the surface, the table becomes a uniformly editable-looking grid and the
+   * distinction survives only in a document nobody has open.
+   */
+  it("says which task columns are Project's and which are the ones that go back", () => {
+    const html = renderToString(<ExecutionZone session={session} client={client} />);
+
+    expect(html).toContain("never written back");
+    expect(html).toContain("the only values an export carries");
+  });
+
+  /**
+   * The table renders at most 200 rows, and the count beside the heading used to report every
+   * matching task - so against the review deployment's 465 leaf tasks it said "465 shown" above a
+   * table holding 200. A coordinator who scrolled to the end had no way to know the task they were
+   * looking for had been cut off.
+   */
+  it("never claims more task rows than the table actually renders", () => {
+    expect(taskCountLabel(12)).toBe("12 shown");
+    expect(taskCountLabel(200)).toBe("200 shown");
+    expect(taskCountLabel(465)).toBe("200 of 465");
+  });
+
+  it("offers the resource group filter even before a schedule has loaded", () => {
+    const html = renderToString(<ExecutionZone session={session} client={client} />);
+
+    expect(html).toContain("Resource group");
+    // Says why it is empty rather than presenting an empty dropdown as a choice.
+    expect(html).toContain("No groups in this schedule");
+  });
 
   it("shows the product boundary where someone might expect a recalculation", () => {
     const html = renderToString(<ExportZone session={session} client={client} />);

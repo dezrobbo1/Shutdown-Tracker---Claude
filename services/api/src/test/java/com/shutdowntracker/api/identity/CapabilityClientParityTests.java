@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -44,14 +45,36 @@ class CapabilityClientParityTests {
         }
     }
 
+    /**
+     * Export approval is planner-owned, and admin was excluded because administering access is not
+     * approving what returns to Microsoft Project. That exclusion is suspended for the console
+     * round-trip trial, which one admin drives end to end.
+     *
+     * <p>The test is kept pointed at the suspension rather than deleted. It still guards the part
+     * that has not changed — no other role may approve — and restoring four-eyes is then a visible
+     * edit here rather than a silent re-grant nobody reviews.
+     */
     @Test
-    void exportApprovalStaysWithThePlannerOnBothSides() throws IOException {
+    void lendsExportApprovalToTheAdminForTheTrialOnBothSides() throws IOException {
         Map<String, Set<String>> client = parseClientCapabilities();
 
         assertThat(client.get("APPROVE_EXPORT_BATCH"))
-                .describedAs("administering access is not approving what returns to Microsoft Project")
-                .containsExactly("planner");
-        assertThat(Capability.APPROVE_EXPORT_BATCH.allows(ProjectRole.ADMIN)).isFalse();
+                .describedAs("the trial admin approves; nobody else joins the planner")
+                .containsExactlyInAnyOrder("planner", "admin");
+        assertThat(Capability.APPROVE_EXPORT_BATCH.allows(ProjectRole.ADMIN)).isTrue();
+
+        for (ProjectRole role : List.of(
+                ProjectRole.SUPERVISOR,
+                ProjectRole.COORDINATOR,
+                ProjectRole.SHUTDOWN_CONTROL,
+                ProjectRole.FIELD_USER,
+                ProjectRole.CONTRACTOR,
+                ProjectRole.INSPECTOR,
+                ProjectRole.VIEWER)) {
+            assertThat(Capability.APPROVE_EXPORT_BATCH.allows(role))
+                    .describedAs("%s must not approve an export batch", role)
+                    .isFalse();
+        }
     }
 
     @Test
