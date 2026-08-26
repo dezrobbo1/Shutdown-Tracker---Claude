@@ -52,10 +52,20 @@ Back to basics. Prove the one thing the product exists for — a schedule comes 
 Project, work is tracked against it, and it goes back — driven by **one admin in the console**, with
 the field app and the role model parked.
 
-- **Landed — the task section and the single actor.** The task section carries name, duration,
-  resource group, planned start and finish, actuals and percent, filterable by text and by resource
-  group, with the writable columns shaded apart from Project's. `admin` holds the nine capabilities
-  the round trip needs.
+- **Landed — the task section.** The task section carries name, duration, resource group, planned
+  start and finish, actuals and percent, filterable by text and by resource group, with the writable
+  columns shaded apart from Project's.
+- **Landed — one super user, and nothing else to act as.** `admin` holds every capability, by a
+  single super user rule rather than by grants widened to suit the trial. The seeder creates that
+  one person and retires the field user, supervisor, planner and viewer it used to seed — membership
+  revoked, account deactivated, rows kept so the audit trail still names somebody. The console's
+  identity selector is gone with them, and so is the stored identity that outlived it: a browser
+  that had once chosen "Review Planner" went on acting as one through every redeploy.
+- **Remaining — clearing back to a blank slate.** The trial needs to be startable again: imported
+  schedules, tracked work, reviews and exports cleared, the super user and the project kept.
+- **Remaining — the super user grants roles and responsibilities.** Roles and capability grants are
+  compile-time today. Letting one person define who else exists and what they may do moves that into
+  the database. Not started, and the largest of the three.
 - **Remaining — the trial itself.** Import a real schedule, track work against it through the task
   box, walk the three review stages, generate the export, and return the candidate — as one admin,
   through the interface. Record what was seen, including what the task section made obvious and what

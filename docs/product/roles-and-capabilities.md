@@ -4,6 +4,23 @@ This baseline defines default product roles before production domain tables, API
 
 Authentication identifies the user. Application roles, explicit responsibility/delegation, and project membership decide what the user can do. Project-derived Operational Category membership may influence relevance and responsibility configuration but never grants application authority by itself.
 
+## Suspended for the console round-trip trial
+
+**The Admin role currently holds every capability this service implements.** The console
+round-trip trial is driven by one person — schedule in, work tracked against it, candidate back —
+and no one role in the matrix below can walk that alone. Rather than widen the grants to suit it,
+the implementation carries a single super user rule: `Capability.SUPER_USER` in the API and
+`superUserRole` in `packages/api-client`, both naming `admin`.
+
+What this suspends is separation of duty, and it is worth being exact about which part. The three
+review stages — supervisor review, planner review, export approval — still exist and are still
+walked in order. One person now walks all three, so the four-eyes property does not hold. Export
+approval is still described below as planner-owned because that is the model this document
+defines and the model that returns; the trial does not amend it.
+
+Ending the trial is removing that one rule and giving the trial a second actor. Nothing in the
+matrix below was edited for it, so nothing has to be reconstructed.
+
 ## Role Summary
 
 | Role | Primary purpose | Default landing area | Progress review responsibility | Export authority | Operational Mapping responsibility | Evidence access | Audit sensitivity |

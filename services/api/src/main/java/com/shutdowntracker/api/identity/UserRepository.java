@@ -36,4 +36,24 @@ public interface UserRepository {
     }
 
     Optional<ProjectMembershipRecord> findActiveMembership(UUID projectId, UUID userId);
+
+    /**
+     * Ends an active membership, recording when and by whom.
+     *
+     * <p>The row is kept and marked inactive rather than deleted. Membership is part of the audit
+     * trail — it is what says who was entitled to do the things the trail records — so removing the
+     * row would leave past events attributed to an authority nobody can see any more.
+     *
+     * <p>{@code revokedByUserId} may be null for the same reason {@link #grantMembership} allows
+     * it: a membership withdrawn by a seeder was withdrawn by no one.
+     */
+    void revokeMembership(UUID membershipId, UUID revokedByUserId);
+
+    /**
+     * Changes an account's status.
+     *
+     * <p>Only {@link UserStatus#ACTIVE} may act, so this is how access is withdrawn from a person
+     * whose rows the audit trail still references and who therefore cannot be deleted.
+     */
+    void updateStatus(UUID userId, UserStatus status);
 }

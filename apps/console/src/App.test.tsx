@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { capabilityAllows } from "@shutdown-tracker/api-client";
+import { capabilityAllows, rolesDeclaredFor } from "@shutdown-tracker/api-client";
 import { statusClasses } from "@shutdown-tracker/design-tokens";
 import type {
   ImportReviewAssignmentRow,
@@ -109,13 +109,16 @@ describe("console shell", () => {
     expect(html).toContain("Not configured");
   });
 
-  it("offers only the configured identity when seeded review identities are unavailable", () => {
+  it("offers no way to act as somebody else", () => {
     const html = renderToString(<App />);
 
-    // The old fallback was the nine-role selector, which changed what the interface offered and
-    // never what the server answered. Falling back to it would restore exactly that.
-    expect(html).toContain("Seeded review identities are not enabled on this server.");
+    // Two selectors have stood here. The first changed the role header and nothing the server
+    // answered; the second changed the whole identity and outlived the identities it offered,
+    // leaving browsers acting as a planner the seeder no longer creates. The trial has one super
+    // user, so there is nothing to choose between.
+    expect(html).not.toContain("Acting identity");
     expect(html).not.toContain("Acting role");
+    expect(html).not.toContain("<select");
   });
 });
 
@@ -133,14 +136,9 @@ describe("session", () => {
     expect(buildConsoleSession({ ...env, VITE_SHUTDOWN_TRACKER_ACTOR_ID: "" }).live).toBe(false);
   });
 
-  it("prefers the in-session role over the build-time default", () => {
-    expect(resolveRole("supervisor", "planner")).toBe("supervisor");
-    expect(resolveRole(null, "planner")).toBe("planner");
-  });
-
   it("discards an unrecognised role instead of sending it to the API", () => {
-    expect(resolveRole("wizard", "planner")).toBe("planner");
-    expect(resolveRole("wizard", "sorcerer")).toBeNull();
+    expect(resolveRole("planner")).toBe("planner");
+    expect(resolveRole("sorcerer")).toBeNull();
     expect(buildConsoleSession({ ...env, VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "wizard" }).actor).toBeNull();
   });
 
@@ -152,48 +150,14 @@ describe("session", () => {
     expect(describeSession(session)).toContain("No actor configured");
   });
 
-  it("takes the whole identity from storage rather than mixing it with the build-time actor", () => {
-    const session = buildConsoleSession(env, {
-      userId: "user-2",
-      role: "supervisor",
-      displayName: "Rae Supervisor",
-      projectId: "project-2"
-    });
+  it("is whoever the build says, with nothing in the browser able to override it", () => {
+    const session = buildConsoleSession(env);
 
-    // All four together. Taking the id from one source and the role from another is how a session
-    // ends up claiming a role its membership does not have.
-    expect(session.actor?.userId).toBe("user-2");
-    expect(session.actor?.role).toBe("supervisor");
-    expect(session.actor?.displayName).toBe("Rae Supervisor");
-    expect(session.projectId).toBe("project-2");
-  });
-
-  it("falls back to the build-time actor when the stored identity is unusable", () => {
-    const withoutUser = buildConsoleSession(env, {
-      userId: "",
-      role: "supervisor",
-      displayName: "Rae Supervisor"
-    });
-    const withUnknownRole = buildConsoleSession(env, {
-      userId: "user-2",
-      role: "wizard",
-      displayName: "Rae Supervisor"
-    });
-
-    // Discarded whole, not partially applied: a half-valid identity produces a confusing refusal
-    // at the first write rather than an obvious problem now.
-    expect(withoutUser.actor?.userId).toBe("user-1");
-    expect(withUnknownRole.actor?.userId).toBe("user-1");
-    expect(withUnknownRole.actor?.role).toBe("planner");
-  });
-
-  it("keeps the build-time project when the stored identity does not name one", () => {
-    const session = buildConsoleSession(env, {
-      userId: "user-2",
-      role: "supervisor",
-      displayName: "Rae Supervisor"
-    });
-
+    // A stored identity used to win here, which is how a browser that once chose "Review Planner"
+    // went on acting as one through every redeploy — including after that person stopped being
+    // seeded at all. The build is now the only source.
+    expect(session.actor?.userId).toBe("user-1");
+    expect(session.actor?.role).toBe("planner");
     expect(session.projectId).toBe("project-1");
   });
 });
@@ -303,6 +267,17 @@ describe("capability gating mirrors the product rules", () => {
   });
 
   it("keeps mapping configuration with the planner, who owns the interpretation", () => {
+    // Stated against the declared matrix, not against what the admin can do: the trial makes the
+    // admin a super user, so asking `capabilityAllows` here would say yes for a reason that has
+    // nothing to do with who owns a Project field's interpretation.
+    expect(rolesDeclaredFor("MANAGE_IMPORT_PROFILE")).toEqual(["planner"]);
+
+    // Linking a Project resource to a person is shared with the admin, who maintains who the
+    // users are. It is the one mapping-shaped act that is not planner-only.
+    expect(rolesDeclaredFor("MANAGE_RESOURCE_LINK")).toContain("admin");
+  });
+
+  it("gives the trial's super user every capability, mapping configuration included", () => {
     const admin = buildZoneSession(
       buildConsoleSession({
         VITE_SHUTDOWN_TRACKER_PROJECT_ID: "p",
@@ -311,12 +286,12 @@ describe("capability gating mirrors the product rules", () => {
       })
     );
 
+    // One person walks the round trip, so no control in this console may be greyed out for them.
     expect(admin.canAcceptSnapshot).toBe(true);
-    expect(admin.canManageMapping).toBe(false);
-
-    // Linking a Project resource to a person is shared with the admin, who maintains who the
-    // users are. It is the one mapping-shaped act that is not planner-only.
+    expect(admin.canManageMapping).toBe(true);
     expect(admin.canManageResourceLink).toBe(true);
+    expect(admin.canSubmitProgress).toBe(true);
+    expect(admin.canReviewProgress).toBe(true);
   });
 
   it("does not let a resource link become a permission", () => {

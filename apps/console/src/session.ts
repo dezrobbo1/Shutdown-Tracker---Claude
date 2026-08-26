@@ -13,12 +13,13 @@ import type { ActorIdentity, Capability, ProjectRole } from "@shutdown-tracker/a
  * lands, the console carries the actor in trusted headers, which only means anything behind
  * a gateway that sets them from a real login.
  *
- * What is stored is a whole identity — user id, name, role and project together — and not a role
- * on its own. A role by itself was actively misleading: changing it rewrote the role header and
- * re-derived every capability flag, but the server resolves the caller's role from their
- * `project_memberships` row and ignores the header entirely. With one identity configured, the
- * only two things the old selector could do were un-grey a control the server would refuse, or
- * grey out one it would have allowed. Switching the person is what changes the answer.
+ * **There is one identity and no way to change it.** The console round-trip trial is driven by a
+ * single super user, so the build decides who this console is and nothing in the browser overrides
+ * it. What used to be here was a selector backed by `localStorage`, and it outlived what it was
+ * for: a browser that had once picked "Review Planner" went on acting as one through every
+ * redeploy, including after the seeder stopped creating that person. A remembered choice among
+ * identities that no longer exist is worse than no choice at all — it is a console that quietly
+ * disagrees with the server about who is using it.
  */
 
 export type ConsoleSession = {
@@ -30,28 +31,11 @@ export type ConsoleSession = {
 
 export type ConsoleEnv = Record<string, unknown>;
 
-const identityStorageKey = "shutdown-tracker.console.identity";
-
-/** An identity chosen in this browser, as it is remembered between reloads. */
-export type StoredIdentity = {
-  userId: string;
-  role: string;
-  displayName: string;
-  projectId?: string;
-};
-
-export function buildConsoleSession(env: ConsoleEnv, storedIdentity?: StoredIdentity | null): ConsoleSession {
-  const stored = validStoredIdentity(storedIdentity);
-
-  // A stored identity replaces the build-time actor wholesale. Taking the id from one source and
-  // the role from another is how a session ends up claiming a role its membership does not have.
-  const projectId = stored?.projectId ?? readString(env.VITE_SHUTDOWN_TRACKER_PROJECT_ID);
-  const userId = stored?.userId ?? readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ID);
-  const displayName =
-    stored?.displayName ?? (readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_NAME) || "Console user");
-  const role = stored
-    ? (stored.role as ProjectRole)
-    : resolveRole(null, readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ROLE));
+export function buildConsoleSession(env: ConsoleEnv): ConsoleSession {
+  const projectId = readString(env.VITE_SHUTDOWN_TRACKER_PROJECT_ID);
+  const userId = readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ID);
+  const displayName = readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_NAME) || "Console user";
+  const role = resolveRole(readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ROLE));
 
   const actor: ActorIdentity | null =
     userId.length > 0 && role !== null ? { userId, role, displayName } : null;
@@ -64,61 +48,19 @@ export function buildConsoleSession(env: ConsoleEnv, storedIdentity?: StoredIden
 }
 
 /**
- * A stored identity, or null if it is unusable.
- *
- * Discarded rather than partially applied, for the reason `resolveRole` gives: a half-valid
- * identity produces a confusing rejection at the first write rather than an obvious one now.
- */
-function validStoredIdentity(stored: StoredIdentity | null | undefined): StoredIdentity | null {
-  if (!stored || typeof stored !== "object") {
-    return null;
-  }
-  const userId = readString(stored.userId);
-  const displayName = readString(stored.displayName);
-  const projectId = readString(stored.projectId);
-  if (userId.length === 0 || !isProjectRole(readString(stored.role))) {
-    return null;
-  }
-  return {
-    userId,
-    role: readString(stored.role),
-    displayName: displayName.length > 0 ? displayName : userId,
-    projectId: projectId.length > 0 ? projectId : undefined
-  };
-}
-
-/**
- * The role to act as, preferring an explicit in-session choice over the build-time default.
+ * The role to act as, or null if the build did not name a usable one.
  *
  * An unrecognised value is discarded rather than passed through: sending a role the server
  * does not know produces a confusing rejection at the first write.
+ *
+ * The role is cosmetic to the server either way — `ProjectAuthorizationService` resolves the
+ * caller's real role from their membership and ignores the header — so it decides only what this
+ * interface offers. Getting it wrong therefore shows up as a control that is greyed out when the
+ * server would have allowed it, or offered when the server will refuse.
  */
-export function resolveRole(storedRole: string | null | undefined, configuredRole: string): ProjectRole | null {
-  for (const candidate of [storedRole, configuredRole]) {
-    if (typeof candidate === "string" && isProjectRole(candidate.trim())) {
-      return candidate.trim() as ProjectRole;
-    }
-  }
-  return null;
-}
-
-export function readStoredIdentity(storage: Pick<Storage, "getItem"> | undefined): StoredIdentity | null {
-  try {
-    const raw = storage?.getItem(identityStorageKey);
-    return raw === null || raw === undefined ? null : (JSON.parse(raw) as StoredIdentity);
-  } catch {
-    // Private browsing modes throw on access, and a value written by an older build may not
-    // parse. Neither is an error: an unreadable preference is simply no preference.
-    return null;
-  }
-}
-
-export function writeStoredIdentity(storage: Pick<Storage, "setItem"> | undefined, identity: StoredIdentity) {
-  try {
-    storage?.setItem(identityStorageKey, JSON.stringify(identity));
-  } catch {
-    // The selection still applies to this session even when it cannot be remembered.
-  }
+export function resolveRole(configuredRole: string): ProjectRole | null {
+  const candidate = configuredRole.trim();
+  return isProjectRole(candidate) ? (candidate as ProjectRole) : null;
 }
 
 /**

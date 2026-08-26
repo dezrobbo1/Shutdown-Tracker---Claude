@@ -46,22 +46,48 @@ class CapabilityClientParityTests {
     }
 
     /**
-     * Export approval is planner-owned, and admin was excluded because administering access is not
-     * approving what returns to Microsoft Project. That exclusion is suspended for the console
-     * round-trip trial, which one admin drives end to end.
+     * The trial's one actor holds everything, and holds it by the super user rule rather than by
+     * grants edited to suit it.
      *
-     * <p>The test is kept pointed at the suspension rather than deleted. It still guards the part
-     * that has not changed — no other role may approve — and restoring four-eyes is then a visible
-     * edit here rather than a silent re-grant nobody reviews.
+     * <p>Both halves matter. If the rule were dropped the trial would silently lose capabilities it
+     * needs; if the grant lists were widened instead, ending the trial would mean reconstructing a
+     * permission matrix from memory. This asserts the relaxation is exactly one rule wide.
      */
     @Test
-    void lendsExportApprovalToTheAdminForTheTrialOnBothSides() throws IOException {
+    void theTrialSuperUserHoldsEveryCapabilityOnBothSides() throws IOException {
         Map<String, Set<String>> client = parseClientCapabilities();
+        String superUser = Capability.SUPER_USER.databaseValue();
+
+        assertThat(clientSuperUserRole())
+                .describedAs("the client and the server agree on who the super user is")
+                .isEqualTo(superUser);
+
+        for (Capability capability : Capability.values()) {
+            assertThat(capability.allows(Capability.SUPER_USER))
+                    .describedAs("the super user may %s", capability)
+                    .isTrue();
+            assertThat(capability.allowedRoles())
+                    .describedAs("%s lists the super user among the roles that may perform it", capability)
+                    .contains(Capability.SUPER_USER);
+        }
 
         assertThat(client.get("APPROVE_EXPORT_BATCH"))
-                .describedAs("the trial admin approves; nobody else joins the planner")
-                .containsExactlyInAnyOrder("planner", "admin");
-        assertThat(Capability.APPROVE_EXPORT_BATCH.allows(ProjectRole.ADMIN)).isTrue();
+                .describedAs("export approval is still declared planner-owned on both sides")
+                .containsExactly("planner");
+        assertThat(Capability.APPROVE_EXPORT_BATCH.declaredRoles())
+                .containsExactly(ProjectRole.PLANNER);
+    }
+
+    /**
+     * Export approval is planner-owned: administering access is not approving what returns to
+     * Microsoft Project. The trial suspends that for the super user alone, and this guards the
+     * half that has not changed — no other role joins the planner.
+     */
+    @Test
+    void noRoleButThePlannerAndTheSuperUserApprovesAnExport() throws IOException {
+        Map<String, Set<String>> client = parseClientCapabilities();
+
+        assertThat(client.get("APPROVE_EXPORT_BATCH")).containsExactly("planner");
 
         for (ProjectRole role : List.of(
                 ProjectRole.SUPERVISOR,
@@ -111,12 +137,20 @@ class CapabilityClientParityTests {
         assertThat(Capability.SUBMIT_CRITICAL_UPDATE.allows(ProjectRole.VIEWER)).isFalse();
     }
 
+    /** The super user the client compiles in, read out of the same module the grants come from. */
+    private String clientSuperUserRole() throws IOException {
+        String source = Files.readString(clientIdentityModule());
+        Matcher matcher = Pattern.compile("superUserRole\\s*:\\s*ProjectRole\\s*=\\s*\"([a-z_]+)\"").matcher(source);
+        assertThat(matcher.find()).describedAs("identity.ts declares superUserRole").isTrue();
+        return matcher.group(1);
+    }
+
     private Map<String, Set<String>> serverCapabilities() {
         Map<String, Set<String>> capabilities = new LinkedHashMap<>();
         for (Capability capability : Capability.values()) {
             capabilities.put(
                     capability.name(),
-                    capability.allowedRoles().stream()
+                    capability.declaredRoles().stream()
                             .map(ProjectRole::databaseValue)
                             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
         }

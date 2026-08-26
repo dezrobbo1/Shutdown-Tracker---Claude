@@ -1,5 +1,6 @@
 package com.shutdowntracker.api.identity;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -14,14 +15,18 @@ import java.util.Set;
  * is granted by Operational Category membership, because classifying work never confers
  * authority over it.
  *
- * <p><strong>A second rule is currently suspended.</strong> Export approval is planner-owned, and
- * an admin is meant to administer access without being a routine export approver — separating who
- * runs the project from who decides what goes back to Microsoft Project. The console round-trip
- * trial is driven by a single admin, so {@code ADMIN} is granted the execution, review, and export
- * capabilities below. This is a deliberate trial relaxation, not an oversight: the three review
- * stages still exist and are still walked in order, but one person now walks all of them, so the
- * four-eyes property does not hold while the trial runs. Restoring it means removing {@code ADMIN}
- * from the grants marked "trial" and giving the trial a second actor.
+ * <p><strong>A second rule is suspended for the console round-trip trial.</strong> The trial is
+ * driven by one person, so {@code admin} is a <em>super user</em>: it holds every capability
+ * declared here, and {@link #SUPER_USER} rather than the individual grant lists is what says so.
+ * Separation of duty is what this suspends — export approval is planner-owned precisely because
+ * administering access is not the same as deciding what returns to Microsoft Project, and the
+ * three review stages exist so that more than one person walks them. Those stages still exist and
+ * are still walked in order; one person now walks all of them, so the four-eyes property does not
+ * hold while the trial runs.
+ *
+ * <p>The per-role grants below are therefore still the real permission model, and are deliberately
+ * left as they were: restoring separation of duty means removing the {@link #SUPER_USER} rule and
+ * giving the trial a second actor, not reconstructing grants that were edited away.
  */
 public enum Capability {
 
@@ -41,47 +46,32 @@ public enum Capability {
     // somebody may do: a link narrows a work list and confers no authority, so the capabilities
     // below are unchanged by whether the actor holds one.
     MANAGE_RESOURCE_LINK(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    // trial: admin walks the export handoff alone.
-    RECORD_APPROVAL(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    // trial: admin walks the export handoff alone.
-    CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    // trial: admin walks the export handoff alone.
-    APPROVE_EXPORT_BATCH(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    // trial: admin walks the export handoff alone.
-    GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER, ProjectRole.ADMIN),
-    // trial: admin walks the export handoff alone.
-    RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    RECORD_APPROVAL(ProjectRole.PLANNER),
+    CREATE_EXPORT_PREVIEW(ProjectRole.PLANNER),
+    APPROVE_EXPORT_BATCH(ProjectRole.PLANNER),
+    GENERATE_EXPORT_ARTIFACT(ProjectRole.PLANNER),
+    RECORD_EXPORT_VERIFICATION(ProjectRole.PLANNER),
     // Bringing back the schedule Microsoft Project calculated, and reading one back. Planner-only,
     // like every other capability in the export handoff: the planner is who runs Project against
     // the candidate and who reviews what it produced. Reading the returned file is gated on the
     // same capability rather than on VIEW_PROJECT, because a full recalculated schedule is not the
     // same kind of thing as a task list, and only somebody reviewing a candidate needs the bytes.
-    // trial: admin walks the export handoff alone.
-    RETURN_CANDIDATE_SCHEDULE(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    RETURN_CANDIDATE_SCHEDULE(ProjectRole.PLANNER),
 
     // Execution. Field users and contractors submit for their own assigned work. The grant
     // stays by role even though project_resource_links now models who holds which resource,
     // because that link is relevance and this is permission. Narrowing the grant to it would
     // stop a supervisor reporting on behalf of a crew that has none, and would quietly turn
     // Project resource data into an authorization source, which AGENTS.md forbids.
-    //
-    // trial: admin records progress in the console because there is no field app in the trial.
     SUBMIT_TASK_PROGRESS(
             ProjectRole.FIELD_USER,
             ProjectRole.CONTRACTOR,
             ProjectRole.SUPERVISOR,
-            ProjectRole.COORDINATOR,
-            ProjectRole.ADMIN),
+            ProjectRole.COORDINATOR),
     // Supervisor review confirms operational validity. It is not export approval, which
-    // is why it does not include the export capabilities above.
-    //
-    // trial: admin walks both review stages alone.
-    REVIEW_TASK_PROGRESS(
-            ProjectRole.SUPERVISOR,
-            ProjectRole.COORDINATOR,
-            ProjectRole.SHUTDOWN_CONTROL,
-            ProjectRole.ADMIN),
-    PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER, ProjectRole.ADMIN),
+    // is why it does not include the planner-only export capabilities above.
+    REVIEW_TASK_PROGRESS(ProjectRole.SUPERVISOR, ProjectRole.COORDINATOR, ProjectRole.SHUTDOWN_CONTROL),
+    PLANNER_REVIEW_TASK_PROGRESS(ProjectRole.PLANNER),
 
     // Operational records. Anyone doing the work can raise a problem or capture evidence;
     // deciding what happens to a problem is a coordination responsibility.
@@ -133,17 +123,50 @@ public enum Capability {
             ProjectRole.INSPECTOR,
             ProjectRole.VIEWER);
 
-    private final Set<ProjectRole> allowedRoles;
+    /**
+     * The role that holds every capability, whatever the grants say.
+     *
+     * <p>One rule in one place, rather than {@code admin} appended to twenty-four grant lists.
+     * Written that way it would be indistinguishable from a considered decision per capability,
+     * a new capability would silently omit the super user, and restoring separation of duty
+     * would be twenty-four edits that a reviewer has to check are all of them.
+     *
+     * <p>Mirrored in {@code packages/api-client/src/identity.ts}; {@code CapabilityClientParityTests}
+     * fails if the two disagree.
+     */
+    public static final ProjectRole SUPER_USER = ProjectRole.ADMIN;
 
-    Capability(ProjectRole... allowedRoles) {
-        this.allowedRoles = Set.of(allowedRoles);
+    private final Set<ProjectRole> declaredRoles;
+
+    Capability(ProjectRole... declaredRoles) {
+        this.declaredRoles = Set.of(declaredRoles);
     }
 
     public boolean allows(ProjectRole role) {
-        return allowedRoles.contains(role);
+        return role == SUPER_USER || declaredRoles.contains(role);
     }
 
+    /**
+     * Every role that may perform this capability, the super user included.
+     *
+     * <p>This answers the same question {@link #allows(ProjectRole)} does and must not answer it
+     * differently: a caller listing who may act and a caller asking about one role would otherwise
+     * disagree about the super user.
+     */
     public Set<ProjectRole> allowedRoles() {
-        return allowedRoles;
+        Set<ProjectRole> roles = new LinkedHashSet<>(declaredRoles);
+        roles.add(SUPER_USER);
+        return Set.copyOf(roles);
+    }
+
+    /**
+     * The roles this capability is granted to by the permission matrix, before the super user rule.
+     *
+     * <p>Kept separate so the trial relaxation stays visible and reversible: this is the model
+     * {@code docs/product/permission-matrix.md} describes and the one that returns when the trial
+     * ends.
+     */
+    public Set<ProjectRole> declaredRoles() {
+        return declaredRoles;
     }
 }

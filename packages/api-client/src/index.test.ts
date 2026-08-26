@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ShutdownTrackerApiError,
+  capabilityAllows,
+  capabilities,
   createShutdownTrackerApiClient,
-  shutdownTrackerReviewApiSurfaces
+  rolesAllowedFor,
+  rolesDeclaredFor,
+  shutdownTrackerReviewApiSurfaces,
+  superUserRole
 } from "./index";
 
 describe("shutdown tracker api client", () => {
@@ -670,3 +675,27 @@ function captureFetch(calls: CapturedRequest[], payload: unknown) {
     });
   };
 }
+
+describe("the trial super user", () => {
+  it("holds every capability", () => {
+    // The console round-trip trial is one person walking every step. A capability the super user
+    // lacks is a control this client greys out and a journey that stops halfway.
+    for (const capability of capabilities) {
+      expect(capabilityAllows(capability, superUserRole)).toBe(true);
+      expect(rolesAllowedFor(capability)).toContain(superUserRole);
+    }
+  });
+
+  it("holds them by one rule, not by grants widened to suit it", () => {
+    // The declared matrix is what returns when the trial ends, so it must still say who owns what.
+    expect(rolesDeclaredFor("APPROVE_EXPORT_BATCH")).toEqual(["planner"]);
+    expect(rolesDeclaredFor("MANAGE_IMPORT_PROFILE")).toEqual(["planner"]);
+    expect(rolesDeclaredFor("SUBMIT_TASK_PROGRESS")).not.toContain(superUserRole);
+  });
+
+  it("widens nothing for any other role", () => {
+    expect(capabilityAllows("APPROVE_EXPORT_BATCH", "supervisor")).toBe(false);
+    expect(capabilityAllows("SUBMIT_TASK_PROGRESS", "viewer")).toBe(false);
+    expect(capabilityAllows("MANAGE_IMPORT_PROFILE", "coordinator")).toBe(false);
+  });
+});
