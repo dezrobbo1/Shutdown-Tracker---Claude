@@ -90,8 +90,10 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
         verifySourceHash(sourceBytes, request.source().contentHash(), sourcePath);
 
         Document candidate = parseMspdi(sourceBytes);
-        requireNoResourceAssignments(candidate, request);
+        Set<String> assignedTaskUids = assignedTaskUids(candidate, request);
+        requireEvidencedCompletionForAssignedTasks(request, assignedTaskUids);
         int sourceTaskCount = applyApprovedInputs(candidate, request);
+        Map<String, String> derivedCompletions = applyDerivedCompletions(candidate, request, assignedTaskUids);
 
         try {
             Path parent = normalizedOutputPath.getParent();
@@ -101,7 +103,12 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             Files.write(normalizedOutputPath, serialize(candidate));
 
             // Re-read what was actually written rather than trusting the in-memory document.
-            verifyOnlyApprovedInputsChanged(parseMspdi(sourceBytes), parseMspdi(Files.readAllBytes(normalizedOutputPath)), request);
+            verifyOnlyApprovedInputsChanged(
+                    parseMspdi(sourceBytes),
+                    parseMspdi(Files.readAllBytes(normalizedOutputPath)),
+                    request,
+                    derivedCompletions
+            );
 
             return new ProjectExportArtifactSummary(
                     normalizedOutputPath.getFileName().toString(),
@@ -121,18 +128,8 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
         }
     }
 
-    /**
-     * Refuses to export progress onto a task that carries resource assignments.
-     *
-     * <p>The BOILER trial proved Microsoft Project derives progress on assigned tasks from
-     * assignment-level actual work, not from task-level {@code PercentComplete}: a candidate that
-     * writes only task fields is self-contradictory (100% complete yet zero actual work) and
-     * Project rejects or recalculates it away. Until this exporter writes the complete evidenced
-     * transaction — task, assignment, and timephased fields, per
-     * {@code docs/product/project-progress-field-contract.md} — exporting an assigned task would
-     * silently produce a candidate that lies. Refusing loudly is the only honest behaviour.
-     */
-    private void requireNoResourceAssignments(Document candidate, ProjectExportArtifactRequest request) {
+    /** The approved task UIDs that carry at least one resource assignment in the accepted source. */
+    private Set<String> assignedTaskUids(Document candidate, ProjectExportArtifactRequest request) {
         Set<String> approvedUids = new TreeSet<>();
         for (ProjectExportArtifactTask task : request.tasks()) {
             approvedUids.add(Integer.toString(
@@ -140,26 +137,222 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             ));
         }
 
-        Set<String> assignedApprovedUids = new TreeSet<>();
+        Set<String> assigned = new TreeSet<>();
         NodeList assignments = candidate.getElementsByTagNameNS(MSPDI_NAMESPACE, "Assignment");
         for (int index = 0; index < assignments.getLength(); index++) {
             Element taskUid = firstChild((Element) assignments.item(index), "TaskUID");
             if (taskUid != null && approvedUids.contains(taskUid.getTextContent().trim())) {
-                assignedApprovedUids.add(taskUid.getTextContent().trim());
+                assigned.add(taskUid.getTextContent().trim());
+            }
+        }
+        return assigned;
+    }
+
+    /**
+     * Requires that progress on an assigned task is the complete evidenced transaction.
+     *
+     * <p>The BOILER trial proved Microsoft Project derives progress on assigned tasks from
+     * assignment-level actual work, not from task-level {@code PercentComplete}: a candidate that
+     * writes only task fields is self-contradictory and Project rejects or recalculates it away.
+     * The evidence in {@code docs/product/project-progress-field-contract.md} covers full
+     * completion — {@code PercentComplete} 100 with {@code ActualStart} and {@code ActualFinish},
+     * from which the assignment actuals and timephased conversion are derived. Partial progress on
+     * an assigned task is not yet evidenced and is refused rather than exported wrongly.
+     */
+    private void requireEvidencedCompletionForAssignedTasks(
+            ProjectExportArtifactRequest request,
+            Set<String> assignedTaskUids
+    ) {
+        Set<String> unevidenced = new TreeSet<>();
+        for (ProjectExportArtifactTask task : request.tasks()) {
+            String uid = Integer.toString(
+                    parsePositiveInteger(task.microsoftProjectTaskUid(), "microsoftProjectTaskUid")
+            );
+            if (!assignedTaskUids.contains(uid)) {
+                continue;
+            }
+            Map<ProjectExportArtifactField, String> byField = new HashMap<>();
+            for (ProjectExportArtifactFieldValue fieldValue : task.fieldValues()) {
+                byField.put(fieldValue.field(), canonicalValue(fieldValue));
+            }
+            boolean completed = "100".equals(byField.get(ProjectExportArtifactField.PERCENT_COMPLETE));
+            boolean dated = byField.containsKey(ProjectExportArtifactField.ACTUAL_START)
+                    && byField.containsKey(ProjectExportArtifactField.ACTUAL_FINISH);
+            if (!completed || !dated) {
+                unevidenced.add(uid);
             }
         }
 
-        if (!assignedApprovedUids.isEmpty()) {
+        if (!unevidenced.isEmpty()) {
             throw new IllegalStateException(
                     "Approved Microsoft Project task UIDs carry resource assignments in the accepted "
-                            + "source schedule: " + String.join(", ", assignedApprovedUids)
-                            + ". Task-level progress on assigned tasks is rejected by Microsoft Project "
-                            + "unless assignment actual work and timephased data are written with it; "
-                            + "this exporter does not yet write that transaction "
-                            + "(docs/product/project-progress-field-contract.md), so these tasks cannot "
-                            + "be exported."
+                            + "source schedule: " + String.join(", ", unevidenced)
+                            + ". Progress on an assigned task must be the complete evidenced "
+                            + "transaction — PercentComplete 100 with ActualStart and ActualFinish — "
+                            + "so assignment actual work and timephased data can be derived with it. "
+                            + "Partial or incomplete progress on assigned tasks is not yet evidenced "
+                            + "(docs/product/project-progress-field-contract.md), so these tasks "
+                            + "cannot be exported."
             );
         }
+    }
+
+    /**
+     * Writes the derived remainder of the completion transaction for each assigned task.
+     *
+     * <p>The approved inputs carry the reviewed facts: 100% complete, started here, finished
+     * there. Everything else Microsoft Project requires to accept those facts is derived from the
+     * accepted source itself — actual duration and work from the task's own planned duration and
+     * work, assignment actuals from each assignment's own planned work, and the timephased
+     * conversion from the blocks already in the file. Nothing is invented; the transaction states
+     * the planned schedule was executed in full.
+     *
+     * @return every derived mutation, keyed by difference path with the exact written value
+     */
+    private Map<String, String> applyDerivedCompletions(
+            Document candidate,
+            ProjectExportArtifactRequest request,
+            Set<String> assignedTaskUids
+    ) {
+        Map<String, String> derived = new LinkedHashMap<>();
+        for (ProjectExportArtifactTask approved : request.tasks()) {
+            String uid = Integer.toString(
+                    parsePositiveInteger(approved.microsoftProjectTaskUid(), "microsoftProjectTaskUid")
+            );
+            if (!assignedTaskUids.contains(uid)) {
+                continue;
+            }
+            String actualStart = null;
+            String actualFinish = null;
+            for (ProjectExportArtifactFieldValue fieldValue : approved.fieldValues()) {
+                switch (fieldValue.field()) {
+                    case ACTUAL_START -> actualStart = canonicalValue(fieldValue);
+                    case ACTUAL_FINISH -> actualFinish = canonicalValue(fieldValue);
+                    default -> { }
+                }
+            }
+            Element taskElement = taskElementByUid(candidate, uid);
+            applyDerivedTaskCompletion(candidate, taskElement, uid, actualFinish, derived);
+            applyDerivedAssignmentCompletions(candidate, uid, actualStart, actualFinish, derived);
+        }
+        return derived;
+    }
+
+    private void applyDerivedTaskCompletion(
+            Document document,
+            Element taskElement,
+            String uid,
+            String actualFinish,
+            Map<String, String> derived
+    ) {
+        String duration = requiredSourceText(taskElement, "Duration", "task UID " + uid);
+        String work = requiredSourceText(taskElement, "Work", "task UID " + uid);
+        setDerivedField(document, taskElement, "PercentWorkComplete", "100", true, derived);
+        setDerivedField(document, taskElement, "ActualDuration", duration, true, derived);
+        setDerivedField(document, taskElement, "ActualWork", work, true, derived);
+        setDerivedField(document, taskElement, "RemainingDuration", "PT0H0M0S", true, derived);
+        setDerivedField(document, taskElement, "RemainingWork", "PT0H0M0S", true, derived);
+        setDerivedField(document, taskElement, "Stop", actualFinish, true, derived);
+        setDerivedField(document, taskElement, "Resume", actualFinish, true, derived);
+    }
+
+    private void applyDerivedAssignmentCompletions(
+            Document document,
+            String taskUid,
+            String actualStart,
+            String actualFinish,
+            Map<String, String> derived
+    ) {
+        NodeList assignments = document.getElementsByTagNameNS(MSPDI_NAMESPACE, "Assignment");
+        for (int index = 0; index < assignments.getLength(); index++) {
+            Element assignment = (Element) assignments.item(index);
+            Element taskUidElement = firstChild(assignment, "TaskUID");
+            if (taskUidElement == null || !taskUid.equals(taskUidElement.getTextContent().trim())) {
+                continue;
+            }
+            String work = requiredSourceText(
+                    assignment, "Work", "an assignment of task UID " + taskUid
+            );
+            setDerivedField(document, assignment, "PercentWorkComplete", "100", false, derived);
+            setDerivedField(document, assignment, "ActualStart", actualStart, false, derived);
+            setDerivedField(document, assignment, "ActualFinish", actualFinish, false, derived);
+            setDerivedField(document, assignment, "ActualWork", work, false, derived);
+            setDerivedField(document, assignment, "RemainingWork", "PT0H0M0S", false, derived);
+            setDerivedField(document, assignment, "Stop", actualFinish, false, derived);
+            setDerivedField(document, assignment, "Resume", actualFinish, false, derived);
+            convertTimephasedRemainingToActual(assignment, derived);
+        }
+    }
+
+    /**
+     * Converts each planned/remaining timephased block ({@code Type} 1) to an actual-work block
+     * ({@code Type} 2) over the same window with the same value — the shape of the evidenced
+     * conversion for a fully completed assignment.
+     */
+    private void convertTimephasedRemainingToActual(Element assignment, Map<String, String> derived) {
+        Node child = assignment.getFirstChild();
+        while (child != null) {
+            if (child instanceof Element element && "TimephasedData".equals(element.getLocalName())) {
+                Element type = firstChild(element, "Type");
+                if (type != null && "1".equals(type.getTextContent().trim())) {
+                    type.setTextContent("2");
+                    derived.put(MspdiCandidateDifference.pathOf(type), "2");
+                }
+            }
+            child = child.getNextSibling();
+        }
+    }
+
+    private void setDerivedField(
+            Document document,
+            Element parent,
+            String elementName,
+            String value,
+            boolean taskField,
+            Map<String, String> derived
+    ) {
+        Element existing = firstChild(parent, elementName);
+        if (existing != null) {
+            existing.setTextContent(value);
+            derived.put(MspdiCandidateDifference.pathOf(existing), value);
+            return;
+        }
+        Element created = document.createElementNS(MSPDI_NAMESPACE, elementName);
+        created.setTextContent(value);
+        Node insertionPoint = taskField
+                ? insertionPointFor(parent, elementName)
+                : assignmentInsertionPointFor(parent, elementName);
+        parent.insertBefore(created, insertionPoint);
+        derived.put(MspdiCandidateDifference.pathOf(created), value);
+    }
+
+    private Element taskElementByUid(Document document, String uid) {
+        for (Element taskElement : taskElements(document)) {
+            Element uidElement = firstChild(taskElement, "UID");
+            if (uidElement != null && uid.equals(uidElement.getTextContent().trim())) {
+                return taskElement;
+            }
+        }
+        throw new IllegalStateException(
+                "Approved Microsoft Project task UID is absent from the accepted source schedule: " + uid
+        );
+    }
+
+    /**
+     * A source value the derived transaction is built from. Its absence is a schedule shape the
+     * evidence does not cover, so generation stops rather than guesses.
+     */
+    private String requiredSourceText(Element element, String localName, String owner) {
+        Element child = firstChild(element, localName);
+        String text = child == null ? "" : child.getTextContent().trim();
+        if (text.isEmpty()) {
+            throw new IllegalStateException(
+                    "The accepted source schedule carries no " + localName + " for " + owner
+                            + ", so the evidenced completion transaction cannot be derived for it "
+                            + "(docs/product/project-progress-field-contract.md)."
+            );
+        }
+        return text;
     }
 
     private byte[] readSource(Path sourcePath) {
@@ -312,13 +505,34 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
     }
 
     /**
+     * The first existing assignment child that must follow the new element, or {@code null} to
+     * append. Same contract as {@link #insertionPointFor(Element, String)}, against the MSPDI
+     * assignment sequence.
+     */
+    private Node assignmentInsertionPointFor(Element assignmentElement, String elementName) {
+        int target = MspdiAssignmentElementOrder.positionOf(elementName);
+        Node child = assignmentElement.getFirstChild();
+        while (child != null) {
+            if (child instanceof Element element) {
+                OptionalInt position = MspdiAssignmentElementOrder.knownPositionOf(element.getLocalName());
+                if (position.isPresent() && position.getAsInt() > target) {
+                    return element;
+                }
+            }
+            child = child.getNextSibling();
+        }
+        return null;
+    }
+
+    /**
      * Compares the written candidate against the accepted source and requires that only approved
-     * {@code (task, field)} pairs differ.
+     * {@code (task, field)} pairs and the recorded derived completion values differ.
      */
     private void verifyOnlyApprovedInputsChanged(
             Document source,
             Document candidate,
-            ProjectExportArtifactRequest request
+            ProjectExportArtifactRequest request,
+            Map<String, String> derivedCompletions
     ) {
         Map<String, Map<String, String>> approved = new HashMap<>();
         for (ProjectExportArtifactTask task : request.tasks()) {
@@ -332,8 +546,8 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             );
         }
 
-        List<String> differences =
-                MspdiCandidateDifference.find(source.getDocumentElement(), candidate.getDocumentElement(), approved);
+        List<String> differences = MspdiCandidateDifference.find(
+                source.getDocumentElement(), candidate.getDocumentElement(), approved, derivedCompletions);
         if (!differences.isEmpty()) {
             throw new IllegalStateException(
                     "Generated candidate schedule differs from the accepted source outside the approved inputs: "
@@ -359,6 +573,19 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
                                     + uidElement.getTextContent().trim() + "."
                     );
                 }
+            }
+        }
+
+        // Every derived completion value must actually be present in the candidate as well: a
+        // difference walk cannot notice a mutation that silently failed to serialize, because
+        // source and candidate simply agree there.
+        for (Map.Entry<String, String> entry : derivedCompletions.entrySet()) {
+            Element applied = MspdiCandidateDifference.elementAt(candidate.getDocumentElement(), entry.getKey());
+            if (applied == null || !entry.getValue().equals(applied.getTextContent().trim())) {
+                throw new IllegalStateException(
+                        "Derived completion value did not reach the generated candidate schedule: "
+                                + entry.getKey() + "."
+                );
             }
         }
     }
