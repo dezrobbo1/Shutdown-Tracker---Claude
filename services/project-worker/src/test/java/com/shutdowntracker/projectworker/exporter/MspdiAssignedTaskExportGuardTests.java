@@ -19,9 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Holds the verdict of the BOILER round-trip trial: exporting task-level progress onto a task
- * that carries resource assignments produces a candidate Microsoft Project rejects, so the
- * exporter must refuse it loudly instead of emitting it.
+ * Holds the verdict of the BOILER round-trip trial: progress on a task that carries resource
+ * assignments is only exportable as the complete evidenced transaction — 100% complete with
+ * actual dates, from which assignment actuals and timephased data are derived. Anything less
+ * produces a candidate Microsoft Project rejects, so the exporter must refuse it loudly.
  *
  * <p>The fixture is the real BOILER WG110 schedule and task UID 43 is one of the three tasks the
  * disproven trial actually used. See {@code docs/product/project-progress-field-contract.md}.
@@ -50,22 +51,11 @@ class MspdiAssignedTaskExportGuardTests {
     }
 
     @Test
-    void refusesTaskLevelProgressOnAssignedTask() {
-        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
-                "BOILER WG110 BLB001",
-                BOILER_SOURCE,
-                List.of(new ProjectExportArtifactTask(
-                        "boiler-task-43",
-                        "43",
-                        "3",
-                        "Conduct all pre-work scaffold lifts",
-                        true,
-                        List.of(new ProjectExportArtifactFieldValue(
-                                ProjectExportArtifactField.PERCENT_COMPLETE, "100"
-                        ))
-                ))
-        );
-        Path outputPath = tempDir.resolve("boiler-guard.mspdi.xml");
+    void refusesCompletionWithoutActualDatesOnAssignedTask() {
+        ProjectExportArtifactRequest request = boilerTask43Request(List.of(
+                fieldValue(ProjectExportArtifactField.PERCENT_COMPLETE, "100")
+        ));
+        Path outputPath = tempDir.resolve("boiler-guard-undated.mspdi.xml");
 
         assertThatThrownBy(() -> service.generate(request, BOILER_FIXTURE, outputPath))
                 .isInstanceOf(IllegalStateException.class)
@@ -76,5 +66,60 @@ class MspdiAssignedTaskExportGuardTests {
         assertThat(Files.exists(outputPath))
                 .as("a refused export must not leave a candidate artifact behind")
                 .isFalse();
+    }
+
+    @Test
+    void refusesPartialProgressOnAssignedTask() {
+        ProjectExportArtifactRequest request = boilerTask43Request(List.of(
+                fieldValue(ProjectExportArtifactField.PERCENT_COMPLETE, "40"),
+                fieldValue(ProjectExportArtifactField.ACTUAL_START, "2026-08-17T07:30:00Z")
+        ));
+        Path outputPath = tempDir.resolve("boiler-guard-partial.mspdi.xml");
+
+        assertThatThrownBy(() -> service.generate(request, BOILER_FIXTURE, outputPath))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("resource assignments")
+                .hasMessageContaining("43")
+                .hasMessageContaining("Partial")
+                .hasMessageContaining("project-progress-field-contract");
+
+        assertThat(Files.exists(outputPath))
+                .as("a refused export must not leave a candidate artifact behind")
+                .isFalse();
+    }
+
+    @Test
+    void refusesActualDatesAloneOnAssignedTask() {
+        ProjectExportArtifactRequest request = boilerTask43Request(List.of(
+                fieldValue(ProjectExportArtifactField.ACTUAL_START, "2026-08-17T07:30:00Z"),
+                fieldValue(ProjectExportArtifactField.ACTUAL_FINISH, "2026-08-17T15:30:00Z")
+        ));
+        Path outputPath = tempDir.resolve("boiler-guard-dates-only.mspdi.xml");
+
+        assertThatThrownBy(() -> service.generate(request, BOILER_FIXTURE, outputPath))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("resource assignments")
+                .hasMessageContaining("43");
+
+        assertThat(Files.exists(outputPath)).isFalse();
+    }
+
+    private ProjectExportArtifactRequest boilerTask43Request(List<ProjectExportArtifactFieldValue> fieldValues) {
+        return new ProjectExportArtifactRequest(
+                "BOILER WG110 BLB001",
+                BOILER_SOURCE,
+                List.of(new ProjectExportArtifactTask(
+                        "boiler-task-43",
+                        "43",
+                        "3",
+                        "Conduct all pre-work scaffold lifts",
+                        true,
+                        fieldValues
+                ))
+        );
+    }
+
+    private static ProjectExportArtifactFieldValue fieldValue(ProjectExportArtifactField field, String value) {
+        return new ProjectExportArtifactFieldValue(field, value);
     }
 }

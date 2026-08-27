@@ -1,6 +1,8 @@
 package com.shutdowntracker.projectworker.exporter;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +33,17 @@ import org.w3c.dom.Node;
  * working time would pass. Children are therefore matched by name <em>and</em> occurrence, which
  * also makes a change in how many there are a difference rather than a blind spot.
  *
- * <p>Tasks are the exception: they are matched on UID so that like is compared with like, since a
- * task's meaning is its UID rather than its position in the file.
+ * <p>Tasks and assignments are the exception: they are matched on UID so that like is compared
+ * with like, since their meaning is their UID rather than their position in the file.
+ *
+ * <h2>Explained paths</h2>
+ *
+ * <p>Derived completion values — assignment actuals and timephased conversions the exporter writes
+ * alongside an approved 100% completion, per
+ * {@code docs/product/project-progress-field-contract.md} — are explained by exact path and exact
+ * expected value rather than by {@code (task, field)} pair. A difference at an explained path is
+ * only excused when the candidate holds precisely the value the exporter derived; anything else at
+ * that path is still a reported difference.
  */
 final class MspdiCandidateDifference {
 
@@ -55,8 +66,25 @@ final class MspdiCandidateDifference {
             Element candidate,
             Map<String, Map<String, String>> approvedByTaskUid
     ) {
+        return find(source, candidate, approvedByTaskUid, Map.of());
+    }
+
+    /**
+     * Compares a candidate against the accepted source it was derived from, additionally
+     * explaining derived values by exact path.
+     *
+     * @param explainedPaths difference-path (as this comparison reports it) to the exact value the
+     *                       candidate must hold there; a difference at one of these paths with any
+     *                       other value is still reported
+     */
+    static List<String> find(
+            Element source,
+            Element candidate,
+            Map<String, Map<String, String>> approvedByTaskUid,
+            Map<String, String> explainedPaths
+    ) {
         List<String> differences = new ArrayList<>();
-        compare(source, candidate, "", approvedByTaskUid, differences);
+        compare(source, candidate, "", approvedByTaskUid, explainedPaths, differences);
         return List.copyOf(differences);
     }
 
@@ -65,6 +93,7 @@ final class MspdiCandidateDifference {
             Element candidate,
             String path,
             Map<String, Map<String, String>> approved,
+            Map<String, String> explained,
             List<String> differences
     ) {
         compareAttributes(source, candidate, path, differences);
@@ -73,7 +102,8 @@ final class MspdiCandidateDifference {
         List<Element> candidateChildren = elementChildren(candidate);
 
         if (sourceChildren.isEmpty() && candidateChildren.isEmpty()) {
-            if (!textOf(source).equals(textOf(candidate))) {
+            if (!textOf(source).equals(textOf(candidate))
+                    && !textOf(candidate).equals(explained.get(path))) {
                 differences.add("changed " + path);
             }
             return;
@@ -88,7 +118,9 @@ final class MspdiCandidateDifference {
             }
         }
         for (String key : candidateByKey.keySet()) {
-            if (!sourceByKey.containsKey(key) && !isApprovedField(path, key, approved)) {
+            if (!sourceByKey.containsKey(key)
+                    && !isApprovedField(path, key, approved)
+                    && !isExplainedAddition(path + "/" + key, candidateByKey.get(key), explained)) {
                 differences.add("added " + path + "/" + key);
             }
         }
@@ -97,8 +129,14 @@ final class MspdiCandidateDifference {
             if (candidateChild == null || isApprovedField(path, entry.getKey(), approved)) {
                 continue;
             }
-            compare(entry.getValue(), candidateChild, path + "/" + entry.getKey(), approved, differences);
+            compare(entry.getValue(), candidateChild, path + "/" + entry.getKey(), approved, explained, differences);
         }
+    }
+
+    /** An added element is explained only when it holds exactly the derived value expected there. */
+    private static boolean isExplainedAddition(String path, Element candidateChild, Map<String, String> explained) {
+        String expected = explained.get(path);
+        return expected != null && expected.equals(textOf(candidateChild)) && elementChildren(candidateChild).isEmpty();
     }
 
     /**
@@ -161,11 +199,66 @@ final class MspdiCandidateDifference {
     }
 
     private static String identityOf(Element element) {
-        if (!"Task".equals(element.getLocalName())) {
-            return element.getLocalName();
+        String name = element.getLocalName();
+        if (!"Task".equals(name) && !"Assignment".equals(name)) {
+            return name;
         }
         Element uid = firstChild(element, "UID");
-        return "Task[" + (uid == null ? "?" : textOf(uid)) + "]";
+        return name + "[" + (uid == null ? "?" : textOf(uid)) + "]";
+    }
+
+    /**
+     * The path of an element exactly as this comparison would report a difference at it, for
+     * callers recording the mutations they make.
+     */
+    static String pathOf(Element element) {
+        Deque<String> segments = new ArrayDeque<>();
+        Element current = element;
+        while (current.getParentNode() instanceof Element parent) {
+            segments.addFirst(identityOf(current) + "#" + occurrenceOf(current));
+            current = parent;
+        }
+        StringBuilder path = new StringBuilder();
+        for (String segment : segments) {
+            path.append('/').append(segment);
+        }
+        return path.toString();
+    }
+
+    /** Resolves a path produced by {@link #pathOf(Element)} against a document element. */
+    static Element elementAt(Element documentElement, String path) {
+        Element current = documentElement;
+        for (String segment : path.substring(1).split("/")) {
+            int mark = segment.lastIndexOf('#');
+            String identity = segment.substring(0, mark);
+            int occurrence = Integer.parseInt(segment.substring(mark + 1));
+            Element next = null;
+            int seen = 0;
+            for (Element child : elementChildren(current)) {
+                if (identity.equals(identityOf(child)) && seen++ == occurrence) {
+                    next = child;
+                    break;
+                }
+            }
+            if (next == null) {
+                return null;
+            }
+            current = next;
+        }
+        return current;
+    }
+
+    private static int occurrenceOf(Element element) {
+        String identity = identityOf(element);
+        int occurrence = 0;
+        Node sibling = element.getPreviousSibling();
+        while (sibling != null) {
+            if (sibling instanceof Element preceding && identity.equals(identityOf(preceding))) {
+                occurrence++;
+            }
+            sibling = sibling.getPreviousSibling();
+        }
+        return occurrence;
     }
 
     /**
