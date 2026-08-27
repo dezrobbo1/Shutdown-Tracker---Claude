@@ -534,7 +534,7 @@ function ExportSequence({
     <>
       <CapabilityGate
         allowed={session.canApproveExport}
-        reason="Approving an export is planner-owned; an administrator is not a routine approver."
+        reason="Approving an export is planner-owned."
       >
         <div className="mobile-action-row">
           <button type="button" disabled={busy || !canApprove(state)} onClick={onApprove}>

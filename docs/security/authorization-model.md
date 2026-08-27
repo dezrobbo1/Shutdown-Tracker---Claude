@@ -93,7 +93,20 @@ Every step fails closed. An unknown user, an account that is not `active`, no me
 
 Roles are project-scoped: being a planner on one shutdown confers nothing on another. Suspending an account revokes authority immediately without unpicking individual role grants.
 
-Export approval, rejection, and artifact generation are Planner-only, including for Admin, which administers access rather than acting as a routine export approver. Capabilities are declared in `Capability` for the operations that exist today; execution, problems, evidence, and handover capabilities follow when those endpoints do.
+Export approval, rejection, and artifact generation are Planner-only. Administering access is not
+the same as deciding what returns to Microsoft Project, so an Admin is not a routine export
+approver. Capabilities are declared in `Capability` for the operations that exist today; execution,
+problems, evidence, and handover capabilities follow when those endpoints do.
+
+**Suspended for the console round-trip trial.** The trial is driven by one person, so `admin` is a
+super user: `Capability.SUPER_USER` grants it every capability regardless of the per-role grants.
+The grants above are unedited and remain the real permission model — restoring separation of duty
+means deleting that one rule and giving the trial a second actor, not reconstructing grants.
+
+Note what this does *not* restore. Nothing in the codebase compares a reviewer to the person who
+submitted the work: separation of duty here is role-shaped only, and a supervisor already held both
+`SUBMIT_TASK_PROGRESS` and `REVIEW_TASK_PROGRESS` before the trial. A four-eyes rule needs code that
+does not exist yet.
 
 Attribution columns now carry foreign keys to `users`, so an audit event cannot name a user that does not exist.
 

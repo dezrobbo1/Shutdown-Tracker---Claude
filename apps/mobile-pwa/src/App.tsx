@@ -8,18 +8,15 @@ import type {
   HandoverNoteRecord,
   ImportReviewTaskRow,
   ProblemRecord,
-  ReviewIdentity,
   TaskExecutionState
 } from "@shutdown-tracker/api-client";
-import { projectRoleLabels } from "@shutdown-tracker/api-client";
 import type { StatusClass } from "@shutdown-tracker/design-tokens";
 import {
   createFieldApiClient,
   describeFieldSession,
   fieldBaseUrl,
   fieldSessionAllows,
-  initialFieldSession,
-  writeStoredFieldIdentity
+  initialFieldSession
 } from "./fieldSession";
 import type { FieldSession } from "./fieldSession";
 import { useFieldQueue } from "./useFieldQueue";
@@ -79,45 +76,12 @@ type Screen = "work" | "today" | "problems" | "evidence" | "sync" | "progress";
 const WORK_LIST_LIMIT = 100;
 
 export function App() {
-  const [session, setSession] = useState<FieldSession>(initialFieldSession);
+  // Fixed for the life of the build: the trial has one super user and no picker.
+  const session: FieldSession = initialFieldSession;
   const client = useMemo(() => createFieldApiClient(session, fieldBaseUrl), [session]);
   const queue = useFieldQueue(client, session.projectId);
 
-  // Empty in any real deployment: the endpoint exists only alongside the review seeder.
-  const [identities, setIdentities] = useState<ReviewIdentity[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    client.reviewIdentities
-      .list()
-      .then((available) => {
-        if (!cancelled) {
-          setIdentities(available);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setIdentities([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const changeIdentity = (identity: ReviewIdentity) => {
-    writeStoredFieldIdentity(typeof window === "undefined" ? undefined : window.localStorage, {
-      userId: identity.id,
-      role: identity.role,
-      displayName: identity.displayName,
-      projectId: identity.projectId
-    });
-    setSession({
-      projectId: identity.projectId,
-      actor: { userId: identity.id, role: identity.role, displayName: identity.displayName },
-      live: identity.projectId.length > 0
-    });
-  };
 
   const [screen, setScreen] = useState<Screen>("work");
   const [tasks, setTasks] = useState<ImportReviewTaskRow[]>([]);
@@ -339,9 +303,7 @@ export function App() {
             onFlush={() => void queue.flush()}
             onRetry={(localId) => void queue.retry(localId)}
             onClear={() => void queue.clearSettled()}
-            identities={identities}
-            currentUserId={session.actor?.userId ?? null}
-            onChangeIdentity={changeIdentity}
+            signedInAs={describeFieldSession(session)}
           />
         ) : null}
 
@@ -713,17 +675,6 @@ function ProblemCapture({
  * question a field user genuinely needs answered, and the honest answer distinguishes saved on
  * the device from received by the server.
  */
-/**
- * Whether the acting identity may be changed right now.
- *
- * The offline queue is memoised on the API client, so changing identity while reports are waiting
- * would flush work captured by one person under another's actor header. That is both a
- * misattribution and, for a report a planner may not submit, a guaranteed refusal whose message
- * would say nothing about the real cause.
- */
-export function canSwitchIdentity(items: QueuedSubmission[]) {
-  return pendingCount(items) === 0;
-}
 
 function SyncQueue({
   items,
@@ -732,9 +683,7 @@ function SyncQueue({
   onFlush,
   onRetry,
   onClear,
-  identities,
-  currentUserId,
-  onChangeIdentity
+  signedInAs
 }: {
   items: QueuedSubmission[];
   flushing: boolean;
@@ -742,40 +691,18 @@ function SyncQueue({
   onFlush: () => void;
   onRetry: (localId: string) => void;
   onClear: () => void;
-  identities: ReviewIdentity[];
-  currentUserId: string | null;
-  onChangeIdentity: (identity: ReviewIdentity) => void;
+  signedInAs: string;
 }) {
-  const switchable = canSwitchIdentity(items);
   return (
     <section className="sync-queue" aria-label="Sync queue">
-      {identities.length > 0 ? (
-        <div className="section-heading">
-          <p className="eyebrow">Signed in as</p>
-          <select
-            value={currentUserId ?? ""}
-            disabled={!switchable}
-            aria-label="Acting identity"
-            onChange={(event) => {
-              const chosen = identities.find((identity) => identity.id === event.target.value);
-              if (chosen) {
-                onChangeIdentity(chosen);
-              }
-            }}
-          >
-            {identities.map((identity) => (
-              <option value={identity.id} key={identity.id}>
-                {identity.displayName} · {projectRoleLabels[identity.role]}
-              </option>
-            ))}
-          </select>
-          <p className="boundary-copy">
-            {switchable
-              ? "This device sends reports as whoever is signed in here. The server checks that person's real membership."
-              : "Reports on this device were captured by the person signed in now. Send them before switching."}
-          </p>
-        </div>
-      ) : null}
+      <div className="section-heading">
+        <p className="eyebrow">Signed in as</p>
+        <p className="signed-in-as">{signedInAs}</p>
+        <p className="boundary-copy">
+          This device sends reports as the person built into it. The server checks that person's
+          real membership on the project, not what this app claims.
+        </p>
+      </div>
 
       <div className="section-heading">
         <p className="eyebrow">Sync queue</p>
