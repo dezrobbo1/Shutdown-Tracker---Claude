@@ -117,3 +117,5 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-24 — Answering a machine reviewer](2026-08-24-answering-a-machine-reviewer.md)
 - [2026-08-25 — A job that never ran Flyway](2026-08-25-a-job-that-never-ran-flyway.md)
 - [2026-08-25 — Back to one person and seven columns](2026-08-25-back-to-one-person-and-seven-columns.md)
+- [2026-08-26 — One person, and one rule](2026-08-26-one-person-and-one-rule.md)
+- [2026-08-27 — The half that was still two people](2026-08-27-the-half-that-was-still-two-people.md)

@@ -64,23 +64,28 @@ disabled by default; the deployment enables it. Confirm they exist:
 GET /api/review-identities
 ```
 
-Four come back — a field user, a supervisor, a planner and a viewer — all on the synthetic review
-project. If that route 404s, the seeder is off and nothing below will work: the console will be one
-person and every field control will be refused.
+One comes back — the Review Administrator, on the synthetic review project. If that route 404s, the
+seeder is off and nothing below will work: neither application will have an actor the API accepts.
 
-**Switch identity, not role.** The console's picker is in the sidebar under *Acting as*; the field
-app's is on the **Sync** screen. Both change who the app acts as, including the user id sent to the
-server. There is no role selector any more, and its absence is deliberate — it changed what the
-interface offered and never what the server answered.
+**There is no picker, in either application.** The trial is driven by one super user, baked into
+both builds by `redeploy.sh`, which reads the id out of the database so a build can never ship an
+identity the API refuses. The seeder retires the field user, supervisor, planner and viewer it used
+to create — membership revoked, account deactivated — so those accounts now fail every request
+closed. If a browser or handset still holds a remembered identity from an older build, it is
+discarded on first load.
 
-**The field app refuses to switch identity while reports are queued.** Send them first. Switching
-mid-queue would submit one person's work under another's name.
+**One person walks all three review stages.** That is the trial, not an oversight, and it means the
+walk below proves the chain works — not that four-eyes holds. It does not: no code compares a
+reviewer to the submitter.
 
 ## The walk
 
-Each step names who to be. The point of doing it as three people is that the chain is built so that
-two of them cannot be the same person: a planner may not submit progress, and a supervisor may not
-approve an export.
+Every step is the super user. That is the trial: one person walks the whole chain, in the console,
+with the field app parked. The three review stages still exist and are still walked in order — what
+is suspended is the expectation that different people walk them.
+
+The `As` column is kept, naming the role each step *belongs to* in the permission matrix, because
+that is the model this returns to. Under the trial the super user holds all of them.
 
 | # | As | Where | Do this | Working looks like |
 |---|---|---|---|---|
@@ -89,8 +94,8 @@ approve an export.
 | 3 | Planner | Exports › Import review | *Accept* the snapshot | Its state becomes Accepted. Execution now refers to this version |
 | 4 | Planner | Exports › Mapping | Configure a category from **Resource Group** and resolve it | Categories resolve against the crews the file carries |
 | 5 | Planner | Exports › People | Link the field identity to a Project resource | The link names the resource and how many leaf tasks it carries |
-| 6 | **Field user** | Mobile › My Work | Submit progress against one of your tasks | The card shows the update as queued, then sent |
-| 7 | **Supervisor** | Tasks › Supervisor review | Accept the update | It leaves your queue and enters the planner's |
+| 6 | Field user | Tasks › Execution | Submit progress against one of the tasks | The row shows the update as submitted, awaiting supervisor review |
+| 7 | Supervisor | Tasks › Supervisor review | Accept the update | It leaves that queue and enters the planner's |
 | 8 | Planner | Exports › Planner review | Approve it | It becomes eligible for export |
 | 9 | Planner | Exports › Batches | *Create export preview* | A batch appears with one line per approved field |
 | 10 | Planner | same panel | Approve the batch | Its state becomes Approved |
@@ -100,9 +105,13 @@ approve an export.
 | 14 | Planner | same panel | Record the open, then the verification | The batch reaches Verified |
 | 15 | Planner | Exports › Batches | Return the recalculated candidate | A candidate run is recorded with three hashes beside each other |
 
-Step 5 matters more than it looks. **Without it the field user's My Work list is empty**, and that
-is correct rather than broken — an unlinked person is shown nothing rather than the whole
-schedule.
+Step 5 matters more than it looks. **Without it an assigned-work list is empty**, and that is
+correct rather than broken — an unlinked person is shown nothing rather than the whole schedule.
+Link the super user, since the super user is who submits at step 6.
+
+Step 4 has never been completed on any recorded walk: `MANAGE_IMPORT_PROFILE` is planner-only and
+the console was previously driven by an admin, so Exports › Mapping was greyed out. The super user
+rule is what opens it, and it is the step most worth watching.
 
 ## What the walk proves, and what it does not
 

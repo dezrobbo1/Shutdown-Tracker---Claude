@@ -31,6 +31,9 @@ export type ConsoleSession = {
 
 export type ConsoleEnv = Record<string, unknown>;
 
+/** The key a build with an identity selector wrote its choice to. Read by nothing now. */
+const identityStorageKey = "shutdown-tracker.console.identity";
+
 export function buildConsoleSession(env: ConsoleEnv): ConsoleSession {
   const projectId = readString(env.VITE_SHUTDOWN_TRACKER_PROJECT_ID);
   const userId = readString(env.VITE_SHUTDOWN_TRACKER_ACTOR_ID);
@@ -86,6 +89,21 @@ export function describeSession(session: ConsoleSession) {
     return "No project configured. Set VITE_SHUTDOWN_TRACKER_PROJECT_ID to load a shutdown.";
   }
   return `${session.actor.displayName} acting as ${projectRoleLabels[session.actor.role]}`;
+}
+
+/**
+ * Clears an identity remembered by a build that still had the "Acting as" selector.
+ *
+ * <p>Nothing reads that key any more, which is what made a stale value harmless. It is removed
+ * anyway: the value names an account the seeder has since retired, and leaving it on every
+ * reviewer's machine means reintroducing a read path would silently resurrect it.
+ */
+export function discardLegacyStoredIdentity(storage: Pick<Storage, "removeItem"> | undefined) {
+  try {
+    storage?.removeItem(identityStorageKey);
+  } catch {
+    // Private-browsing modes throw on storage access. Nothing reads the key, so this is housekeeping.
+  }
 }
 
 function readString(value: unknown) {

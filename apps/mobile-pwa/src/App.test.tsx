@@ -22,9 +22,13 @@ import {
   toInstant,
   validateFieldProgress,
   workCardPercent,
-  canSwitchIdentity
 } from "./App";
-import { buildFieldSession, describeFieldSession, fieldSessionAllows } from "./fieldSession";
+import {
+  buildFieldSession,
+  describeFieldSession,
+  discardLegacyFieldIdentity,
+  fieldSessionAllows
+} from "./fieldSession";
 import {
   OfflineSubmissionQueue,
   createMemoryQueueStore,
@@ -160,62 +164,38 @@ describe("field session", () => {
     expect(describeFieldSession(session)).toBe("No actor configured");
   });
 
-  it("acts as the identity chosen on this device rather than the one baked into the build", () => {
+  it("acts as the identity built into it, whatever a previous build remembered", () => {
+    // The picker is gone and the seeder retires everybody but the super user, so a remembered
+    // choice could only name an account the API now refuses. Nothing reads the key any more.
     const env = {
       VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1",
       VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1",
-      VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "planner"
+      VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "admin"
     };
 
-    const session = buildFieldSession(env, {
-      userId: "user-2",
-      role: "field_user",
-      displayName: "Rae Field",
-      projectId: "project-2"
-    });
+    const session = buildFieldSession(env);
 
-    expect(session.actor?.userId).toBe("user-2");
-    expect(session.actor?.role).toBe("field_user");
-    expect(session.projectId).toBe("project-2");
+    expect(session.actor?.userId).toBe("user-1");
+    expect(session.actor?.role).toBe("admin");
+    expect(session.projectId).toBe("project-1");
     expect(fieldSessionAllows(session, "SUBMIT_TASK_PROGRESS")).toBe(true);
   });
 
-  it("discards an unusable stored identity rather than half-applying it", () => {
-    const env = { VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1", VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1" };
+  it("clears an identity a build with a picker left behind", () => {
+    const removed: string[] = [];
+    discardLegacyFieldIdentity({ removeItem: (key: string) => removed.push(key) });
 
-    const session = buildFieldSession(env, { userId: "user-2", role: "wizard", displayName: "Rae" });
-
-    expect(session.actor?.userId).toBe("user-1");
-    expect(session.actor?.role).toBe("field_user");
-  });
-});
-
-describe("switching identity on the device", () => {
-  const queued = (syncState: string): QueuedSubmission =>
-    normalizeStoredSubmission({
-      localId: "local-1",
-      idempotencyKey: "key-1",
-      kind: "progress",
-      request: { importedTaskId: "task-1", percentComplete: 40 },
-      subject: "C2 Cyclone — remove access cover",
-      capturedAt: "2026-08-18T06:00:00.000Z",
-      syncState,
-      attempts: 0,
-      serverId: null,
-      lastError: null
-    }) as QueuedSubmission;
-
-  it("is refused while a report captured by this person is still waiting", () => {
-    // The queue is memoised on the API client, so switching now would send this report under
-    // somebody else's actor header — a misattribution, and for a role that may not submit, a
-    // refusal whose message says nothing about the real cause.
-    expect(canSwitchIdentity([queued("PENDING")])).toBe(false);
+    expect(removed).toEqual(["shutdown-tracker.field.identity"]);
   });
 
-  it("is allowed once nothing is left to send", () => {
-    expect(canSwitchIdentity([])).toBe(true);
-    expect(canSwitchIdentity([queued("SYNCED")])).toBe(true);
-    expect(canSwitchIdentity([queued("REJECTED")])).toBe(true);
+  it("does not fail when the device refuses storage access", () => {
+    expect(() =>
+      discardLegacyFieldIdentity({
+        removeItem: () => {
+          throw new Error("storage disabled");
+        }
+      })
+    ).not.toThrow();
   });
 });
 
@@ -510,10 +490,12 @@ describe("the field app checks who may capture evidence", () => {
    * not evidence itself.
    */
   it("denies a coordinator's own session the capability, while it reports progress", () => {
-    const session = buildFieldSession(
-      { VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1", VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1" },
-      { userId: "user-1", role: "coordinator", displayName: "Ali Coordinator", projectId: "project-1" }
-    );
+    const session = buildFieldSession({
+      VITE_SHUTDOWN_TRACKER_PROJECT_ID: "project-1",
+      VITE_SHUTDOWN_TRACKER_ACTOR_ID: "user-1",
+      VITE_SHUTDOWN_TRACKER_ACTOR_NAME: "Ali Coordinator",
+      VITE_SHUTDOWN_TRACKER_ACTOR_ROLE: "coordinator"
+    });
 
     expect(session.actor?.role).toBe("coordinator");
     expect(fieldSessionAllows(session, "CAPTURE_EVIDENCE")).toBe(false);

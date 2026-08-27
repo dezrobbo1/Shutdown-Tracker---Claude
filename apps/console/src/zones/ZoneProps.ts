@@ -12,7 +12,6 @@ import type { ConsoleSession } from "../session";
  */
 export type ZoneSession = ConsoleSession & {
   canAcceptSnapshot: boolean;
-  canReconcileLineage: boolean;
   canSubmitProgress: boolean;
   canReviewProgress: boolean;
   canPlannerReview: boolean;
@@ -43,7 +42,6 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
   return {
     ...session,
     canAcceptSnapshot: sessionAllows(session, "ACCEPT_IMPORT_SNAPSHOT"),
-    canReconcileLineage: sessionAllows(session, "RECONCILE_TASK_LINEAGE"),
     canSubmitProgress: sessionAllows(session, "SUBMIT_TASK_PROGRESS"),
     canReviewProgress: sessionAllows(session, "REVIEW_TASK_PROGRESS"),
     canPlannerReview: sessionAllows(session, "PLANNER_REVIEW_TASK_PROGRESS"),

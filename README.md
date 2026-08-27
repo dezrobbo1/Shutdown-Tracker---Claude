@@ -119,9 +119,10 @@ Not production-complete yet:
   through a gateway-trusted header rather than a validated token. Until it lands, the people
   needed to walk the review chain are created by a guarded seeder that is disabled by default
   and marks every row it writes as synthetic; `GET /api/review-identities` lists them and is
-  registered only alongside that seeder, so in a real deployment the route does not exist. Both
-  applications pick a person from it, which replaces a role selector that could only ever change
-  what the interface offered — the server resolves the role from the membership, never the header;
+  registered only alongside that seeder, so in a real deployment the route does not exist. Neither
+  application offers a picker: the console round-trip trial is driven by one super user compiled
+  into both builds, and the seeder retires anybody else it previously created — the server resolves
+  the role from the membership, never the header;
 - offline evidence capture in the field app. A photo is sent as it is taken and needs a
   connection, because the offline queue holds small JSON reports and a queue of megabyte photos
   needs its own eviction and retry rules;
