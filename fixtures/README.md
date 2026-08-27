@@ -1,13 +1,19 @@
 # Fixtures
 
-Fixtures support future import/export and offline-sync testing without exposing real project data.
+Fixtures support import/export and offline-sync testing.
 
 ## Policy
 
-- Do not commit real customer, shutdown, turnaround, construction, site, vendor, contractor, work order, asset, cost, people, location, or commercial data.
-- Do not commit real MPP, XML, MSPDI, XER, ZIP, PDF, DOCX, screenshots, generated exports, or uploaded source archives.
-- Binary fixture files are blocked by default unless a future PR explicitly approves a small synthetic or fully sanitized test file.
+- Real Microsoft Project schedule files are permitted as committed test fixtures when added
+  deliberately with a documented purpose.
+- Do not commit secrets, credentials, `.env` files, local databases, or generated build artifacts.
 - Keep local experiments outside Git or under ignored `_local/` folders.
-- Use text-only manifests and expected-output JSON where possible.
 
-See [Import/Export Fixture Strategy](../docs/testing/import-export-fixture-strategy.md) for the full policy and review checklist.
+## Layout
+
+- `import-export/` — synthetic MSPDI fixtures with manifests and expected-output JSON.
+- `project-files/` — real Microsoft Project XML fixtures. `boiler/` holds the before/after
+  evidence pair behind [the progress field contract](../docs/product/project-progress-field-contract.md).
+
+See [Import/Export Fixture Strategy](../docs/testing/import-export-fixture-strategy.md) for the
+review checklist.
