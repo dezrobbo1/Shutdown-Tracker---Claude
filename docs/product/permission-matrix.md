@@ -32,6 +32,11 @@ walked in order. One person now walks all three, so the four-eyes property does 
 approval is still described below as planner-owned because that is the model this document
 defines and the model that returns; the trial does not amend it.
 
+**Clear synthetic review data** in the table below is trial scaffolding rather than a product
+capability. It exists so a trial can be walked again from nothing, it is refused for any project not
+carrying the synthetic marker, and the route does not exist unless a deployment switches it on. It
+leaves when the review seeder does.
+
 Ending the trial is removing that one rule and giving the trial a second actor. Nothing in the
 matrix below was edited for it, so nothing has to be reconstructed.
 
@@ -165,6 +170,7 @@ Mapped categories may be inherited/resolved for filtering, scope, reporting, and
 | View permission changes | admin only | read-only | read-only | no | no | no | no | no | no |
 | View mapping/profile audit history | scoped | yes | scoped | read-only | read-only | no | no | no | read-only |
 | Update retention policy | admin only | request only | no | no | no | no | no | no | no |
+| Clear synthetic review data | admin only | no | no | no | no | no | no | no | no |
 
 ## Boundary Rules
 

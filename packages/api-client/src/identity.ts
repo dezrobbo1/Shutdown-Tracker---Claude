@@ -63,6 +63,7 @@ export type Capability =
   | "RECORD_HANDOVER"
   | "MANAGE_CRITICAL_WATCHLIST"
   | "SUBMIT_CRITICAL_UPDATE"
+  | "RESET_REVIEW_DATA"
   | "VIEW_PROJECT";
 
 /**
@@ -116,6 +117,7 @@ const capabilityRoles: Record<Capability, readonly ProjectRole[]> = {
     "contractor",
     "inspector"
   ],
+  RESET_REVIEW_DATA: ["admin"],
   VIEW_PROJECT: [
     "admin",
     "planner",

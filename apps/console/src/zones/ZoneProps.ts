@@ -12,6 +12,7 @@ import type { ConsoleSession } from "../session";
  */
 export type ZoneSession = ConsoleSession & {
   canAcceptSnapshot: boolean;
+  canResetReviewData: boolean;
   canSubmitProgress: boolean;
   canReviewProgress: boolean;
   canPlannerReview: boolean;
@@ -42,6 +43,7 @@ export function buildZoneSession(session: ConsoleSession): ZoneSession {
   return {
     ...session,
     canAcceptSnapshot: sessionAllows(session, "ACCEPT_IMPORT_SNAPSHOT"),
+    canResetReviewData: sessionAllows(session, "RESET_REVIEW_DATA"),
     canSubmitProgress: sessionAllows(session, "SUBMIT_TASK_PROGRESS"),
     canReviewProgress: sessionAllows(session, "REVIEW_TASK_PROGRESS"),
     canPlannerReview: sessionAllows(session, "PLANNER_REVIEW_TASK_PROGRESS"),

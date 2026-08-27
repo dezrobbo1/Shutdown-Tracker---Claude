@@ -32,6 +32,10 @@ public final class AuditEventTypes {
     public static final String EXPORT_FILE_VERIFIED = "export_file_verified";
     public static final String CANDIDATE_SCHEDULE_RETURNED = "candidate_schedule_returned";
 
+    /** Trial scaffolding. Recorded after the wipe, so it is the first row of the new trail. */
+    public static final String REVIEW_DATA_RESET = "review_data_reset";
+    public static final String REVIEW_DATA_RESET_BLOBS_INCOMPLETE = "review_data_reset_blobs_incomplete";
+
     private AuditEventTypes() {
     }
 }
