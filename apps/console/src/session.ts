@@ -88,7 +88,7 @@ export function describeSession(session: ConsoleSession) {
   if (session.projectId.length === 0) {
     return "No project configured. Set VITE_SHUTDOWN_TRACKER_PROJECT_ID to load a shutdown.";
   }
-  return `${session.actor.displayName} acting as ${projectRoleLabels[session.actor.role]}`;
+  return `${session.actor.displayName} · ${projectRoleLabels[session.actor.role]}`;
 }
 
 /**

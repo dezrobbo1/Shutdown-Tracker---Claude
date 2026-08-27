@@ -68,7 +68,7 @@ export function App() {
         </nav>
 
         <div className="session-panel">
-          <p className="eyebrow">Acting as</p>
+          <p className="eyebrow">Signed in as</p>
           <p className="session-actor">{describeSession(session)}</p>
           <p className="session-note">
             One person drives this console, and the build decides who. The server resolves their
