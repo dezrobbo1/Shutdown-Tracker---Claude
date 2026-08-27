@@ -8,10 +8,8 @@ Before changing code or product behaviour:
 
 1. Read the root [README.md](README.md).
 2. Read the relevant ADRs in [docs/adr](docs/adr) and the relevant product documents in [docs/product](docs/product).
-3. Check [docs/research/source-quality-register.md](docs/research/source-quality-register.md) before relying on research material for a hard product or architecture decision.
-4. Inspect the current implementation and tests. Do not infer implemented behaviour from roadmap documents.
-5. Read [docs/goals/ACTIVE.md](docs/goals/ACTIVE.md) when it exists. It defines the current branch target and completion conditions.
-6. Skim the most recent entries in [docs/sessions](docs/sessions/README.md). They record what earlier sessions investigated, rejected, and left open, which is cheaper to read than to rediscover.
+3. Inspect the current implementation and tests. Do not infer implemented behaviour from roadmap documents.
+4. Read [docs/goals/ACTIVE.md](docs/goals/ACTIVE.md) when it exists. It defines the current branch target and completion conditions.
 
 Do not assume access to earlier ChatGPT conversations, uploaded PDFs, ZIP files, or external project folders. Durable decisions must be present in this repository. If required context is missing or sources conflict, stop and ask rather than inventing a decision.
 
@@ -133,7 +131,6 @@ Relevant authority documents include:
 - Update the relevant product or architecture document when a change alters an approved boundary, workflow, state model, permission, or ownership rule.
 - Keep environment-specific secrets and generated files out of Git.
 - Report assumptions, unavailable checks, and any difference between visual scaffolding and production behaviour.
-- Add a [docs/sessions](docs/sessions/README.md) entry for a session that changed the repository or reached a conclusion worth keeping. Record what was rejected, what was verified against what was assumed, which checks could not be run, and anything found to be wrong after it was stated. Do not restate the diff, and do not write an entry for a session that only read.
 
 ## Repository safety
 

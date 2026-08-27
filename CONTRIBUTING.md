@@ -36,10 +36,9 @@ Use documentation according to its purpose:
 - `docs/product` for what the product is and how it behaves now, including UX rules;
 - `docs/architecture` for durable technical boundaries;
 - `docs/adr` for decision history, including the MVP scope boundary in ADR-008;
-- `docs/research` for evidence/provenance, not implementation roadmaps;
 - GitHub history for completed implementation chronology.
 
-Do not maintain stale "next PR" instructions in durable product, architecture, research, or testing documents.
+Do not maintain stale "next PR" instructions in durable product, architecture, or testing documents.
 
 ## Secrets and Artifacts
 
