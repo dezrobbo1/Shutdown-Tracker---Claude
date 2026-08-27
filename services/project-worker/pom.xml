@@ -13,7 +13,7 @@
 
     <artifactId>project-worker</artifactId>
     <name>Shutdown Tracker Project Worker</name>
-    <description>Placeholder Spring Boot worker service for Shutdown Tracker Project processing</description>
+    <description>Shutdown Tracker MPXJ worker: Microsoft Project MSPDI import parsing and candidate artifact generation</description>
 
     <dependencies>
         <dependency>
