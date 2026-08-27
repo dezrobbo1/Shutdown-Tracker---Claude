@@ -24,6 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
+import java.util.TreeSet;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -88,6 +90,7 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
         verifySourceHash(sourceBytes, request.source().contentHash(), sourcePath);
 
         Document candidate = parseMspdi(sourceBytes);
+        requireNoResourceAssignments(candidate, request);
         int sourceTaskCount = applyApprovedInputs(candidate, request);
 
         try {
@@ -114,6 +117,47 @@ public class MpxjMspdiExportArtifactService implements ProjectExportArtifactServ
             throw new IllegalStateException(
                     "Failed to generate MSPDI/XML candidate schedule: " + normalizedOutputPath.getFileName(),
                     ex
+            );
+        }
+    }
+
+    /**
+     * Refuses to export progress onto a task that carries resource assignments.
+     *
+     * <p>The BOILER trial proved Microsoft Project derives progress on assigned tasks from
+     * assignment-level actual work, not from task-level {@code PercentComplete}: a candidate that
+     * writes only task fields is self-contradictory (100% complete yet zero actual work) and
+     * Project rejects or recalculates it away. Until this exporter writes the complete evidenced
+     * transaction — task, assignment, and timephased fields, per
+     * {@code docs/product/project-progress-field-contract.md} — exporting an assigned task would
+     * silently produce a candidate that lies. Refusing loudly is the only honest behaviour.
+     */
+    private void requireNoResourceAssignments(Document candidate, ProjectExportArtifactRequest request) {
+        Set<String> approvedUids = new TreeSet<>();
+        for (ProjectExportArtifactTask task : request.tasks()) {
+            approvedUids.add(Integer.toString(
+                    parsePositiveInteger(task.microsoftProjectTaskUid(), "microsoftProjectTaskUid")
+            ));
+        }
+
+        Set<String> assignedApprovedUids = new TreeSet<>();
+        NodeList assignments = candidate.getElementsByTagNameNS(MSPDI_NAMESPACE, "Assignment");
+        for (int index = 0; index < assignments.getLength(); index++) {
+            Element taskUid = firstChild((Element) assignments.item(index), "TaskUID");
+            if (taskUid != null && approvedUids.contains(taskUid.getTextContent().trim())) {
+                assignedApprovedUids.add(taskUid.getTextContent().trim());
+            }
+        }
+
+        if (!assignedApprovedUids.isEmpty()) {
+            throw new IllegalStateException(
+                    "Approved Microsoft Project task UIDs carry resource assignments in the accepted "
+                            + "source schedule: " + String.join(", ", assignedApprovedUids)
+                            + ". Task-level progress on assigned tasks is rejected by Microsoft Project "
+                            + "unless assignment actual work and timephased data are written with it; "
+                            + "this exporter does not yet write that transaction "
+                            + "(docs/product/project-progress-field-contract.md), so these tasks cannot "
+                            + "be exported."
             );
         }
     }

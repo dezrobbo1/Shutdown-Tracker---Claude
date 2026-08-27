@@ -1,0 +1,80 @@
+package com.shutdowntracker.projectworker.exporter;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactField;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactFieldValue;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactRequest;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactSource;
+import com.shutdowntracker.projectexport.contract.ProjectExportArtifactTask;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Holds the verdict of the BOILER round-trip trial: exporting task-level progress onto a task
+ * that carries resource assignments produces a candidate Microsoft Project rejects, so the
+ * exporter must refuse it loudly instead of emitting it.
+ *
+ * <p>The fixture is the real BOILER WG110 schedule and task UID 43 is one of the three tasks the
+ * disproven trial actually used. See {@code docs/product/project-progress-field-contract.md}.
+ */
+class MspdiAssignedTaskExportGuardTests {
+
+    private static final Path BOILER_FIXTURE = Path.of("..", "..", "fixtures", "project-files",
+            "boiler", "boiler-before-no-progress.xml").toAbsolutePath().normalize();
+
+    private static ProjectExportArtifactSource BOILER_SOURCE;
+
+    private final MpxjMspdiExportArtifactService service = new MpxjMspdiExportArtifactService();
+
+    @TempDir
+    private Path tempDir;
+
+    @BeforeAll
+    static void resolveSource() throws Exception {
+        BOILER_SOURCE = new ProjectExportArtifactSource(
+                UUID.fromString("00000000-0000-0000-0000-0000000000b1"),
+                BOILER_FIXTURE.toUri().toString(),
+                HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(BOILER_FIXTURE))
+                )
+        );
+    }
+
+    @Test
+    void refusesTaskLevelProgressOnAssignedTask() {
+        ProjectExportArtifactRequest request = new ProjectExportArtifactRequest(
+                "BOILER WG110 BLB001",
+                BOILER_SOURCE,
+                List.of(new ProjectExportArtifactTask(
+                        "boiler-task-43",
+                        "43",
+                        "3",
+                        "Conduct all pre-work scaffold lifts",
+                        true,
+                        List.of(new ProjectExportArtifactFieldValue(
+                                ProjectExportArtifactField.PERCENT_COMPLETE, "100"
+                        ))
+                ))
+        );
+        Path outputPath = tempDir.resolve("boiler-guard.mspdi.xml");
+
+        assertThatThrownBy(() -> service.generate(request, BOILER_FIXTURE, outputPath))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("resource assignments")
+                .hasMessageContaining("43")
+                .hasMessageContaining("project-progress-field-contract");
+
+        assertThat(Files.exists(outputPath))
+                .as("a refused export must not leave a candidate artifact behind")
+                .isFalse();
+    }
+}
