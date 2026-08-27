@@ -13,7 +13,7 @@
 
     <artifactId>api</artifactId>
     <name>Shutdown Tracker API</name>
-    <description>Placeholder Spring Boot API service for Shutdown Tracker</description>
+    <description>Shutdown Tracker execution-control API: task progress capture, review workflow, export eligibility, and audit</description>
 
     <dependencies>
         <dependency>
