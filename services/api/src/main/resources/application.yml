@@ -54,6 +54,10 @@ shutdown-tracker:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_DEMO_IDENTITIES_ENABLED:false}
     dataset-id: ${SHUTDOWN_TRACKER_REVIEW_DEMO_DATASET_ID:synthetic-review-identities}
     email-domain: ${SHUTDOWN_TRACKER_REVIEW_DEMO_EMAIL_DOMAIN:review.invalid}
+  review-data-reset:
+    # Off by default and tested to be, in ApplicationYamlTests. Separate from the identity flag on
+    # purpose: listing who exists and destroying a trial are not the same power.
+    enabled: ${SHUTDOWN_TRACKER_REVIEW_DATA_RESET_ENABLED:false}
   review-project-bootstrap:
     enabled: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_ENABLED:false}
     project-name: ${SHUTDOWN_TRACKER_REVIEW_PROJECT_BOOTSTRAP_PROJECT_NAME:Synthetic Review Project}

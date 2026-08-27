@@ -112,6 +112,15 @@ public enum Capability {
             ProjectRole.CONTRACTOR,
             ProjectRole.INSPECTOR),
 
+    /**
+     * Clearing a synthetic review project back to nothing.
+     *
+     * <p>Trial scaffolding, and admin-only so that the refusal is the default for everybody else.
+     * It is not in {@code docs/product/permission-matrix.md} because it is not a product capability:
+     * it exists alongside the review seeder and leaves with it.
+     */
+    RESET_REVIEW_DATA(ProjectRole.ADMIN),
+
     VIEW_PROJECT(
             ProjectRole.ADMIN,
             ProjectRole.PLANNER,

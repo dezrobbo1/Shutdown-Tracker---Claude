@@ -6,6 +6,7 @@ import type { ConsoleSession } from "./session";
 import { consoleZones, sectionById, useZoneRoute, zoneById, zoneHref } from "./router";
 import type { ConsoleRoute } from "./router";
 import { buildZoneSession } from "./zones/ZoneProps";
+import { ResetReviewData } from "./ResetReviewData";
 import { ImportReviewZone } from "./zones/ImportReviewZone";
 import { ExecutionZone } from "./zones/ExecutionZone";
 import { PlannerReviewZone, SupervisorReviewZone } from "./zones/ReviewQueueZone";
@@ -74,6 +75,14 @@ export function App() {
             One person drives this console, and the build decides who. The server resolves their
             real membership on this project and is what actually decides what they may do.
           </p>
+          {session.live ? (
+            <ResetReviewData
+              client={client}
+              projectId={session.projectId}
+              allowed={zoneSession.canResetReviewData}
+              onReset={() => setReloadToken((value) => value + 1)}
+            />
+          ) : null}
         </div>
       </aside>
 

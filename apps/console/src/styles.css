@@ -853,3 +853,79 @@ input[type="number"] {
   font: inherit;
   font-size: 0.82rem;
 }
+
+/* Clearing review data. Destructive, and styled to look it, but the safeguard is the typed
+   confirmation rather than the colour. */
+.reset-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.danger-button {
+  justify-self: start;
+  padding: 6px 10px;
+  border: 1px solid var(--tone-red);
+  border-radius: var(--radius);
+  background: var(--tone-red-wash);
+  color: var(--tone-red-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.link-button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.reset-confirm {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.reset-confirm input {
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font: inherit;
+}
+
+.reset-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.reset-summary {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.reset-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-muted);
+}

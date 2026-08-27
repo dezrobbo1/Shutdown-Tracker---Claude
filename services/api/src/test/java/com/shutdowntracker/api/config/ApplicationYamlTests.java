@@ -74,4 +74,17 @@ class ApplicationYamlTests {
                 .describedAs("seeded identities must never be on unless somebody asked for them")
                 .isEqualTo("${SHUTDOWN_TRACKER_REVIEW_DEMO_IDENTITIES_ENABLED:false}");
     }
+
+    @Test
+    void reviewDataResetIsDisabledByDefault() throws IOException {
+        List<PropertySource<?>> sources =
+                loader.load("application.yml", new ClassPathResource("application.yml"));
+
+        // This one deletes a project's entire history. It is guarded further by a synthetic-project
+        // check, but the default being off is the guarantee that a real deployment does not have the
+        // route at all, and that belongs in a test rather than in a reader's memory of the YAML.
+        assertThat(sources.get(0).getProperty("shutdown-tracker.review-data-reset.enabled"))
+                .describedAs("a wipe must never be reachable unless somebody asked for it")
+                .isEqualTo("${SHUTDOWN_TRACKER_REVIEW_DATA_RESET_ENABLED:false}");
+    }
 }

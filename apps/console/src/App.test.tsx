@@ -40,6 +40,7 @@ import { ProblemsZone } from "./zones/ProblemsZone";
 import { HandoverZone } from "./zones/HandoverZone";
 import { MappingZone } from "./zones/MappingZone";
 import { PeopleZone, resourceLabel } from "./zones/PeopleZone";
+import { ResetReviewData } from "./ResetReviewData";
 import { ExportZone } from "./zones/ExportZone";
 import { TodayZone } from "./zones/TodayZone";
 import { EvidenceZone, attachEvidenceFile, fileSizeLabel } from "./zones/EvidenceZone";
@@ -309,6 +310,44 @@ describe("capability gating mirrors the product rules", () => {
     expect(capabilityAllows("MANAGE_RESOURCE_LINK", "planner")).toBe(true);
     expect(capabilityAllows("MANAGE_RESOURCE_LINK", "admin")).toBe(true);
     expect(capabilityAllows("MANAGE_RESOURCE_LINK", "supervisor")).toBe(false);
+  });
+});
+
+describe("clearing review data", () => {
+  const client = createConsoleApiClient(buildConsoleSession({}), {
+    fetchImpl: () => Promise.reject(new Error("no network in tests"))
+  });
+
+  it("refuses the control to somebody who may not clear it", () => {
+    const html = renderToString(
+      <ResetReviewData client={client} projectId="project-1" allowed={false} onReset={() => {}} />
+    );
+
+    // Disabled with the reason rather than absent. A missing control on a deployment that has the
+    // route would send somebody looking for a bug instead of at their own permissions.
+    // The apostrophe is HTML-escaped in the rendered output, so the assertion stops short of it.
+    expect(html).toContain("capability-gate");
+    expect(html).toContain("Clearing review data is limited to the trial");
+    expect(html).toContain("fieldset disabled");
+  });
+
+  it("does not delete anything on the first click", () => {
+    const html = renderToString(
+      <ResetReviewData client={client} projectId="project-1" allowed onReset={() => {}} />
+    );
+
+    // The button opens a panel and nothing else, so a stray click cannot wipe a trial mid-walk.
+    expect(html).toContain("Clear review data");
+    expect(html).not.toContain("Type the project's name to confirm");
+  });
+
+  it("offers a real control when it is allowed, rather than a disabled one", () => {
+    const html = renderToString(
+      <ResetReviewData client={client} projectId="project-1" allowed onReset={() => {}} />
+    );
+
+    expect(html).toContain("danger-button");
+    expect(html).not.toContain("capability-gate");
   });
 });
 

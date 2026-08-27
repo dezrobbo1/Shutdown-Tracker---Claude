@@ -61,8 +61,12 @@ the field app and the role model parked.
   revoked, account deactivated, rows kept so the audit trail still names somebody. The console's
   identity selector is gone with them, and so is the stored identity that outlived it: a browser
   that had once chosen "Review Planner" went on acting as one through every redeploy.
-- **Remaining — clearing back to a blank slate.** The trial needs to be startable again: imported
-  schedules, tracked work, reviews and exports cleared, the super user and the project kept.
+- **Landed — clearing back to a blank slate.** A console control clears the imported schedule,
+  tracked work, reviews, exports, resource links and the audit trail, along with the stored files
+  they pointed at; the project and the super user are kept so the console still works and
+  `redeploy.sh` can still resolve who to build as. Truncate rather than delete, because the export
+  chain is append-only by trigger. Refused for any project without the synthetic marker, and the
+  route does not exist unless a deployment switches it on.
 - **Remaining — the super user grants roles and responsibilities.** Roles and capability grants are
   compile-time today. Letting one person define who else exists and what they may do moves that into
   the database. Not started, and the largest of the three.
@@ -201,7 +205,7 @@ Verify GitHub Actions on the branch head. A previously green run is not evidence
   so.** This is the last unmet condition. The chain was walked over HTTP on 2026-08-21 and the
   repeatable procedure is written down at
   [docs/testing/product-walkthrough.md](../testing/product-walkthrough.md), but its controls have
-  never been clicked. The review deployment is up and its four identities are seeded, so this needs
+  never been clicked. The review deployment is up and its one super user is seeded, so this needs
   no code — only somebody doing it, and recording what it found.
 - Documentation matches the implementation, including what remains unimplemented.
 

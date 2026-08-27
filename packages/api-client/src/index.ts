@@ -944,6 +944,17 @@ export type ReviewIdentity = {
   projectId: string;
 };
 
+/** What a review reset cleared, table by table, so the console can say what happened. */
+export type ReviewDataResetResult = {
+  projectId: string;
+  projectName: string;
+  resetAt: string;
+  tables: { name: string; rowsDeleted: number }[];
+  blobs: { root: string; filesDeleted: number; bytesFreed: number; error: string | null }[];
+  keptTables: string[];
+  warnings: string[];
+};
+
 export type ReviewApiSurface = {
   label: string;
   method: "GET" | "POST";
@@ -952,6 +963,7 @@ export type ReviewApiSurface = {
 
 export const shutdownTrackerReviewApiSurfaces: ReviewApiSurface[] = [
   { label: "List seeded review identities", method: "GET", path: "/api/review-identities" },
+  { label: "Reset synthetic review data", method: "POST", path: "/api/projects/{projectId}/review-reset" },
   { label: "Upload source file", method: "POST", path: "/api/projects/{projectId}/source-files" },
   {
     label: "Request import batch parse summary",
@@ -1037,6 +1049,19 @@ export function createShutdownTrackerApiClient(options: ShutdownTrackerApiClient
       // Not project-scoped, and takes no actor: it answers which people exist before one has been
       // chosen. Absent in any real deployment, where the route is a plain 404.
       list: () => requestJson<ReviewIdentity[]>(transport, baseUrl, defaultHeaders, "/api/review-identities")
+    },
+    reviewReset: {
+      // The project's name is sent back as a typed confirmation and re-checked on the server. The
+      // console will not enable its button without it, but this endpoint is reachable by anything
+      // that can make a request, so the deliberate act is verified where the deletion happens.
+      run: (projectId: string, confirmation: string) =>
+        requestJson<ReviewDataResetResult>(
+          transport,
+          baseUrl,
+          defaultHeaders,
+          `/api/projects/${projectId}/review-reset`,
+          { method: "POST", body: { confirmation } }
+        )
     },
     sourceFiles: {
       upload: (projectId: string, file: Blob, filename?: string) => {

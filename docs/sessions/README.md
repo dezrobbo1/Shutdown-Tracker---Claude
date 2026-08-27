@@ -119,3 +119,4 @@ An entry is a durable, public record. Write it as one.
 - [2026-08-25 — Back to one person and seven columns](2026-08-25-back-to-one-person-and-seven-columns.md)
 - [2026-08-26 — One person, and one rule](2026-08-26-one-person-and-one-rule.md)
 - [2026-08-27 — The half that was still two people](2026-08-27-the-half-that-was-still-two-people.md)
+- [2026-08-27 — A button that empties a database](2026-08-27-a-button-that-empties-a-database.md)
