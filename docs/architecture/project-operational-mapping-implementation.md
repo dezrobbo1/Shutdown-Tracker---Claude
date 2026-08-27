@@ -661,7 +661,7 @@ Required behavioural tests include:
 - membership generation cannot expose mixed old/new active sets;
 - audit events are produced for configuration/remap/activation changes.
 
-Use only synthetic/sanitized fixtures committed under repository fixture policy.
+Fixtures may be synthetic or real Microsoft Project files committed under repository fixture policy.
 
 ## First coding PR exit criteria
 

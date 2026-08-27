@@ -221,4 +221,4 @@ or on Windows PowerShell:
 .\scripts\db\validate-migrations.ps1
 ```
 
-The repository must not contain real customer Project files, generated exports, evidence uploads, secrets, local databases, or other operational artifacts unless an explicit fixture policy permits a fully synthetic test asset.
+The repository must not contain secrets, credentials, or local databases. Real Microsoft Project files and exports are permitted as committed test fixtures and reference material.
