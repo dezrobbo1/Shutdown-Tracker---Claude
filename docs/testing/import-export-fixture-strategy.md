@@ -2,19 +2,19 @@
 
 ## Purpose
 
-Import/export fixtures exist to make Microsoft Project import and controlled export behavior testable without committing real shutdown schedules or commercial project data.
+Import/export fixtures exist to make Microsoft Project import and controlled export behavior testable. Fixtures may be synthetic or real Microsoft Project files committed deliberately with a documented purpose.
 
 Fixtures must protect the product boundary: Shutdown Tracker is live execution and reporting software. Microsoft Project remains the schedule authority. Fixtures must not be used to introduce scheduler logic, CPM, critical-path calculation, float calculation, resource levelling, recovery scheduling, automatic date movement, live Project feeds, or uncontrolled Project write-back.
 
 ## Allowed Fixtures
 
 - Synthetic Project files created only for testing.
-- Sanitized Project files only after all real names, sites, assets, work orders, vendors, costs, people, locations, and commercial data are removed.
+- Real Project files committed deliberately as fixtures with a documented purpose (see `fixtures/project-files/`).
 - Small safe hand-built MSPDI snippets later, after review and explicit approval.
 - Expected parser/export output JSON generated from safe fixtures.
 - Text-only fixture manifests.
 
-The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. The second is `fixtures/import-export/synthetic-shutdown-areas/synthetic-shutdown-areas.mspdi.xml`, which is shutdown-shaped rather than minimal: four areas, two discipline branches each, resources carrying Groups, assignments, and aliased task custom fields. This approval is limited to those reviewed synthetic fixture paths and does not permit real Project XML or broad Project-file commits.
+The first approved synthetic MSPDI fixture is `fixtures/import-export/synthetic-basic-wbs/synthetic-basic-wbs.mspdi.xml`. The second is `fixtures/import-export/synthetic-shutdown-areas/synthetic-shutdown-areas.mspdi.xml`, which is shutdown-shaped rather than minimal: four areas, two discipline branches each, resources carrying Groups, assignments, and aliased task custom fields. Real Project XML fixtures live under `fixtures/project-files/`; the first approved set is the BOILER before/after evidence pair behind the progress field contract.
 
 Fixtures are hand-authored rather than written by MPXJ. Generating one would give schema-correct element ordering by construction, but at the cost of hundreds of defaulted elements and writer-version markers in a file this policy requires a person to review, and of bytes that churn on every MPXJ upgrade. Ordering is guarded by assertion instead: `MspdiFixtureElementOrderTests` checks every committed `*.mspdi.xml` against `MspdiTaskElementOrder`, which reflects over MPXJ's own JAXB binding — the same authority the export writer uses.
 
