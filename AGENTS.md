@@ -36,8 +36,8 @@ repository rule, or irreversible external actions.
 
 - Keep each PR one focused outcome; smallest coherent change; follow nearby code patterns.
 - Schema changes are new versioned files under `infra/migrations` — never rewrite an applied one.
-- Synthetic or approved sanitized fixtures only. No real schedules, customer data, secrets, or
-  generated artifacts in Git.
+- Real Microsoft Project schedule files are permitted as committed test fixtures. No secrets,
+  credentials, or generated build artifacts in Git.
 - No history rewriting, force-pushes, or merging PRs without explicit instruction.
 
 ## Validation

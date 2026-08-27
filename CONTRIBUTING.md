@@ -42,4 +42,4 @@ Do not maintain stale "next PR" instructions in durable product, architecture, o
 
 ## Secrets and Artifacts
 
-Do not commit secrets, `.env` files, uploaded source archives, real Microsoft Project files, PDFs, DOCX files, generated exports, local database files, evidence uploads, screenshots containing operational data, or other confidential/binary artifacts unless an explicit fixture policy approves a fully synthetic test asset.
+Do not commit secrets, `.env` files, local database files, or generated build artifacts. Real Microsoft Project schedule files, exports, and other operational documents are permitted when committed deliberately as test fixtures or reference material.
