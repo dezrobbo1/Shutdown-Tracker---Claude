@@ -80,7 +80,15 @@ candidate delta classifier must accept as legitimate consequences of adopted pro
 Evidenced by the three native partial samples in `boiler-progress-native-partial.xml` (UIDs 335
 at 50%, 39 at 25%, 340 at 20%). Partial progress is a split, not a scale: actual work fills the
 task's working time from the front, `Stop`/`Resume` marks the boundary, and the remainder stays
-planned. All three samples show one consistent shape for a task at N%:
+planned.
+
+This transaction is evidenced only for the shape all three samples share: a single assignment
+with uniformly distributed (flat-contour) work, an actual start equal to the planned start, and
+an actual prefix that ends within its first working day. For a contoured or otherwise uneven
+timephased assignment, the first N% of duration need not contain N% of work — `ActualWork` must
+come from the actual prefix blocks, not from scaling planned work — and none of the samples
+shows that case. See Open evidence. Within the evidenced shape, all three samples show one
+consistent transaction for a task at N%:
 
 ### Task element
 
@@ -109,15 +117,24 @@ same split point.
 
 ### Assignment TimephasedData
 
-The original planned block splits at the `Stop` point: one `Type=2` actual-work block from
+The original planned block splits at the `Stop` point: `Type=2` actual-work block(s) from
 `ActualStart` to `Stop` holding the actual work, then `Type=1` remaining-work block(s) from
 `Stop` to the assignment finish holding the remainder. Project splits the remaining `Type=1`
 span across calendar days (UID 39 shows the 30h remainder split across multiple day blocks).
+Every evidenced actual prefix ends within its first working day, so each sample happens to show
+a single `Type=2` block; completed tasks on the same schedule show Project writing per-day
+`Type=2` blocks (UID 39 completed: 16h+16h+8h), so a multi-day actual prefix almost certainly
+splits per day — but that shape is unevidenced for partial progress. See Open evidence.
 
-## The transaction Project performs for a completed milestone
+## The shape Project stores for a completed milestone
 
-Evidenced by `boiler-mark-on-track.xml` (UID 40, a zero-duration milestone completed by Mark on
-Track; UID 41, a later milestone correctly left untouched at 0%).
+Final-state evidence from both native saves: milestone UID 40 is already complete in
+`boiler-progress-native-partial.xml` and carries the identical values in
+`boiler-mark-on-track.xml`, so it was completed by native entry in the earlier session — not by
+the Mark on Track action (the tasks marked in that session were IDs 38–41, which are UIDs
+335/39/340/38; UID 40 is ID 32). The fixtures therefore evidence the stored shape of a completed
+milestone, but not which statusing function produced it, and UID 41 remaining at 0% cannot be
+attributed to status-date protection. What the stored shape shows:
 
 - Task: `PercentComplete` and `PercentWorkComplete` `100`; `ActualStart` = `ActualFinish` = the
   milestone datetime; `ActualDuration`, `ActualWork`, `RemainingDuration`, `RemainingWork` all
@@ -128,34 +145,73 @@ Track; UID 41, a later milestone correctly left untouched at 0%).
   transaction with zero work and no timephased conversion. An exporter completing a milestone
   must treat the placeholder the same way.
 
-Mark on Track on regular tasks 38 and 39 produced field-for-field the same 100%-complete
-transaction defined above (task 39's 40h of work converted to per-day `Type=2` blocks of
-16h+16h+8h), independently confirming the contract via Project's own statusing function.
+Mark on Track (applied to IDs 38–41 = task UIDs 335, 39, 340, and 38, with the status date at
+2026-09-05) completed all four field-for-field per the 100%-complete transaction defined above —
+including UID 39, which it took from 25% partial to complete, converting its 40h of work to
+per-day `Type=2` blocks of 16h+16h+8h. This independently confirms the completion contract via
+Project's own statusing function.
 
 ## Project-save header rewrite (re-import warning)
 
-Both native Project saves rewrote project-level header fields with the application's own
-defaults, while all calendars, tasks, resources, and assignments survived intact:
+Project saves can rewrite project-level header fields while all calendars, tasks, resources, and
+assignments survive intact — and which fields get rewritten varies per save. The round-trip save
+(`boiler-roundtrip-project-saved-task43.xml`) preserved the original time options; the two later
+saves (`boiler-progress-native-partial.xml`, `boiler-mark-on-track.xml`) rewrote them with
+application defaults. The complete observed set:
 
-- `MinutesPerDay` reset from the file's 600 to Project's default 480; `DefaultStartTime` from
-  07:00 to 08:00; `WeekStartDay` from Monday to Sunday; `NewTasksAreManual` from 0 to 1.
-- `StartDate`, `CalendarUID`, `CreationDate`, `CurrentDate`, and `Name` were dropped from the
-  header; `Title` was replaced with the file name.
-- `StatusDate` reflects whatever the user set in Project — the one header change that is real
-  statusing signal.
+| Header field | Original | Round-trip save | Partial save | Mark-on-track save |
+| --- | --- | --- | --- | --- |
+| `StatusDate` | 2025-05-09T17:00 | unchanged | 2026-08-28T10:00 | 2026-09-05T10:00 |
+| `MinutesPerDay` | 600 | unchanged | 480 | 480 |
+| `DefaultStartTime` | 07:00 | unchanged | 08:00 | 08:00 |
+| `WeekStartDay` | 1 (Mon) | unchanged | 0 (Sun) | 0 (Sun) |
+| `NewTasksAreManual` | 0 | unchanged | 1 | 1 |
+| `NewTasksEstimated` | 1 | unchanged | 0 | 0 |
+| `DurationFormat` | 5 | unchanged | 7 | 7 |
+| `SpreadPercentComplete` | 0 | unchanged | 1 | 1 |
+| `SpreadActualCost` | 0 | unchanged | 1 | 1 |
+| `Autolink` | 0 | unchanged | 1 | 1 |
+| `MicrosoftProjectServerURL` | 1 | unchanged | 0 | 0 |
+| `CurrencySymbolPosition` | 0 | unchanged | 1 | 1 |
+| `CurrencySymbol` | `$` | unchanged | dropped | dropped |
+| `GUID` | original GUID | new GUID | zeroed | zeroed |
+| `StartDate`, `CalendarUID`, `CreationDate`, `CurrentDate` | present | unchanged (`CurrentDate` updated) | dropped | dropped |
+| `BaselineCalendar` | present | unchanged | dropped | dropped |
+| `Name` | original file name | new file name | dropped | new file name |
+| `Title` | Project Plan Template | unchanged | new file name | new file name |
+| `LastSaved` | — | updated | updated | updated |
+
+`StatusDate` is the one header change that is real statusing signal; everything else above is a
+save artifact.
 
 Consequence: when re-importing a Project-saved file as a new accepted source, never derive
-durations or working-time math from header time options. Stored durations are absolute
-(`PT8H0M0S` style) and the task calendars survived byte-identically; those are the truth. Header
-deltas of this shape are legitimate save artifacts, not data loss, and the delta classifier must
-accept them.
+durations or working-time math from header time options — they may or may not survive a given
+save. Stored durations are absolute (`PT8H0M0S` style) and the task calendars survived
+byte-identically in every save; those are the truth. The delta classifier must accept header
+deltas within the observed set above (including the per-save variation), and must not treat them
+as data loss.
 
 ## Open evidence
 
-None for the progress transactions themselves. Remaining unevidenced territory: progress on
-tasks with multiple concurrent assignments where per-resource actuals differ (all evidenced
-samples either complete every assignment identically or carry a single real assignment), and
-resumed split tasks (`Stop` earlier than `Resume`).
+The 100%-complete and milestone shapes are fully evidenced. The partial-progress transaction is
+evidenced only for its narrow shape; the exporter must not emit partial progress outside it
+until a native sample closes each gap:
+
+- Uneven work contours: all partial samples have uniformly distributed work, so
+  `ActualWork` = N% of plan is only proven for flat contours. A contoured assignment needs its
+  own native sample before the scaling rule is trusted.
+- Shifted actual starts: all partial samples have `ActualStart` equal to planned `Start`. How
+  Project moves remaining timephased blocks and computes `Stop` when the actual start differs
+  from plan is unevidenced — despite being a supported console input.
+- Multi-day actual prefixes: every evidenced partial prefix ends within its first working day.
+  Whether a longer prefix produces one `Type=2` block or per-day blocks is unevidenced for
+  partial progress.
+- Progress on tasks with multiple concurrent assignments where per-resource actuals differ (all
+  evidenced samples either complete every assignment identically or carry a single real
+  assignment).
+- Resumed split tasks (`Stop` earlier than `Resume`).
+- Which statusing function produces the milestone shape (only the stored final state is
+  evidenced), and status-date protection of future tasks.
 
 ## Round-trip verification (2026-08-28)
 
