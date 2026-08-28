@@ -4,13 +4,68 @@ Manual Microsoft Project round-trip evidence records a human review of a generat
 
 ## Current Status
 
-No manual Microsoft Project round-trip has been executed or claimed by this document. This file defines the evidence format and acceptance rules for a future manual review using synthetic or fully sanitized data only.
+One manual Microsoft Project round-trip has been executed and passed. The completed evidence
+record is in "Completed Evidence Records" below. It verifies the exporter's completed-assigned-task
+transaction on the real BOILER fixture (allowed since the fixture policy change that permits real
+Project files as deliberate fixtures; the synthetic-only rules earlier in this document predate
+that change and are superseded by it for deliberately committed evidence fixtures).
 
-The first preferred candidate is the synthetic export artifact described by:
+The check was narrower than the full procedure: it verified artifact generation, open,
+recalculation, save, and field survival. It did not exercise the console review/approval pipeline
+(no export batch or approval events existed; the artifact was generated directly from the
+exporter service against the committed fixture), and no offset-bearing timezone input was
+included. Those remain for the console round-trip trial.
 
-- `fixtures/import-export/synthetic-basic-wbs/expected-export-artifact-summary.json`
+## Completed Evidence Records
 
-The generated MSPDI/XML artifact for that candidate must be created locally as temporary output and must not be committed.
+```text
+evidence_id: RT-2026-08-28-BOILER-43
+review_date: 2026-08-28
+reviewer_role: product owner (manual Microsoft Project operator)
+fixture_or_source: fixtures/project-files/boiler/boiler-before-no-progress.xml
+synthetic_or_sanitized: real schedule, committed as a deliberate fixture per the fixture policy
+contains_real_project_data: true (policy-permitted committed fixture)
+expected_output_reference: docs/product/project-progress-field-contract.md (completion transaction)
+export_batch_id: none (generated directly via MpxjMspdiExportArtifactService against the fixture)
+authoritative_candidate_ids: none (console pipeline not exercised)
+captured_approval_event_ids: none (console pipeline not exercised)
+project_id: BOILER WG110 BLB001 (fixture)
+generated_artifact_uri: fixtures/project-files/boiler/boiler-roundtrip-candidate-task43.xml
+generated_artifact_hash: sha256:7dcd4d828944db9b5284ae1e0b6694571a7ea38433fc20959ed3a130f328cdec
+generated_artifact_committed: true (deliberate proof fixture; policy-permitted)
+microsoft_project_application: Microsoft Project desktop
+microsoft_project_version: 16.0.20228.20188
+opened_in_microsoft_project: yes
+open_result: pass
+fields_checked:
+  - percent_complete
+  - percent_work_complete
+  - actual_start
+  - actual_finish
+  - actual_duration
+  - actual_work
+  - remaining_duration
+  - remaining_work
+  - stop
+  - resume
+  - assignment fields and timephased Type 2 block (task UID 43)
+candidate_opens_as_complete_schedule: pass
+source_structure_preserved_check: pass (all calendars, tasks, resources, assignments intact)
+only_approved_fields_modified_check: pass (approved inputs plus contract-derived values only)
+summary_task_exclusion_check: pass (no summary actual authored by Shutdown Tracker; Project
+  rolled up UIDs 0/1/34 itself, plus resource UID 4 — see the field contract)
+accepted_source_file_unchanged: pass (source fixture not modified)
+task_identity_check: pass (UID 43 traceable; all other task UIDs unchanged)
+wall_clock_value_check: not exercised (no offset-bearing input in this check; remains open)
+recalculation_by_microsoft_project_only: pass (F9 recalculation and save performed in Project)
+no_project_write_back_by_tracker: pass
+decision: pass — the completed-assigned-task export transaction is accepted by Microsoft
+  Project; Project-saved result committed as
+  fixtures/project-files/boiler/boiler-roundtrip-project-saved-task43.xml
+  (sha256:aff57ce8466d619466c51cb6b0366d25933dc6080d256859a961a1154c4c2dc8)
+notes: scope limited to a single-assignment, single-timephased-block completed task; the
+  console review/approval pipeline and offset-bearing timezone inputs were not exercised.
+```
 
 ## Controlled Handoff Lifecycle
 

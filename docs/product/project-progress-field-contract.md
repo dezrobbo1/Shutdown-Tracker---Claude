@@ -59,8 +59,12 @@ candidate delta classifier must accept as legitimate consequences of adopted pro
 
 - `StartSlack`, `FinishSlack`, `TotalSlack` collapse to `0` on completed tasks.
 - `LateStart` / `LateFinish` move to the actual dates.
-- Summary tasks (including UID 0) roll up partial `PercentComplete` / `PercentWorkComplete`,
-  `ActualDuration`, `ActualWork`, and `RemainingWork` values.
+- Summary tasks (including UID 0) roll up progress from their descendants. The complete
+  observed field set on affected summary ancestors (round-trip pair, UIDs 0/1/34):
+  `PercentComplete` and `PercentWorkComplete` (UID 0 can stay 0 when the rollup rounds down),
+  `ActualStart`, `ActualDuration`, `ActualWork`, `RemainingDuration`, `RemainingWork`, and
+  `Stop`/`Resume` (set to the rolled-up actual boundary). `ActualFinish` stays absent while any
+  descendant is incomplete.
 - Resource elements roll up progress from their assignments: `PercentWorkComplete`, `ActualWork`,
   and `RemainingWork` on each affected Resource move to reflect adopted actuals (observed in the
   round-trip verification: resource UID 4 moved from 0% / 0h / 374h to 4% / 16h / 358h).
@@ -95,6 +99,18 @@ Project-saved result (`boiler-roundtrip-project-saved-task43.xml`) shows:
 Tasks with multiple assignments, or assignments with multiple timephased blocks, are not covered
 by this proof and need their own round-trip sample before the exporter's behavior on them is
 treated as verified.
+
+### Save metadata and numeric-representation deltas
+
+Beyond progress rollup, this save also changed pure metadata and numeric representation. The
+delta classifier must normalize or accept these without treating them as schedule differences:
+
+- Save metadata: top-level `Name` (replaced with the saved file name), `GUID` (Project issued a
+  new project GUID), `LastSaved`, and `CurrentDate` (updated to the save session). These carry
+  no schedule meaning and should be normalized away.
+- Signed-zero representation: earned-value fields can flip representation without a value change
+  (assignment UID 45: `BCWP` and `CV` `0.00` to `-0.00`). Numeric comparison must be by value,
+  not by string.
 
 This closes the verdict of the original round-trip trial, which disproved the three-field export
 on this same schedule and task. The open evidence gap below (partial progress) still stands.
