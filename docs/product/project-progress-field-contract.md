@@ -86,9 +86,12 @@ at 50%, 39 at 25%, 340 at 20%). Partial progress is a split, not a scale: actual
 task's working time from the front, `Stop`/`Resume` marks the boundary, and the remainder stays
 planned.
 
-This transaction is evidenced only for the shape all three samples share: a single assignment
-with uniformly distributed (flat-contour) work, an actual start equal to the planned start, and
-an actual prefix that ends within its first working day. For a contoured or otherwise uneven
+This transaction is evidenced only for the shape all three samples share: an auto-scheduled,
+fixed-units, non-effort-driven task (`Manual=0`, `Type=0`, `EffortDriven=0`) with a single
+assignment carrying uniformly distributed (flat-contour) work, an actual start equal to the
+planned start, and an actual prefix that ends within its first working day. Fixed-work,
+fixed-duration, manually scheduled, and effort-driven tasks are unevidenced and outside the
+shape. For a contoured or otherwise uneven
 timephased assignment, the first N% of duration need not contain N% of work — `ActualWork` must
 come from the actual prefix blocks, not from scaling planned work — and none of the samples
 shows that case. See Open evidence. Within the evidenced shape, all three samples show one
@@ -109,9 +112,14 @@ consistent transaction for a task at N%:
 | `Stop` | the working-time point where actual work ends |
 | `Resume` | equals `Stop` |
 
-The `Stop`/`Resume` point is computed in working time from `ActualStart` through the task
-calendar — e.g. UID 340 at 20% of a 4h task starting 11:30 stops at 12:18 (48 working minutes
-in).
+The `Stop`/`Resume` point observed in the samples is a working-time offset from `ActualStart`
+through the task calendar — e.g. UID 340 at 20% of a 4h task starting 11:30 stops at 12:18 (48
+working minutes in). Boundary note: this describes what Project calculated, not what Tracker may
+calculate. Deriving `Stop`/`Resume` requires traversing the task calendar — a scheduling
+computation that belongs to Microsoft Project, not Tracker. The exporter must not implement this
+transaction until either a Project-native mechanism performs the working-time math or an
+explicit, recorded boundary decision authorizes Tracker to reproduce it. Until then, partial
+progress on assigned tasks stays refused (the existing guard).
 
 ### Each Assignment element of the task
 
@@ -144,16 +152,26 @@ attributed to status-date protection. What the stored shape shows:
   milestone datetime; `ActualDuration`, `ActualWork`, `RemainingDuration`, `RemainingWork` all
   `PT0H0M0S`; `Stop` = `Resume` = the milestone datetime.
 - BOILER milestones carry a placeholder assignment with `ResourceUID` `-65535` (Project's
-  unassigned sentinel) and no timephased data. Mark on Track set that placeholder to
-  `PercentWorkComplete` `100` with the actual dates and zero work — a completed-assignment
-  transaction with zero work and no timephased conversion. An exporter completing a milestone
-  must treat the placeholder the same way.
+  unassigned sentinel) and no timephased data. In the stored completed state that placeholder
+  holds `PercentWorkComplete` `100` with the actual dates and zero work — a completed-assignment
+  shape with zero work and no timephased conversion. Which statusing action wrote it is not
+  evidenced (see above); what is evidenced is that a completed milestone's placeholder carries
+  these values, so an exporter completing a milestone must leave the placeholder in exactly this
+  state.
 
 Mark on Track (applied to IDs 38–41 = task UIDs 335, 39, 340, and 38, with the status date at
-2026-09-05) completed all four field-for-field per the 100%-complete transaction defined above —
-including UID 39, which it took from 25% partial to complete, converting its 40h of work to
-per-day `Type=2` blocks of 16h+16h+8h. This independently confirms the completion contract via
-Project's own statusing function.
+2026-09-05) completed all four tasks. For tasks completed from a no-progress state, the result is
+field-for-field the 100%-complete transaction defined above, independently confirming the
+completion contract via Project's own statusing function.
+
+UID 39 is different and important: it went from 25% partial to complete, and Project did not
+flip the existing block boundaries — it respread. The partial state held a 10h `Type=2` block
+plus 16h and 14h `Type=1` blocks; the completed state holds per-day `Type=2` blocks of
+16h+16h+8h. The exporter's current type-flip conversion (each `Type=1` block becomes `Type=2`
+over the same window) would instead produce 10h+16h+14h boundaries. Completing an
+already-partial task is therefore NOT covered by the proven completion transaction: it needs its
+own supported normalization and its own Project round trip before the exporter may emit it. The
+proven completion case remains completion from a no-progress source state.
 
 ## Project-save header rewrite (re-import warning)
 
@@ -178,22 +196,42 @@ application defaults. The complete observed set:
 | `MicrosoftProjectServerURL` | 1 | unchanged | 0 | 0 |
 | `CurrencySymbolPosition` | 0 | unchanged | 1 | 1 |
 | `CurrencySymbol` | `$` | unchanged | dropped | dropped |
+| `AgileMode` | 2 | unchanged | 0 | 0 |
+| `SprintLength` | 2 | unchanged | 0 | 0 |
+| `UpdateManuallyScheduledTasksWhenEditingLinks` | 1 | unchanged | 0 | 0 |
+| `SprintCreationThroughDate` | absent | absent | 1984-01-01T00:00 | 1984-01-01T00:00 |
 | `GUID` | original GUID | new GUID | zeroed | zeroed |
 | `StartDate`, `CalendarUID`, `CreationDate`, `CurrentDate` | present | unchanged (`CurrentDate` updated) | dropped | dropped |
 | `BaselineCalendar` | present | unchanged | dropped | dropped |
 | `Name` | original file name | new file name | dropped | new file name |
 | `Title` | Project Plan Template | unchanged | new file name | new file name |
-| `LastSaved` | — | updated | updated | updated |
+| `LastSaved` | 2026-08-27T15:23 | updated | updated | updated |
 
-`StatusDate` is the one header change that is real statusing signal; everything else above is a
-save artifact.
+`StatusDate` is the one header change that is real statusing signal.
 
-Consequence: when re-importing a Project-saved file as a new accepted source, never derive
-durations or working-time math from header time options — they may or may not survive a given
-save. Stored durations are absolute (`PT8H0M0S` style) and the task calendars survived
-byte-identically in every save; those are the truth. The delta classifier must accept header
-deltas within the observed set above (including the per-save variation), and must not treat them
-as data loss.
+Not everything above is harmless, however. The dropped project-level `CalendarUID` is schedule
+data loss with observable corruption downstream: with the project calendar link gone, every
+summary task whose own `CalendarUID` is `-1` (calendar inherited) had its `Duration` and
+`ManualDuration` recalculated to the elapsed wall-clock span. In the two later saves this hit 83
+of 95 summary tasks — e.g. UID 1 keeps the same `Start`/`Finish` but its `Duration` changes from
+`PT160H0M0S` to `PT627H30M0S`. Leaf-task durations were untouched (0 changed), and the calendar
+definitions themselves survived byte-identically — but the inheritance link did not, and the
+summary durations in those files are corrupt, not truth.
+
+Consequences:
+
+- The delta classifier must treat pure save metadata (the table's option and metadata rows) as
+  normalizable, but must treat a dropped project `CalendarUID` — and the summary-duration
+  recalculations that follow from it — as reportable schedule corruption to surface for planner
+  review, never as an acceptable header delta.
+- When re-importing a Project-saved file as a new accepted source, never derive durations or
+  working-time math from header time options, and do not trust summary-task durations from a
+  save whose project `CalendarUID` was dropped. Leaf-task absolute durations (`PT8H0M0S` style)
+  and the calendar definitions survived every save; those are the reliable layer.
+- `boiler-progress-native-partial.xml` and `boiler-mark-on-track.xml` remain valid evidence for
+  the task/assignment/timephased progress transactions (leaf-level state, unaffected by the
+  calendar loss), but their summary durations and header option values must not be used as
+  expected values.
 
 ## Open evidence
 
@@ -216,6 +254,16 @@ until a native sample closes each gap:
 - Resumed split tasks (`Stop` earlier than `Resume`).
 - Which statusing function produces the milestone shape (only the stored final state is
   evidenced), and status-date protection of future tasks.
+- Completing an already-partial task: Project respreads timephased actuals rather than flipping
+  existing block boundaries (UID 39, 25% to complete: 10h+16h+14h became 16h+16h+8h), so this
+  conversion needs its own normalization rule and round-trip proof.
+- Task modes other than auto-scheduled fixed-units non-effort-driven (`Manual=0`, `Type=0`,
+  `EffortDriven=0`) for partial progress.
+
+Independent of missing samples, the partial-progress transaction also carries an unresolved
+boundary question: deriving `Stop`/`Resume` requires working-time calendar math that belongs to
+Microsoft Project, not Tracker (see the boundary note in the partial-progress section). Partial
+progress stays refused until that is resolved, regardless of evidence coverage.
 
 ## Round-trip verification (2026-08-28)
 
